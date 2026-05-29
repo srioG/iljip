@@ -1,0 +1,30 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userosscache
+*.sln.docstates
+
+## Build outputs
+*.dll
+*.exe
+*.pdb
+
+## Rider
+.idea/
+
+## NuGet
+*.nupkg
+packages/
+
+## 클린 빌드 임시 폴더 (Rebuild.ps1 -Clean)
+build/
+
+## 인증서 개인키 (로컬 전용 — packaging\CreateCert.ps1로 재생성)
+*.pfx
+packaging/cert/
+
+## 임시 파일
+*.tmp2

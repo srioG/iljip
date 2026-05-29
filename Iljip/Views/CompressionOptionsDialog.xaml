@@ -1,0 +1,51 @@
+<Window x:Class="Iljip.Views.CompressionOptionsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="압축 옵션"
+        Height="340" Width="430"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource WindowBgBrush}"
+        TextElement.Foreground="{DynamicResource FgBrush}">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- 압축 수준 -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /> <!-- 비밀번호 -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" /> <!-- 버튼 -->
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="압축 수준" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <ComboBox x:Name="LevelCombo" Grid.Row="1" Height="28" SelectedIndex="2">
+            <ComboBoxItem Content="저장 (압축 안 함, 가장 빠름)" />
+            <ComboBoxItem Content="빠름" />
+            <ComboBoxItem Content="보통 (권장)" />
+            <ComboBoxItem Content="최대 압축 (가장 느림)" />
+        </ComboBox>
+
+        <TextBlock Grid.Row="2" Text="비밀번호 (선택)" FontWeight="SemiBold" Margin="0,18,0,6" />
+        <PasswordBox x:Name="PasswordBox1" Grid.Row="3" Height="28" />
+
+        <TextBlock Grid.Row="4" Text="비밀번호 확인" Margin="0,8,0,4" Foreground="{DynamicResource FgMutedBrush}" FontSize="11" />
+        <PasswordBox x:Name="PasswordBox2" Grid.Row="5" Height="28" />
+
+        <TextBlock x:Name="HintText"
+                   Grid.Row="6"
+                   Margin="0,14,0,0"
+                   FontSize="11"
+                   Foreground="{DynamicResource FgMutedBrush}"
+                   TextWrapping="Wrap"
+                   Text="* ZIP 포맷은 AES-256 암호화로 저장됩니다.&#10;* 7Z/TAR/GZ/BZ2는 비밀번호를 지원하지 않습니다." />
+
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Style="{StaticResource DialogButton}" Content="확인" Width="84" Height="32" Click="Ok_Click" IsDefault="True" />
+            <Button Style="{StaticResource DialogButton}" Content="취소" Width="84" Height="32" Margin="8,0,0,0" Click="Cancel_Click" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

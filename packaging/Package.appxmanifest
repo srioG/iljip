@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+    xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+    xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    IgnorableNamespaces="uap uap10 com desktop4 rescap">
+
+    <Identity Name="Iljip.ShellExtension"
+              Publisher="CN=Iljip"
+              Version="0.3.0.0" />
+
+    <Properties>
+        <DisplayName>일집 셸 확장</DisplayName>
+        <PublisherDisplayName>일집</PublisherDisplayName>
+        <Logo>Assets\StoreLogo.png</Logo>
+    </Properties>
+
+    <Dependencies>
+        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.22621.0" />
+    </Dependencies>
+
+    <Resources>
+        <Resource Language="ko-KR" />
+        <Resource Language="en-US" />
+    </Resources>
+
+    <Applications>
+        <Application Id="Iljip" Executable="Iljip.exe" EntryPoint="Windows.FullTrustApplication">
+            <uap:VisualElements
+                DisplayName="일집"
+                Description="광고 없는 압축 프로그램"
+                BackgroundColor="transparent"
+                Square150x150Logo="Assets\Square150x150Logo.png"
+                Square44x44Logo="Assets\Square44x44Logo.png" />
+
+            <Extensions>
+                <!-- COM 인-프로세스 서버 등록 -->
+                <com:Extension Category="windows.comServer">
+                    <com:ComServer>
+                        <com:SurrogateServer DisplayName="일집 셸 확장">
+                            <com:Class Id="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71"
+                                       Path="Iljip.ShellExtension.dll"
+                                       ThreadingModel="STA" />
+                            <com:Class Id="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4"
+                                       Path="Iljip.ShellExtension.dll"
+                                       ThreadingModel="STA" />
+                            <com:Class Id="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9"
+                                       Path="Iljip.ShellExtension.dll"
+                                       ThreadingModel="STA" />
+                            <com:Class Id="F9E2C1A8-3D7B-4E5A-91C8-B5F7D2E9A3C6"
+                                       Path="Iljip.ShellExtension.dll"
+                                       ThreadingModel="STA" />
+                        </com:SurrogateServer>
+                    </com:ComServer>
+                </com:Extension>
+
+                <!-- 파일 탐색기 컨텍스트 메뉴 -->
+                <desktop4:Extension Category="windows.fileExplorerContextMenus">
+                    <desktop4:FileExplorerContextMenus>
+                        <!-- 압축 파일 우클릭 -->
+                        <desktop4:ItemType Type=".zip">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
+                        </desktop4:ItemType>
+                        <desktop4:ItemType Type=".7z">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
+                        </desktop4:ItemType>
+                        <desktop4:ItemType Type=".rar">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
+                        </desktop4:ItemType>
+                        <desktop4:ItemType Type=".tar">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
+                        </desktop4:ItemType>
+                        <desktop4:ItemType Type=".gz">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                        </desktop4:ItemType>
+                        <desktop4:ItemType Type=".bz2">
+                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
+                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                        </desktop4:ItemType>
+
+                        <!-- 일반 파일 우클릭 → 압축 -->
+                        <!-- (폴더용 우클릭은 desktop4 스키마가 ItemType="Directory"를 거부함.
+                             desktop6 또는 별도 등록으로 추후 복원 예정) -->
+                        <desktop4:ItemType Type="*">
+                            <desktop4:Verb Id="IljipCompress" Clsid="F9E2C1A8-3D7B-4E5A-91C8-B5F7D2E9A3C6" />
+                        </desktop4:ItemType>
+                    </desktop4:FileExplorerContextMenus>
+                </desktop4:Extension>
+            </Extensions>
+        </Application>
+    </Applications>
+
+    <Capabilities>
+        <rescap:Capability Name="runFullTrust" />
+    </Capabilities>
+</Package>
