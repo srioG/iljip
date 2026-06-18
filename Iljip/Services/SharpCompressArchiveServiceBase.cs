@@ -139,6 +139,9 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 if (!string.IsNullOrEmpty(parent))
                     Directory.CreateDirectory(parent);
 
+                // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 자동 변경 → 원본 유실 방지.
+                string writePath = GetNonCollidingPath(fullOutputPath);
+
                 progress?.Report(new ArchiveProgress
                 {
                     CurrentFile = decodedPath,
@@ -149,7 +152,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 });
 
                 using (var input = entry.OpenEntryStream())
-                using (var output = File.Create(fullOutputPath))
+                using (var output = File.Create(writePath))
                 {
                     var buffer = new byte[81920];
                     int read;
@@ -172,7 +175,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
 
                 if (entry.LastModifiedTime is DateTime dt)
                 {
-                    try { File.SetLastWriteTime(fullOutputPath, dt); }
+                    try { File.SetLastWriteTime(writePath, dt); }
                     catch { /* 일부 파일에서 실패 가능 */ }
                 }
 
@@ -223,6 +226,33 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// 대상 경로에 동명 파일이 이미 있으면 "이름 (1).ext", "이름 (2).ext" … 식으로
+    /// 충돌하지 않는 새 경로를 만들어 반환한다. 기존 파일을 덮어쓰지 않아 원본 유실을 방지한다.
+    /// </summary>
+    private static string GetNonCollidingPath(string desiredPath)
+    {
+        if (!File.Exists(desiredPath))
+            return desiredPath;
+
+        string? dir = Path.GetDirectoryName(desiredPath);
+        string name = Path.GetFileNameWithoutExtension(desiredPath);
+        string ext = Path.GetExtension(desiredPath);
+
+        for (int i = 1; i < int.MaxValue; i++)
+        {
+            string candidateName = $"{name} ({i}){ext}";
+            string candidate = string.IsNullOrEmpty(dir)
+                ? candidateName
+                : Path.Combine(dir, candidateName);
+            if (!File.Exists(candidate))
+                return candidate;
+        }
+
+        // 사실상 도달 불가
+        return desiredPath;
     }
 
     /// <summary>입력 파일들의 총 바이트 합계 (진행률 계산용).</summary>

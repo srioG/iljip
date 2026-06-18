@@ -374,6 +374,8 @@ public partial class MainViewModel : ObservableObject
             }
             catch (Exception ex) when (IsPasswordRelated(ex))
             {
+                // 비밀번호 프롬프트 뒤에 진행 창이 남지 않도록 먼저 닫는다.
+                // finally가 다시 Close()를 호출해도 WPF에서 이미 닫힌 창에 대한 Close()는 무동작이라 안전.
                 progressDlg.Close();
                 var pw = new PasswordPromptDialog(
                     attempt == 0
