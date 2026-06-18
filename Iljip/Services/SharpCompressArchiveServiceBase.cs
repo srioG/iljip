@@ -232,7 +232,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     /// 대상 경로에 동명 파일이 이미 있으면 "이름 (1).ext", "이름 (2).ext" … 식으로
     /// 충돌하지 않는 새 경로를 만들어 반환한다. 기존 파일을 덮어쓰지 않아 원본 유실을 방지한다.
     /// </summary>
-    private static string GetNonCollidingPath(string desiredPath)
+    protected static string GetNonCollidingPath(string desiredPath)
     {
         if (!File.Exists(desiredPath))
             return desiredPath;
