@@ -50,13 +50,13 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                long fileLen = 0;
-                try { fileLen = new FileInfo(sourceFile).Length; } catch { }
-
                 var entry = new ZipEntry(entryName)
                 {
                     DateTime = File.GetLastWriteTime(sourceFile),
-                    Size = fileLen,
+                    // Size는 명시하지 않는다. FileInfo.Length로 미리 박아두면, 폴더 압축 도중
+                    //   쓰기 중인 파일(로그/DB 등)의 길이가 스트리밍 사이에 바뀔 때 실제 기록 바이트와
+                    //   불일치해 CloseEntry가 'size was incorrect' 예외를 던지고 압축 전체가 깨진다.
+                    //   생략하면 SharpZipLib이 CloseEntry에서 실제 기록 길이로 헤더를 채운다.
                     // 파일명을 UTF-8 + EFS(General Purpose Bit 11) 플래그로 기록.
                     // 한글 파일명이 일집/탐색기/macOS 등 어디서든 올바르게 보이게 함.
                     IsUnicodeText = true,
