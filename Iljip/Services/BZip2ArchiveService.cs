@@ -32,8 +32,15 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
                            .GetAwaiter().GetResult();
             }
             catch (OperationCanceledException) { throw; }
-            catch
+            catch (Exception ex)
             {
+                // 컨테이너로 열리지 않음 → raw bzip2 스트림인지 BZh 시그니처로 판별.
+                // 시그니처가 없으면 손상되었거나 .bz2가 아닌 파일이므로, 가짜 단일 엔트리를
+                // 만들지 않고 오류로 처리한다(예전에는 무조건 단일 엔트리를 반환해 해제 단계에서야 실패).
+                if (!HasBzip2Signature(archivePath))
+                    throw new InvalidDataException(
+                        "이 파일은 올바른 BZIP2(.bz2) 형식이 아니거나 손상되었습니다.", ex);
+
                 // raw bzip2 폴백: 항목은 하나, 이름은 .bz2 확장자를 떼어 추정(원본 파일명을 저장하지 않음).
                 string entryName = RawEntryName(archivePath);
                 long compressed = SafeFileLength(archivePath);
@@ -116,6 +123,11 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
         IProgress<ArchiveProgress>? progress,
         CancellationToken cancellationToken)
     {
+        // raw 해제 직전에도 BZh 시그니처를 확인 → 손상/비-bz2 파일에 빈 출력 파일을 만들지 않는다.
+        if (!HasBzip2Signature(archivePath))
+            throw new InvalidDataException(
+                "이 파일은 올바른 BZIP2(.bz2) 형식이 아니거나 손상되었습니다.");
+
         Directory.CreateDirectory(destinationFolder);
 
         // 엔트리명은 파일명만 사용 → 디렉터리 구분자가 없어 Zip Slip 위험 없음
@@ -179,6 +191,19 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
     {
         try { return new FileInfo(path).Length; }
         catch { return -1; }
+    }
+
+    /// <summary>파일 선두가 raw bzip2 매직 시그니처("BZh")인지 확인. 읽기 실패 시 false.</summary>
+    private static bool HasBzip2Signature(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var sig = new byte[3];
+            int read = fs.Read(sig, 0, 3);
+            return read == 3 && sig[0] == (byte)'B' && sig[1] == (byte)'Z' && sig[2] == (byte)'h';
+        }
+        catch { return false; }
     }
 
     public override Task CompressAsync(

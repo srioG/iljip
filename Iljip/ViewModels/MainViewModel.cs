@@ -238,14 +238,11 @@ public partial class MainViewModel : ObservableObject
         string defaultName;
         if (sourcePaths.Count == 1)
         {
-            defaultName = Path.GetFileNameWithoutExtension(sourcePaths[0]) + ".zip";
-            if (string.IsNullOrEmpty(defaultName) || defaultName == ".zip")
-                defaultName = new DirectoryInfo(sourcePaths[0]).Name + ".zip";
+            defaultName = SuggestFileBaseName(sourcePaths[0]) + ".zip";
         }
         else
         {
-            string parentName = new DirectoryInfo(defaultDir).Name;
-            defaultName = string.IsNullOrEmpty(parentName) ? "archive.zip" : parentName + ".zip";
+            defaultName = SanitizeFileName(new DirectoryInfo(defaultDir).Name) + ".zip";
         }
 
         var dlgSave = new SaveFileDialog
@@ -304,6 +301,40 @@ public partial class MainViewModel : ObservableObject
         {
             progressDlg.Close();
         }
+    }
+
+    /// <summary>
+    /// 단일 소스 경로에서 SaveFileDialog 기본 파일명(확장자 제외)을 안전하게 만든다.
+    /// 확장자만 있는 파일(.gitignore)·드라이브 루트(C:\)·금지문자 포함 경로에서도
+    /// 비정상 기본명이 만들어지지 않도록 단계적으로 폴백한다.
+    /// </summary>
+    private static string SuggestFileBaseName(string path)
+    {
+        // 1) 확장자를 뗀 파일명
+        string name = Path.GetFileNameWithoutExtension(path);
+        // 2) 비면(점으로 시작하는 파일 등) 확장자 포함 파일명
+        if (string.IsNullOrWhiteSpace(name))
+            name = Path.GetFileName(path);
+        // 3) 그래도 비면(드라이브 루트/구분자로 끝나는 경로) 디렉터리명
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            try { name = new DirectoryInfo(path).Name; } catch { /* 잘못된 경로 */ }
+        }
+        return SanitizeFileName(name);
+    }
+
+    /// <summary>파일명에서 금지문자를 제거하고, 결과가 비면 "archive"로 대체한다.</summary>
+    private static string SanitizeFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "archive";
+
+        foreach (char c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c.ToString(), string.Empty);
+
+        // Windows는 끝에 마침표/공백을 허용하지 않음
+        name = name.Trim().TrimEnd('.').Trim();
+        return string.IsNullOrWhiteSpace(name) ? "archive" : name;
     }
 
     [RelayCommand]
