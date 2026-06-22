@@ -27,6 +27,8 @@ public sealed class TarArchiveService : SharpCompressArchiveServiceBase
             if (options?.HasPassword == true)
                 throw new NotSupportedException("TAR는 암호화를 지원하지 않아요.");
 
+            // NOTE(잔존): SharpCompress TarWriter는 디렉터리 엔트리 쓰기 공개 API가 없어
+            //   빈 폴더 보존(ZIP은 지원)은 TAR에서 미지원이다. 추후 TarWriter 확장/직접 헤더 기록 필요.
             var files = CollectFiles(sourcePaths);
             long totalBytes = SumFileSizes(files);
             int totalFiles = files.Count;

@@ -31,8 +31,11 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string key = e.Key ?? string.Empty;
-                string decoded = KoreanFileNameDecoder.Decode(key);
+                // e.Key는 ReaderOptions.ArchiveEncoding.CustomDecoder(=DecodeBytes)로 이미
+                // 올바르게 디코드된 상태다. 여기서 KoreanFileNameDecoder.Decode를 또 적용하면
+                // (이중 디코드) 비한글 비ASCII 파일명이 CP437→CP949 오재해석으로 손상될 수 있어
+                // 다시 디코드하지 않는다.
+                string decoded = e.Key ?? string.Empty;
 
                 entries.Add(new ArchiveEntry
                 {
@@ -104,7 +107,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             foreach (var e in archive.Entries)
             {
                 if (e.IsDirectory) continue;
-                string dp = KoreanFileNameDecoder.Decode(e.Key ?? string.Empty);
+                string dp = e.Key ?? string.Empty;   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
                 if (!shouldExtract(dp)) continue;
                 totalBytes += e.Size;
                 totalFiles++;
@@ -119,7 +122,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 cancellationToken.ThrowIfCancellationRequested();
 
                 string key = entry.Key ?? string.Empty;
-                string decodedPath = KoreanFileNameDecoder.Decode(key);
+                string decodedPath = key;   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
                 if (!shouldExtract(decodedPath)) continue;
 
                 string outputPath = Path.Combine(destinationFolder, decodedPath);
@@ -229,12 +232,49 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     }
 
     /// <summary>
-    /// 대상 경로에 동명 파일이 이미 있으면 "이름 (1).ext", "이름 (2).ext" … 식으로
+    /// 압축 소스에서 '완전히 빈 디렉터리'(파일도 하위 폴더도 전혀 없는)의 상대 경로를 수집한다.
+    /// 반환 형식은 CollectFiles의 entryName과 동일(부모 기준 상대, '/' 구분)하되 끝에 '/'를 붙인다.
+    /// <para>
+    /// CollectFiles는 파일만 모으므로, 안에 파일이 하나도 없는 폴더는 압축 결과에서 조용히 누락된다.
+    /// 파일이 있는 폴더는 파일 엔트리가, 하위 폴더가 있는 폴더는 그 하위 엔트리가 경로를 만들어주므로,
+    /// '파일도 하위 폴더도 없는 완전히 빈 디렉터리'만 별도 엔트리로 보존하면 충분하다.
+    /// </para>
+    /// </summary>
+    protected static List<string> CollectEmptyDirectories(IEnumerable<string> sourcePaths)
+    {
+        var result = new List<string>();
+        foreach (var src in sourcePaths)
+        {
+            if (!Directory.Exists(src)) continue;
+
+            string baseDir = src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string parent = Path.GetDirectoryName(baseDir) ?? string.Empty;
+
+            var allDirs = new List<string> { baseDir };
+            allDirs.AddRange(Directory.EnumerateDirectories(baseDir, "*", SearchOption.AllDirectories));
+
+            foreach (var dir in allDirs)
+            {
+                // 파일도 하위 디렉터리도 전혀 없는 '완전히 빈' 디렉터리만 명시적 엔트리가 필요.
+                if (Directory.EnumerateFileSystemEntries(dir).Any()) continue;
+
+                string rel = Path.GetRelativePath(parent, dir).Replace(Path.DirectorySeparatorChar, '/');
+                if (rel.Length == 0 || rel == ".") continue;
+                result.Add(rel.TrimEnd('/') + "/");
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 대상 경로에 동명 파일/디렉터리가 이미 있으면 "이름 (1).ext", "이름 (2).ext" … 식으로
     /// 충돌하지 않는 새 경로를 만들어 반환한다. 기존 파일을 덮어쓰지 않아 원본 유실을 방지한다.
+    /// 같은 이름의 <b>디렉터리</b>가 있을 때도 충돌로 처리한다 — 그렇지 않으면 File.Create가
+    /// UnauthorizedAccessException을 던져 압축해제 전체가 중단되기 때문이다.
     /// </summary>
     protected static string GetNonCollidingPath(string desiredPath)
     {
-        if (!File.Exists(desiredPath))
+        if (!File.Exists(desiredPath) && !Directory.Exists(desiredPath))
             return desiredPath;
 
         string? dir = Path.GetDirectoryName(desiredPath);
@@ -247,7 +287,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             string candidate = string.IsNullOrEmpty(dir)
                 ? candidateName
                 : Path.Combine(dir, candidateName);
-            if (!File.Exists(candidate))
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
                 return candidate;
         }
 

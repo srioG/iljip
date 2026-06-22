@@ -23,7 +23,9 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         options ??= CompressionOptions.Default;
         return Task.Run(() =>
         {
-            var files = CollectFiles(sourcePaths);
+            // sourcePaths를 두 번(파일·빈폴더) 열거하므로 한 번만 구체화한다(지연 열거 재실행 방지).
+            var srcList = sourcePaths as IList<string> ?? sourcePaths.ToList();
+            var files = CollectFiles(srcList);
             long totalBytes = SumFileSizes(files);
             int totalFiles = files.Count;
             long bytesProcessed = 0;
@@ -98,6 +100,19 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 
                 zipStream.CloseEntry();
                 filesProcessed++;
+            }
+
+            // 빈 디렉터리 보존: 파일이 하나도 없는 폴더는 위 루프에서 누락되므로
+            // 끝에 '/'를 붙인 디렉터리 엔트리로 별도 기록한다(SharpZipLib이 디렉터리로 인식).
+            foreach (var dirEntry in CollectEmptyDirectories(srcList))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                zipStream.PutNextEntry(new ZipEntry(dirEntry)
+                {
+                    DateTime = DateTime.Now,
+                    IsUnicodeText = true
+                });
+                zipStream.CloseEntry();
             }
 
             zipStream.Finish();
