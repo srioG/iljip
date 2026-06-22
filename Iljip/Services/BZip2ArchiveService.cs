@@ -1,5 +1,6 @@
 using System.IO;
 using Iljip.Models;
+using SharpCompress.Archives;
 using SharpCompress.Compressors;
 using SharpCompress.Compressors.BZip2;
 
@@ -26,36 +27,36 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
     {
         return Task.Run<IReadOnlyList<ArchiveEntry>>(() =>
         {
-            try
+            // 컨테이너(.tar.bz2 등)로 열리면 베이스로 목록을 읽는다.
+            // 핵심: '컨테이너로 열리는가'만 먼저 판별하고, 일단 컨테이너로 열린 뒤의 목록/해제
+            //       오류는 raw 폴백으로 삼키지 않고 그대로 전파시킨다(잘못된 출력·원오류 은폐 방지).
+            if (OpensAsContainer(archivePath))
             {
                 return base.ListEntriesAsync(archivePath, password, cancellationToken)
                            .GetAwaiter().GetResult();
             }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                // 컨테이너로 열리지 않음 → raw bzip2 스트림인지 BZh 시그니처로 판별.
-                // 시그니처가 없으면 손상되었거나 .bz2가 아닌 파일이므로, 가짜 단일 엔트리를
-                // 만들지 않고 오류로 처리한다(예전에는 무조건 단일 엔트리를 반환해 해제 단계에서야 실패).
-                if (!HasBzip2Signature(archivePath))
-                    throw new InvalidDataException(
-                        "이 파일은 올바른 BZIP2(.bz2) 형식이 아니거나 손상되었습니다.", ex);
 
-                // raw bzip2 폴백: 항목은 하나, 이름은 .bz2 확장자를 떼어 추정(원본 파일명을 저장하지 않음).
-                string entryName = RawEntryName(archivePath);
-                long compressed = SafeFileLength(archivePath);
-                return new List<ArchiveEntry>
+            // 컨테이너로 열리지 않음 → raw bzip2 스트림인지 BZh 시그니처로 판별.
+            // 시그니처가 없으면 손상되었거나 .bz2가 아닌 파일이므로, 가짜 단일 엔트리를
+            // 만들지 않고 오류로 처리한다(예전에는 무조건 단일 엔트리를 반환해 해제 단계에서야 실패).
+            if (!HasBzip2Signature(archivePath))
+                throw new InvalidDataException(
+                    "이 파일은 올바른 BZIP2(.bz2) 형식이 아니거나 손상되었습니다.");
+
+            // raw bzip2 폴백: 항목은 하나, 이름은 .bz2 확장자를 떼어 추정(원본 파일명을 저장하지 않음).
+            string entryName = RawEntryName(archivePath);
+            long compressed = SafeFileLength(archivePath);
+            return new List<ArchiveEntry>
+            {
+                new ArchiveEntry
                 {
-                    new ArchiveEntry
-                    {
-                        Path = entryName,
-                        Size = 0,               // 원본 크기는 해제 전 알 수 없음
-                        CompressedSize = compressed,
-                        IsDirectory = false,
-                        LastModified = null
-                    }
-                };
-            }
+                    Path = entryName,
+                    Size = 0,               // 원본 크기는 해제 전 알 수 없음
+                    CompressedSize = compressed,
+                    IsDirectory = false,
+                    LastModified = null
+                }
+            };
         }, cancellationToken);
     }
 
@@ -68,18 +69,17 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
     {
         return Task.Run(() =>
         {
-            try
+            // 컨테이너(.tar.bz2 등)로 열리면 베이스로 해제하고, 해제 도중 오류는 그대로 전파한다.
+            // (예전엔 catch-all로 해제 중 오류까지 삼켜 raw bzip2로 잘못 폴백 → tar 자체를 단일
+            //  파일로 덤프하는 잘못된 출력 + 원오류 은폐가 발생했다.)
+            if (OpensAsContainer(archivePath))
             {
                 base.ExtractAsync(archivePath, destinationFolder, password, progress, cancellationToken)
                     .GetAwaiter().GetResult();
                 return;
             }
-            catch (OperationCanceledException) { throw; }
-            catch
-            {
-                // 컨테이너로 열리지 않으면 raw bzip2 스트림으로 직접 해제
-            }
 
+            // 컨테이너로 열리지 않음 → raw bzip2 단일 스트림으로 직접 해제
             ExtractRawBzip2(archivePath, destinationFolder, progress, cancellationToken);
         }, cancellationToken);
     }
@@ -94,18 +94,15 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
     {
         return Task.Run(() =>
         {
-            try
+            // 컨테이너로 열리면 베이스로 선택 해제하고, 해제 도중 오류는 그대로 전파한다.
+            if (OpensAsContainer(archivePath))
             {
                 base.ExtractEntriesAsync(archivePath, destinationFolder, entryPaths, password, progress, cancellationToken)
                     .GetAwaiter().GetResult();
                 return;
             }
-            catch (OperationCanceledException) { throw; }
-            catch
-            {
-                // raw 폴백: 항목이 하나뿐이므로, 선택자가 그 항목과 일치할 때만 해제
-            }
 
+            // 컨테이너 아님 → raw 폴백: 항목이 하나뿐이므로, 선택자가 그 항목과 일치할 때만 해제
             string entryName = RawEntryName(archivePath);
             bool selected = entryPaths
                 .Select(p => p.Replace('\\', '/').Trim('/'))
@@ -203,6 +200,24 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             int read = fs.Read(sig, 0, 3);
             return read == 3 && sig[0] == (byte)'B' && sig[1] == (byte)'Z' && sig[2] == (byte)'h';
         }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 파일이 SharpCompress가 인식하는 '컨테이너'(.tar.bz2 등)로 열리는지 확인한다.
+    /// 열리면 true(베이스 경로로 처리), 못 열면 false(raw bzip2 단일 스트림 경로).
+    /// 이 판별을 '실제 해제 시도'와 분리함으로써, 컨테이너로 일단 열린 뒤의 해제 도중 오류를
+    /// raw 폴백이 잘못 흡수하지 않도록 한다(원오류는 베이스에서 그대로 전파).
+    /// </summary>
+    private static bool OpensAsContainer(string archivePath)
+    {
+        try
+        {
+            using var archive = ArchiveFactory.Open(archivePath);
+            _ = archive.Type;   // 포맷 감지 강제
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
         catch { return false; }
     }
 
