@@ -9,16 +9,18 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Iljip</RootNamespace>
     <AssemblyName>Iljip</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Iljip</Authors>
     <Product>일집 (Iljip)</Product>
     <Description>광고 없는 압축 프로그램</Description>
     <Copyright>© 2026</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="SharpCompress" Version="0.38.0" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <PackageReference Include="EggDotNet" Version="0.3.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>

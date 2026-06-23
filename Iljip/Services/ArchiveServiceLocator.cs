@@ -18,6 +18,7 @@ public sealed class ArchiveServiceLocator
         Register(new GZipArchiveService());
         Register(new BZip2ArchiveService());
         Register(new RarArchiveService());
+        Register(new EggAlzArchiveService());   // EGG/ALZ 해제(EggDotNet) — 반디집 의존 제거용
     }
 
     public void Register(IArchiveService service)
