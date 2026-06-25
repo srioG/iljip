@@ -10,9 +10,17 @@ public sealed class ArchiveEntry
     public required string Path { get; init; }
 
     /// <summary>파일/폴더의 표시명 (마지막 세그먼트)</summary>
-    public string Name => System.IO.Path.GetFileName(Path) is var n && string.IsNullOrEmpty(n)
-        ? Path
-        : n;
+    public string Name
+    {
+        get
+        {
+            // 디렉터리 엔트리는 Path가 '/'로 끝나(예: "folder/sub/") GetFileName이 빈 문자열을 반환 →
+            // 트레일링 슬래시를 떼고 마지막 세그먼트("sub")를 구한다. 안 그러면 전체 경로가 표시명으로 샌다.
+            var trimmed = Path.TrimEnd('/');
+            var name = System.IO.Path.GetFileName(trimmed);
+            return string.IsNullOrEmpty(name) ? trimmed : name;
+        }
+    }
 
     /// <summary>원본 크기 (bytes)</summary>
     public long Size { get; init; }
