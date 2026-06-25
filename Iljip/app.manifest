@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <assemblyIdentity version="1.0.0.0" name="Iljip.app" />
+
+  <!--
+    항상 호출자 권한으로 실행하고, 관리자 UAC 승격을 자동 요청하지 않는다.
+    → 탐색기/바로가기로 더블클릭하면 항상 '일반 권한'으로 실행되어,
+      탐색기(일반 권한)에서 파일을 끌어다 놓는 드래그앤드롭이 정상 동작한다.
+    (관리자 터미널에서 일부러 실행하면 그땐 관리자로 뜨지만, 그건 예외적 상황.)
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- Windows 10 / 11 지원 선언 -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+</assembly>

@@ -28,3 +28,12 @@ packaging/cert/
 
 ## 임시 파일
 *.tmp2
+
+## 로컬 빌드 설정 (산출물을 작업 폴더 밖으로 — OneDrive/Cowork 잠금 회피, 환경 특정)
+Directory.Build.props
+
+## 수동 백업 스냅샷 (*.bak-<사유>-<날짜>) — 작업트리 보존용, git에는 불필요
+*.bak-*
+
+## 잡파일: 잘못 생성된 빈 솔루션 (일집 리포인데 이름이 Ilswae)
+Ilswae.slnx

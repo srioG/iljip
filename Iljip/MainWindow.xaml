@@ -68,12 +68,11 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding CompressCommand}"
+                    <Button Style="{StaticResource ToolbarButton}" Command="{Binding CompressCommand}"
                             ToolTip="담은 항목을 압축 (Ctrl+N)"
-                            IsEnabled="{Binding IsStagingMode}" Margin="3,0,1,0">
+                            IsEnabled="{Binding IsStagingMode}">
                         <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource IconArchive}" Width="17" Height="17" Stretch="Uniform"
-                                  Fill="{DynamicResource AccentFgBrush}" VerticalAlignment="Center" />
+                            <Path Data="{StaticResource IconArchive}" Style="{StaticResource ToolIcon}" />
                             <TextBlock Text="압축 실행" Margin="7,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>

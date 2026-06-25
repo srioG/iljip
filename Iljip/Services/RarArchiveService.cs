@@ -19,6 +19,6 @@ public sealed class RarArchiveService : SharpCompressArchiveServiceBase
     {
         throw new NotSupportedException(
             "RAR 압축은 라이선스 제한으로 지원하지 않아요. (해제만 가능)\n" +
-            "압축은 ZIP이나 7Z를 사용해주세요.");
+            "압축은 ZIP을 사용해주세요.");
     }
 }
