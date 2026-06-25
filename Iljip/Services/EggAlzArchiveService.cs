@@ -26,7 +26,7 @@ public sealed class EggAlzArchiveService : IArchiveService
     {
         return Task.Run<IReadOnlyList<ArchiveEntry>>(() =>
         {
-            using var archive = EggFile.Open(archivePath);
+            using var archive = OpenArchive(archivePath, password);
             var entries = new List<ArchiveEntry>();
             foreach (var e in archive.Entries)
             {
@@ -51,7 +51,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         string? password = null,
         IProgress<ArchiveProgress>? progress = null,
         CancellationToken cancellationToken = default)
-        => ExtractCore(archivePath, destinationFolder, _ => true, progress, cancellationToken);
+        => ExtractCore(archivePath, destinationFolder, _ => true, password, progress, cancellationToken);
 
     public Task ExtractEntriesAsync(
         string archivePath,
@@ -77,20 +77,21 @@ public sealed class EggAlzArchiveService : IArchiveService
             return false;
         }
 
-        return ExtractCore(archivePath, destinationFolder, ShouldExtract, progress, cancellationToken);
+        return ExtractCore(archivePath, destinationFolder, ShouldExtract, password, progress, cancellationToken);
     }
 
     private static Task ExtractCore(
         string archivePath,
         string destinationFolder,
         Func<string, bool> shouldExtract,
+        string? password,
         IProgress<ArchiveProgress>? progress,
         CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
             Directory.CreateDirectory(destinationFolder);
-            using var archive = EggFile.Open(archivePath);
+            using var archive = OpenArchive(archivePath, password);
 
             // 진행률 총량 선계산 (디렉터리·필터제외·암호화 제외분은 빼고 파일만)
             long totalBytes = 0;
@@ -187,6 +188,51 @@ public sealed class EggAlzArchiveService : IArchiveService
                 TotalFiles = totalFiles
             });
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// EGG/ALZ 아카이브를 연다.
+    ///
+    /// 비밀번호가 없으면 <see cref="EggFile.Open(string)"/>(= 2-인자 EggArchive 생성자: 기본 분할볼륨·콜백)을
+    /// 그대로 써서 기존 검증된 동작을 100% 보존한다.
+    ///
+    /// 비밀번호가 주어지면 EggFile.Open에는 비밀번호 오버로드가 없어 암호화 egg/alz를 풀 수 없으므로,
+    /// 4-인자 EggArchive 생성자에 복호화 콜백을 주입한다. 분할볼륨(.volN.egg) 콜백은 EggDotNet의 기본 구현
+    /// (DefaultStreamCallbacks.DefaultFileStreamCallback)이 internal이라 직접 호출할 수 없어 동일 로직
+    /// (형제 파일을 분할 후보 스트림으로 제공)을 여기서 복제한다.
+    /// </summary>
+    private static EggArchive OpenArchive(string archivePath, string? password)
+    {
+        if (string.IsNullOrEmpty(password))
+            return EggFile.Open(archivePath);
+
+        // ownStream:true 이므로 EggArchive(=using) 폐기 시 이 스트림도 닫힌다.
+        // 단, 생성자가 던지면 EggArchive가 책임지지 못하므로 여기서 직접 닫는다.
+        var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            // EggDotNet 기본 분할 콜백 복제: 같은 폴더의 형제 파일들을 분할볼륨 후보로 넘긴다.
+            Callbacks.SplitFileReceiverCallback splitCallback = st =>
+            {
+                var streams = new List<Stream>();
+                if (st is FileStream fs && Path.GetDirectoryName(fs.Name) is { Length: > 0 } dir)
+                {
+                    foreach (var sibling in Directory.GetFiles(dir))
+                        if (!string.Equals(sibling, fs.Name, StringComparison.Ordinal))
+                            streams.Add(new FileStream(sibling, FileMode.Open, FileAccess.Read, FileShare.Read));
+                }
+                return streams;
+            };
+            // Retry=false: 비번이 틀리면 즉시 DecryptFailedException → 상위 재시도 루프가 다시 프롬프트.
+            Callbacks.FileDecryptPasswordCallback passwordCallback =
+                (_, opts) => { opts.Password = password!; opts.Retry = false; };
+            return new EggArchive(stream, ownStream: true, splitCallback, passwordCallback);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     public Task CompressAsync(

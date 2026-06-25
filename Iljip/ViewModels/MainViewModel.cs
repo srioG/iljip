@@ -710,6 +710,10 @@ public partial class MainViewModel : ObservableObject
         var msg = ex.Message ?? string.Empty;
         return ex is System.Security.Cryptography.CryptographicException
             || name.Contains("Crypto", StringComparison.OrdinalIgnoreCase)
+            // EggDotNet은 암호화 egg/alz에 비번이 없거나 틀리면 DecryptFailedException("Decryption of entry failed")을
+            // 던진다 — 타입/메시지에 Crypto·password가 없어 위 조건에 안 걸리므로 decrypt를 명시적으로 잡는다.
+            || name.Contains("Decrypt", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("decrypt", StringComparison.OrdinalIgnoreCase)
             || msg.Contains("password", StringComparison.OrdinalIgnoreCase)
             || msg.Contains("encrypt", StringComparison.OrdinalIgnoreCase)
             || msg.Contains("암호", StringComparison.Ordinal);
