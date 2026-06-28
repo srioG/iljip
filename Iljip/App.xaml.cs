@@ -176,7 +176,9 @@ public partial class App : Application
             }
             catch
             {
-                // 파이프 오류는 무시하고 다음 연결을 계속 대기
+                // 파이프 오류는 무시하고 다음 연결을 계속 대기.
+                // 단, 생성/대기가 즉시 반복 실패하면(파이프명 선점 등) 백오프 없이 CPU를 점유하므로 잠깐 쉰다.
+                try { Thread.Sleep(200); } catch { /* 종료 중 인터럽트 무시 */ }
             }
         }
     }
