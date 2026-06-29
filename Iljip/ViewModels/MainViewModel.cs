@@ -660,7 +660,7 @@ public partial class MainViewModel : ObservableObject
 
                 case "--extract" when args.Length >= 2 && File.Exists(args[1]):
                     await OpenArchiveAsync(args[1]);
-                    ExtractCommand.Execute(null); // 폴더 선택 다이얼로그
+                    await ExtractAsync(); // 폴더 선택 다이얼로그 + 해제 완료까지 대기(--extract-here/-to와 일관, fire-and-forget 제거)
                     break;
 
                 case "--extract-here" when args.Length >= 2 && File.Exists(args[1]):
