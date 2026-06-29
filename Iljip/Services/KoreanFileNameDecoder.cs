@@ -16,10 +16,6 @@ public static class KoreanFileNameDecoder
     private static readonly Encoding Cp437 = Encoding.GetEncoding(437);
     private static readonly Encoding Cp949;
 
-    // 잘못된 바이트를 만나면 예외를 던지는 엄격한 UTF-8 디코더
-    private static readonly Encoding StrictUtf8 =
-        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-
     static KoreanFileNameDecoder()
     {
         // System.Text.Encoding.CodePages 패키지 등록은 App.OnStartup 에서 처리
@@ -39,14 +35,10 @@ public static class KoreanFileNameDecoder
             return string.Empty;
 
         // 1) UTF-8 (strict). 유효한 UTF-8이면 그대로 채택.
-        try
-        {
-            return StrictUtf8.GetString(bytes, index, count);
-        }
-        catch (DecoderFallbackException)
-        {
-            // 유효한 UTF-8이 아님 → 레거시 인코딩 시도
-        }
+        //    예외-흐름제어(레거시 CP949 항목마다 DecoderFallbackException throw/catch)를 피하려
+        //    Utf8.IsValid로 먼저 판별한다. 판정 조건·결과 문자열 모두 엄격 UTF-8 디코딩과 동일하다.
+        if (System.Text.Unicode.Utf8.IsValid(new System.ReadOnlySpan<byte>(bytes, index, count)))
+            return Encoding.UTF8.GetString(bytes, index, count);
 
         // 2) CP949 (EUC-KR). 한글이 감지되면 채택.
         try
