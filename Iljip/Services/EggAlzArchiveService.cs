@@ -148,26 +148,36 @@ public sealed class EggAlzArchiveService : IArchiveService
 
                 // entry.Open()이 store/deflate/bzip2/lzma/AZO·암호화를 알아서 해제해 평문 스트림을 준다.
                 // 암호화인데 비번이 없으면 여기서 예외 → 해제 전체 실패(부분 추출로 위장하지 않음).
-                using (var input = entry.Open())
-                using (var output = File.Create(writePath))
+                try
                 {
-                    var buffer = new byte[81920];
-                    int read;
-                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                    using (var input = entry.Open())
+                    using (var output = File.Create(writePath))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        output.Write(buffer, 0, read);
-                        bytesProcessed += read;
-
-                        progress?.Report(new ArchiveProgress
+                        var buffer = new byte[81920];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            CurrentFile = decodedPath,
-                            BytesProcessed = bytesProcessed,
-                            TotalBytes = totalBytes,
-                            FilesProcessed = filesProcessed,
-                            TotalFiles = totalFiles
-                        });
+                            cancellationToken.ThrowIfCancellationRequested();
+                            output.Write(buffer, 0, read);
+                            bytesProcessed += read;
+
+                            progress?.Report(new ArchiveProgress
+                            {
+                                CurrentFile = decodedPath,
+                                BytesProcessed = bytesProcessed,
+                                TotalBytes = totalBytes,
+                                FilesProcessed = filesProcessed,
+                                TotalFiles = totalFiles
+                            });
+                        }
                     }
+                }
+                catch
+                {
+                    // 취소/오류로 중단되면 절반만 기록된 writePath(정상 이름이라 완전한 파일로 오인됨)를
+                    // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존).
+                    try { File.Delete(writePath); } catch { /* 정리 실패는 무시 */ }
+                    throw;
                 }
 
                 if (entry.LastWriteTime is { } lwt)
@@ -269,6 +279,12 @@ public sealed class EggAlzArchiveService : IArchiveService
             if (!File.Exists(candidate) && !Directory.Exists(candidate))
                 return candidate;
         }
-        return desiredPath;
+        // 사실상 도달 불가. desiredPath를 그대로 반환하면 기존 파일을 덮어쓰므로(원본 비파괴 계약
+        // 위반), GUID 접미사로 고유 경로를 만들고 그것마저 충돌하면 조용한 덮어쓰기 대신 예외로 실패.
+        string guidName = $"{name} ({Guid.NewGuid():N}){ext}";
+        string guidPath = string.IsNullOrEmpty(dir) ? guidName : Path.Combine(dir, guidName);
+        if (!File.Exists(guidPath) && !Directory.Exists(guidPath))
+            return guidPath;
+        throw new IOException($"고유한 출력 경로를 만들 수 없습니다: {desiredPath}");
     }
 }

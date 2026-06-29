@@ -142,38 +142,48 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             TotalFiles = 1
         });
 
-        using (var input = File.OpenRead(archivePath))
-        // decompressConcatenated: true → 단일/연결(multi-stream) bzip2 모두 안전하게 읽음
-        using (var bz = new BZip2Stream(input, CompressionMode.Decompress, decompressConcatenated: true))
-        using (var output = File.Create(outputPath))
+        try
         {
-            var buffer = new byte[81920];
-            long written = 0;
-            int read;
-            while ((read = bz.Read(buffer, 0, buffer.Length)) > 0)
+            using (var input = File.OpenRead(archivePath))
+            // decompressConcatenated: true → 단일/연결(multi-stream) bzip2 모두 안전하게 읽음
+            using (var bz = new BZip2Stream(input, CompressionMode.Decompress, decompressConcatenated: true))
+            using (var output = File.Create(outputPath))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                output.Write(buffer, 0, read);
-                written += read;
+                var buffer = new byte[81920];
+                long written = 0;
+                int read;
+                while ((read = bz.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    output.Write(buffer, 0, read);
+                    written += read;
+
+                    progress?.Report(new ArchiveProgress
+                    {
+                        CurrentFile = entryName,
+                        BytesProcessed = written,
+                        TotalBytes = written,   // 원본 총 크기 미상 → 누적치로 표시
+                        FilesProcessed = 0,
+                        TotalFiles = 1
+                    });
+                }
 
                 progress?.Report(new ArchiveProgress
                 {
-                    CurrentFile = entryName,
+                    CurrentFile = string.Empty,
                     BytesProcessed = written,
-                    TotalBytes = written,   // 원본 총 크기 미상 → 누적치로 표시
-                    FilesProcessed = 0,
+                    TotalBytes = written,
+                    FilesProcessed = 1,
                     TotalFiles = 1
                 });
             }
-
-            progress?.Report(new ArchiveProgress
-            {
-                CurrentFile = string.Empty,
-                BytesProcessed = written,
-                TotalBytes = written,
-                FilesProcessed = 1,
-                TotalFiles = 1
-            });
+        }
+        catch
+        {
+            // 취소/오류로 중단되면 절반만 기록된 outputPath(정상 이름이라 완전한 파일로 오인됨)를
+            // 지우고 예외를 그대로 전파한다.
+            try { File.Delete(outputPath); } catch { /* 정리 실패는 무시 */ }
+            throw;
         }
     }
 

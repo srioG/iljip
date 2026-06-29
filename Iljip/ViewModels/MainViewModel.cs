@@ -293,6 +293,9 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            // 비취소 실패(I/O·디스크풀·소스 변경 등)로도 부분/손상 아카이브가 디스크에 남아 정상
+            // 파일로 오인될 수 있다. 취소 경로와 동일하게 부분 산출물을 정리한 뒤 오류를 알린다.
+            try { File.Delete(dlgSave.FileName); } catch { }
             MessageBox.Show($"압축 실패:\n\n{ex.Message}",
                 "일집", MessageBoxButton.OK, MessageBoxImage.Error);
             StatusText = "오류 발생";

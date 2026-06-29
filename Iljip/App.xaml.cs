@@ -156,6 +156,7 @@ public partial class App : Application
 
     private void PipeServerLoop()
     {
+        int consecutiveFailures = 0;
         while (true)
         {
             try
@@ -173,12 +174,24 @@ public partial class App : Application
                     var args = line.Split(ArgSeparator);
                     Dispatcher.Invoke(() => OnSecondInstanceLaunched(args));
                 }
+                consecutiveFailures = 0;   // 정상 처리 시 실패 카운터 리셋
             }
-            catch
+            catch (Exception ex)
             {
-                // 파이프 오류는 무시하고 다음 연결을 계속 대기.
-                // 단, 생성/대기가 즉시 반복 실패하면(파이프명 선점 등) 백오프 없이 CPU를 점유하므로 잠깐 쉰다.
-                try { Thread.Sleep(200); } catch { /* 종료 중 인터럽트 무시 */ }
+                // 파이프 오류는 무시하고 다음 연결을 계속 대기. 단, (1)코드베이스 로깅 관례대로
+                // 첫 실패는 반드시 기록하고(이후는 폭주 로그 방지로 간헐 기록), (2)생성/대기가 즉시
+                // 반복 실패하면(파이프명 영구 선점·권한 거부 등 회복 불가) 백오프를 점증하다 일정 횟수
+                // 후 단일 인스턴스 IPC만 포기한다(백그라운드 스레드 종료, 앱 본체는 정상 동작).
+                consecutiveFailures++;
+                if (consecutiveFailures == 1 || consecutiveFailures % 50 == 0)
+                    Logger.LogError($"PipeServerLoop 실패(x{consecutiveFailures})", ex);
+                if (consecutiveFailures >= 100)
+                {
+                    Logger.LogError("PipeServerLoop 회복 불가 — 단일 인스턴스 IPC 비활성화", ex);
+                    return;
+                }
+                int delay = Math.Min(200 * consecutiveFailures, 2000);
+                try { Thread.Sleep(delay); } catch { /* 종료 중 인터럽트 무시 */ }
             }
         }
     }

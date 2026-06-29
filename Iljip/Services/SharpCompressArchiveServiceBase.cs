@@ -154,26 +154,36 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                     TotalFiles = totalFiles
                 });
 
-                using (var input = entry.OpenEntryStream())
-                using (var output = File.Create(writePath))
+                try
                 {
-                    var buffer = new byte[81920];
-                    int read;
-                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                    using (var input = entry.OpenEntryStream())
+                    using (var output = File.Create(writePath))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        output.Write(buffer, 0, read);
-                        bytesProcessed += read;
-
-                        progress?.Report(new ArchiveProgress
+                        var buffer = new byte[81920];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            CurrentFile = decodedPath,
-                            BytesProcessed = bytesProcessed,
-                            TotalBytes = totalBytes,
-                            FilesProcessed = filesProcessed,
-                            TotalFiles = totalFiles
-                        });
+                            cancellationToken.ThrowIfCancellationRequested();
+                            output.Write(buffer, 0, read);
+                            bytesProcessed += read;
+
+                            progress?.Report(new ArchiveProgress
+                            {
+                                CurrentFile = decodedPath,
+                                BytesProcessed = bytesProcessed,
+                                TotalBytes = totalBytes,
+                                FilesProcessed = filesProcessed,
+                                TotalFiles = totalFiles
+                            });
+                        }
                     }
+                }
+                catch
+                {
+                    // 취소/오류로 중단되면 절반만 기록된 writePath(정상 이름이라 완전한 파일로 오인됨)를
+                    // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존).
+                    try { File.Delete(writePath); } catch { /* 정리 실패는 무시 */ }
+                    throw;
                 }
 
                 if (entry.LastModifiedTime is DateTime dt)
@@ -291,8 +301,14 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 return candidate;
         }
 
-        // 사실상 도달 불가
-        return desiredPath;
+        // 사실상 도달 불가. 그래도 도달하면 desiredPath를 그대로 반환해 기존 파일을 덮어쓰지 말고
+        // (이 메서드 계약=원본 비파괴), GUID 접미사로 고유 경로를 만든다. 그것마저 충돌하면(사실상
+        // 불가능) 조용한 덮어쓰기 대신 예외로 실패시킨다.
+        string guidName = $"{name} ({Guid.NewGuid():N}){ext}";
+        string guidPath = string.IsNullOrEmpty(dir) ? guidName : Path.Combine(dir, guidName);
+        if (!File.Exists(guidPath) && !Directory.Exists(guidPath))
+            return guidPath;
+        throw new IOException($"고유한 출력 경로를 만들 수 없습니다: {desiredPath}");
     }
 
     /// <summary>입력 파일들의 총 바이트 합계 (진행률 계산용).</summary>
