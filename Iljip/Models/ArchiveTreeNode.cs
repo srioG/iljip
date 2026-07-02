@@ -12,8 +12,6 @@ public sealed class ArchiveTreeNode
     /// <summary>압축 내 폴더 경로(슬래시 구분). 루트는 빈 문자열. 예: "docs/img"</summary>
     public string FullPath { get; init; } = string.Empty;
 
-    public bool IsRoot { get; init; }
-
     /// <summary>하위 폴더 노드들.</summary>
     public ObservableCollection<ArchiveTreeNode> Children { get; } = new();
 

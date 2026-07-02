@@ -8,8 +8,6 @@ public sealed class ArchiveServiceLocator
     private readonly Dictionary<string, IArchiveService> _byExtension =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly List<IArchiveService> _all = new();
-
     public ArchiveServiceLocator()
     {
         Register(new ZipArchiveService());
@@ -23,7 +21,6 @@ public sealed class ArchiveServiceLocator
 
     public void Register(IArchiveService service)
     {
-        _all.Add(service);
         foreach (var ext in service.SupportedExtensions)
             _byExtension[ext] = service;
     }

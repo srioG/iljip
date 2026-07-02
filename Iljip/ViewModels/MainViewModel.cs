@@ -499,7 +499,6 @@ public partial class MainViewModel : ObservableObject
         {
             Name = rootName,
             FullPath = string.Empty,
-            IsRoot = true,
             IsExpanded = true
         };
         var map = new Dictionary<string, ArchiveTreeNode>(StringComparer.OrdinalIgnoreCase)

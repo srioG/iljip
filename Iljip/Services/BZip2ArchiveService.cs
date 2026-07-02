@@ -162,7 +162,7 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
                     {
                         CurrentFile = entryName,
                         BytesProcessed = written,
-                        TotalBytes = written,   // 원본 총 크기 미상 → 누적치로 표시
+                        TotalBytes = 0,   // 원본 총 크기 미상 → 불확정(0). Percentage=0으로 '항상 100%(완료됨)' 오표시 방지
                         FilesProcessed = 0,
                         TotalFiles = 1
                     });
