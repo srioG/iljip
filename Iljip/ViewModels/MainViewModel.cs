@@ -373,14 +373,19 @@ public partial class MainViewModel : ObservableObject
         }
 
         // 건너뛴 파일이 있어도 성공이다 — 결과물은 지우지 않고, 연 뒤에 무엇이 빠졌는지 알린다(I0-2)
-        StatusText = $"압축 완료: {savePath}";
+        // 나눠 만들었으면(W2-03) 실제로 생긴 조각 이름('이름 (2)' 로 바뀌었을 수도)으로 알리고 그 세트를 연다(ZIP 은 .zip, 7Z 는 .001).
+        string resultPath = result.OpenPath ?? savePath;
+        StatusText = result.Volumes.Count > 0 ? $"압축 완료: {result.Volumes.Count}개 조각 — {resultPath}" : $"압축 완료: {savePath}";
 
         // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환).
         // 방금 넣은 암호를 넘긴다 — 파일 이름까지 암호화한 7z 도 다시 묻지 않고 열리고, 이어서 풀 때도 묻지 않는다(W2-02).
-        await OpenArchiveAsync(savePath, compressionOptions.HasPassword ? compressionOptions.Password : null);
+        await OpenArchiveAsync(resultPath, compressionOptions.HasPassword ? compressionOptions.Password : null);
 
-        if (result.Skipped.Count > 0)
-            _ui.ShowInfo(SkippedMessage(result.Skipped));
+        var notes = new List<string>();
+        if (result.Volumes.Count > 0) notes.Add(SplitDoneMessage(result.Volumes, result.OpenPath));
+        if (result.Skipped.Count > 0) notes.Add(SkippedMessage(result.Skipped));
+        if (notes.Count > 0)
+            _ui.ShowInfo(string.Join("\n\n", notes));
     }
 
     /// <summary>건너뛴 원본 안내 문구(최대 10줄, 나머지는 '외 N개').</summary>

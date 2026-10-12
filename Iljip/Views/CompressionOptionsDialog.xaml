@@ -55,6 +55,19 @@
                       Content="파일 이름도 암호로 숨기기" />
         </StackPanel>
 
+        <!-- ZIP·7Z 전용(W2-03): 나누기(분할 압축). 항목 글자는 코드(CompressionOptionsRules.SplitLabels)에서 채운다 -->
+        <StackPanel x:Name="SplitPanel" Margin="0,14,0,0" Visibility="Collapsed">
+            <TextBlock Text="나누기 (메일로 보낼 때)" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <StackPanel Orientation="Horizontal">
+                <ComboBox x:Name="SplitCombo" Width="200" Height="28" SelectionChanged="SplitCombo_Changed" />
+                <TextBox x:Name="SplitCustomBox" Width="80" Height="28" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                         Visibility="Collapsed" Text="10" />
+                <TextBlock x:Name="SplitUnitText" Text="MB" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+            </StackPanel>
+            <TextBlock x:Name="SplitHintText" Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource FgMutedBrush}" />
+        </StackPanel>
+
         <TextBlock x:Name="HintText"
                    Margin="0,14,0,0"
                    FontSize="11"

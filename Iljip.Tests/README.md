@@ -39,6 +39,8 @@
   **W2-02(2026-10-13)** 에서 7z 만들기(I2-1 — 수준·솔리드·AES-256·파일 이름 암호화, 1차 W1-B 검증 지적의 진행률·취소·메모리)와 I1-7 의 남은 몫
   (목록까지 잠긴 7z·RAR 전용 예외 `ListPasswordRequiredException`·열 때 '암호가 맞지 않아요' 경고)을 메워 I2-1 Skip 을 풀고, `_보류_W2-02/` 시험을
   `Contract/SevenZipCreateTests.cs`·`MainViewModelPasswordTests` 로 되살렸습니다(아래 'W2-02 에서 고친 것').
+  **W2-03(2026-10-13)** 에서 I2-2 의 남은 몫 '나눠 만들기'(분할 압축 — ZIP 은 PKZIP 나눔 `이름.z01 … 이름.zip`, 7Z 는 `이름.7z.001 …`, 옵션 창 '나누기' 칸)를
+  새 계약 `Contract/SplitCreateTests.cs` 로 지키고, 쓰는 곳이 없어진 `Known.I2_2` 를 지웠습니다(아래 'W2-03 에서 고친 것').
 
 ## 실행 방법
 
@@ -48,11 +50,12 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-13 W2-02 후): `통과!  - 실패: 0, 통과: 1200, 건너뜀: 1, 전체: 1201` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 1개' — I2-10).
+- 결과(2026-10-13 W2-03 후): `통과!  - 실패: 0, 통과: 1304, 건너뜀: 1, 전체: 1305` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 1개' — I2-10).
+  (W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
   → W2-01: 통과 1097·건너뜀 2·전체 1099)
-  반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
+  반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개, (W2-03) `SplitCreateTests` 의 반디집 시험(나눔 ZIP·7z 조각 — Theory 행 포함 32개)이, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
   빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 3개)가 건너뜁니다.
   (W2-01) Windows 의 IMAPI2FS(디스크 이미지 만들기)가 없는 PC 에서는 `DiscImageTests` 가 환경 조건(`DiscImageFact`)으로 건너뜁니다.
   빌드된 셸 확장 DLL(`D:\Python\일집-build\Release\x64\Iljip.ShellExtension\Iljip.ShellExtension.dll`)이 없거나 C++ 소스보다 오래되면
@@ -62,7 +65,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
   (W2-02) 160MB 원본으로 7z 진행률·메모리·취소를 재는 `SevenZipCreateLargeTests`(원본 만들기 몇 초 + 보통 수준 압축 20~25초 + 취소 시험 5초 —
   메모리·시간을 재므로 `DisableParallelization` 묶음이라 다른 테스트가 다 끝난 뒤 따로 돈다. %TEMP% 에 160MB 를 잠깐 씀).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
-- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1044개 — 통과 1043·건너뜀 1, 2026-10-13 W2-02 후) — 아래 '계약 테스트와 기록 테스트'.
+- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1148개 — 통과 1147·건너뜀 1, 2026-10-13 W2-03 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
   (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC`, W1-B 후 둘 다 다시 통과).
   ```powershell
@@ -112,6 +115,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/SevenZipCreateTests.cs` | [W2-02, I2-1] 7z 만들기(보관분 되살림): 솔리드 켜고 끄기(7z.dll·SharpCompress 가 보는 솔리드 여부), 파일 이름 암호화(암호 없이는 `ListPasswordRequiredException`, 한글 암호 왕복), 암호만(목록은 보임·풀기는 암호), 한글 암호를 다른 엔진도 엶, 서로 다른 폴더의 원본·빈 폴더(이름 암호화 포함)·빈 폴더만, 파일만 고르면 폴더 항목 없이, 모든 폴더가 항목이고 폴더 시각 보존·같은 이름 폴더 둘은 거절, 자기 자신 안 담음, 실패면 덮어쓰려던 파일 그대로·임시 파일 없음, 수준별 크기·왕복, 수준별 7z.dll 설정(기록), 취소면 아무것도 안 남김, 읽는 도중 크기가 바뀐 파일은 빼고 다시 씀, 잠긴 원본은 건너뜀·하나도 못 담으면 이름이 든 쉬운 안내, 손상과 틀린 암호 가리기, 원본 스트림(`LazySourceStream`) 단위 시험 |
 | `Contract/SevenZipCreateLargeTests.cs` | [W2-02, 1차 W1-B 검증 지적] 160MB(무작위 120 + 글자 40) 보통 수준: 진행률이 줄지 않고 서로 다른 값 10개 이상·끝 100%·다 읽은 시점이 전체 시간의 절반 뒤, 전용 메모리 증가 700MB 아래, 기록(시간·메모리·크기 — 테스트 출력 `기록_7z_보통_160MB`), 시작 3초·30% 뒤 취소는 3초 안·덮어쓰려던 파일 그대로, 처음 읽자마자 취소(서비스·화면)도 3초 안·아무것도 안 남김. 따로 실행(`DisableParallelization`) |
 | `Contract/ListPasswordFlowTests.cs` | [W2-02, I1-7] 목록까지 잠긴 압축(일집 7z·py7zr 헤더 암호 7z 두 개·머리 암호 RAR5·RAR4): 서비스는 암호 없이 `ListPasswordRequiredException`·틀리면 머리 암호 `WrongPasswordException`, 화면은 열 때 한 번(`ListLocked`)·틀리면 경고 뒤 다시·취소면 보던 압축·목록·기억한 암호 그대로(오류 창 없음)·열고 나서 풀면 다시 안 물음·우클릭 '여기에 풀기'·'"이름"\ 에 풀기' 는 한 번만, 자동 풀림 exe 안쪽(7z.dll·대신 경로 둘 다), 예외 형식(하위 형식·문구) |
+| `Contract/SplitCreateTests.cs` | [W2-03, I2-2 만들기] 나눠 만들기: 7Z 64KB 조각(이름·크기·첫 조각으로 목록·풀기·7z.dll `VolumeFileNames`·암호 + 파일 이름 암호화), ZIP 픽스처 9개 × 무작위 1,000~5,000바이트(첫 조각 `50 4B 07 08`·로컬 머리가 한 조각 안·마지막 디스크 번호·일집 목록·풀기가 원본과 같음·7z.dll Check), 서비스로 나눈 ZIP(AES·ZipCrypto·한글 암호), 목록이 조각을 넘는 2,000개(4KB), ZIP64 7만 개, 조각 너무 많음(ZIP 99·7Z 999), 빠진 조각(.z02·.7z.002·.part2.rar — 이름·대상 폴더 안 생김), 마지막 조각만, 취소(압축 중·나누는 중), '이름 (2)' 세트, 한 조각이면 안 나눔, 진행률, 화면(세트를 열고 조각 이름으로 안내·크기 전달·TAR 무시), 옵션 창 규칙·XAML. 반디집(bz.exe t)은 `BandizipCliFact`/`BandizipCliTheory` 로 따로 |
 | `Contract/CompressionOptionsRulesTests.cs` | [W2-02] 압축 옵션 창 규칙(`Views/CompressionOptionsRules` — 창 없이): .7z 는 솔리드·파일 이름 암호화 칸(암호가 있을 때만)·ZIP 암호 방식 칸 숨김·한글 암호 경고 없음, 수준 글자 저장만·빠름·보통·최대, 형식에 맞지 않는 값은 버림, XAML 칸 이름·문구(소스) |
 | `Contract/EggAlzTests.cs` | [13] EGG/ALZ 성공 경로(목록·해제·충돌·선택·취소·진행률·크기 0 항목·ALZ 한글·한자·기호 이름·끝 구분자 없는 폴더 항목) + **잘림·CRC 불일치 → 예외·짧은 파일 안 남김**, 분할 조각 후보 — 합성 EGG/ALZ |
 | `Contract/AlzNameScannerTests.cs` | ALZ 머리 원본 바이트 스캐너(B10 우회·폴더 속성): 맞게 읽기, 잘리면 온전한 항목까지만, 서명 깨짐·항목 수 불일치·분할이면 예외 없이 포기, 이름 바이트 풀기(UTF-8→CP949→CP437) |
@@ -184,17 +188,31 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 |---|---|---|
 | I1-7 | 헤더(파일명) 암호 7z/RAR 를 열 때 암호를 안 물음 | **Skip 아님** — 7z 는 W1-D 1차 검증, RAR 머리 암호는 통합 점검에서 고침(`CommandLineTests.헤더암호_7z…`·`RarTests.머리암호_RAR_…`). W2-01 에서 7z.dll 로 바뀐 뒤에도 같은 흐름(`CommandLineTests.헤더암호_7z_여기에_풀기는_7z_dll로도_…`). W2-02 에서 전용 예외·경고까지 메움(`ListPasswordFlowTests`) |
 | I2-1 | 7z 만들기 | **Skip 아님** — W2-02 에서 메움(`KnownGapTests.압축_7z_왕복이_원본과_같다` Skip 해제, `SevenZipCreateTests`·`SevenZipCreateLargeTests`) |
+| I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | 목록·풀린 이름이 자모 분리 그대로(내용은 정확) |
 
-### 남은 Skip 1개(2026-10-13 W2-02 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
+### 남은 Skip 1개(2026-10-13 W2-03 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
 
 | 테스트 | 사유 | 언제 풀리나 |
 |---|---|---|
 | `BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` | I2-10 맥 NFD 이름 | 이름 NFC 정규화 작업(따로) |
 
-`Known.I2_1` 은 지웠습니다(W2-02).
+`Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
 
-`Known.I2_2` 문구는 '분할 만들기 미지원'으로 바꿨습니다(풀기는 W2-01 에서 됨 — 쓰는 곳이 없으면 W2-03 이 지움). `Known.I2_9` 는 지웠습니다.
+### W2-03 에서 고친 것(2026-10-13) — I2-2 나눠 만들기(분할 압축)
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 7Z 나눠 만들기 | 없음 | 옵션 창 '나누기'(10MB·20MB·직접 입력 MB, 1MB 이상) → 7z 하나를 대상 폴더 안 숨김 임시 폴더에 다 만든 뒤 `이름.7z.001 …` 로 단순 절단(7-Zip 볼륨과 같은 바이트, 뒤에서부터 잘라 디스크는 원래 크기 + 조각 하나만 더 씀). 999조각까지 | `SplitCreateTests.칠지_볼륨은_…`·`칠지_볼륨을_반디집이_푼다` |
+| ZIP 나눠 만들기 | 없음 | 보통 ZIP 을 다 만든 뒤 PKZIP 나눔(`이름.z01 … 이름.zip`)으로 바꿈(다시 압축 안 함 — `Services/ZipSpanWriter.cs`). 첫 조각 `50 4B 07 08`, 로컬 머리는 한 조각 안, 목록은 마지막 조각에(크면 기록 경계에서 넘김, 마지막 조각에 기록 하나 이상), ZIP64 도. 99조각까지 | `SplitCreateTests.픽스처_ZIP을_…`(일집·7z.dll·반디집)·`ZIP_서비스가_…`·`목록이_조각을_넘어도_…`·`ZIP64_…` |
+| 나뉜 ZIP 읽기 | SharpCompress 가 형제 조각을 찾음 — 목록이 마지막 조각을 넘으면 못 읽음, 암호 판정은 마지막 조각만 봐 Unknown(한글 ZipCrypto 암호 나눔 ZIP 을 맞는 암호로도 못 풂) | 조각을 이어 '보통 ZIP 한 개'로 보이게 한 스트림(`Services/SpannedZipStream.cs`)으로 main ZIP 처리기가 엶 — 판정·AES 직접 해제도 그대로. 앞 조각이 없으면 그 이름으로 `VolumeMissingException`, 풀 대상 폴더도 안 만듦 | `SplitCreateTests.가운데_조각이_빠지면_…`·`마지막_조각만_있으면_…`, `ZipPasswordProbeTests.나눔_ZIP도_조각이_다_있으면_판정한다`, 기존 `zip_split` 픽스처 시험 |
+| 결과 이름·덮어쓰기 | — | 같은 이름의 조각이 하나라도 있으면 세트 전체를 '이름 (2)' 로(있던 세트는 바이트 그대로, 7Z 는 다음 번호 조각도 봄). 다 만든 것이 조각 크기 이하면 나누지 않고 고른 이름 그대로(덮어쓰기는 예전과 같음). 실패·취소면 조각·임시 폴더 없음 | `SplitCreateTests.같은_이름_세트가_…`·`한_조각에_들어가면_…`·`취소하면_…`·`조각이_너무_많으면_…` |
+| 화면 | — | 끝나면 '3개 조각으로 나눠 만들었어요(이름.z01 … 이름.zip). 받는 사람은 모든 조각을 같은 폴더에 두고 이름.zip을 열면 돼요.' + Windows 탐색기 안내, 그 세트를 엶(ZIP 은 .zip, 7Z 는 .001). '나누기' 칸은 ZIP·7Z 만 | `SplitCreateTests.화면은_…`·`나누기_칸은_ZIP과_7Z만_보인다`·`나누기_크기_고르기`·`창_XAML에_나누기_칸이_있다` |
+| 덤: ZIP 진행률의 총 파일 수 | 원본 폴더 안에 저장하면 자기 자신이 총수에 들어가 끝에도 N-1/N | 담지 않을 자기 자신(나눌 때는 고른 이름도)을 총수·총량에서 미리 뺌 | `SplitCreateTests.ZIP_나누기_진행률과_원본_폴더_안_저장` |
+
+기대가 바뀐 기존 테스트(약화 아님): `ZipPasswordProbeTests.판정할_수_없는_모양은_예외없이_Unknown` 의 `split_last`(조각이 다 있는 반디집 나눔 ZIP 의 마지막 조각 → Unknown) 행은
+나눔 ZIP 을 이제 판정하므로 '앞 조각이 없는 마지막 조각 → Unknown'(`split_missing_piece`)으로 바꾸고, 조각이 다 있으면 NotApplicable·항목 수·한글 ZipCrypto 암호 CP949 판정을
+새 시험(`나눔_ZIP도_조각이_다_있으면_판정한다`)으로 단언. `LocatorTests` 의 '압축 파일이 아닌' 문구 검사에 새 예외 두 개(`TooManyVolumesException`·`SplitSizeTooSmallException`)를 더함.
 
 ### W2-02 에서 고친 것(2026-10-13) — I2-1 7z 만들기·I1-7 목록까지 잠긴 압축
 

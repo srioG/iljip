@@ -8,6 +8,7 @@ namespace Iljip.Tests.Contract;
 /// <summary>
 /// [범위 11] 알려진 빈틈 — 남은 것은 Skip. 본문은 '고쳐지면 반디집처럼 돼야 할 올바른 기대'다.
 /// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C, I2-2 의 풀기·I2-9 W2-01, I2-1 W2-02)은 Skip 을 지운 채 여기 둔다.
+/// I2-2 의 '나눠 만들기'(W2-03)는 Skip 테스트가 없던 새 계약이라 Contract/SplitCreateTests.cs 에 있다.
 /// 남은 Skip: I2-10(NFD — BandizipFixtureTests). 목록은 README 의 Skip 목록.
 /// </summary>
 public class KnownGapTests

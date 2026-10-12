@@ -72,6 +72,7 @@ public sealed record ZipPasswordProbeResult(bool AnyEncrypted, bool HasAes, bool
 ///   근거에 더한다(같은 압축 파일은 보통 한 암호). 그래도 못 가리면 ZipCrypto 는 CP949(반디집·알집·일집이 한글 암호를 쓰는 방식), AES 는 UTF-8(일집 AES)을
 ///   먼저 쓰고 다른 후보를 <see cref="ZipPasswordProbeResult.AlternateMatch"/> 로 남긴다(예전엔 UTF-8 이 우연히 통과하면 맞는 한글 암호로도 못 풀었다).</item>
 /// </list>
+/// PKZIP 나눔(.z01 … .zip)은 W2-03 부터 조각을 이어 보통 ZIP 처럼 판정한다(<see cref="SpannedZipStream"/> — 앞 조각이 없으면 아래처럼 Unknown).
 /// 예외를 내지 않는다. 분할(.z01, 디스크 번호 ≠ 0)·앞에 다른 것이 붙은 파일(SFX 등 — 첫 4바이트가 ZIP 머리가 아님)·
 /// 중앙 디렉터리가 깨진 파일·읽기 실패는 <see cref="PasswordBytes.Unknown"/> — 그때는 엔진이 암호를 확인하고 CRC 검사와 롤백 장부가 막는다.
 /// </summary>

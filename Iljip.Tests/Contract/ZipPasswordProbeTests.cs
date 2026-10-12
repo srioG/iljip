@@ -92,7 +92,7 @@ public class ZipPasswordProbeTests
     [InlineData("garbage")]
     [InlineData("empty")]
     [InlineData("half")]
-    [InlineData("split_last")]
+    [InlineData("split_missing_piece")]
     [InlineData("missing")]
     [InlineData("prefixed")]
     public void 판정할_수_없는_모양은_예외없이_Unknown(string how)
@@ -105,13 +105,41 @@ public class ZipPasswordProbeTests
             case "garbage": File.WriteAllBytes(path, Enumerable.Range(0, 5000).Select(i => (byte)(i * 7 + 3)).ToArray()); break;
             case "empty": File.WriteAllBytes(path, Array.Empty<byte>()); break;
             case "half": File.WriteAllBytes(path, zc[..(zc.Length / 2)]); break;
-            case "split_last": path = FixtureCatalog.Get("zip_split").FullPath; break;   // 분할(.z01·.z02)의 마지막 조각 — 디스크 번호 ≠ 0
+            case "split_missing_piece":
+                // 분할(.z01·.z02)의 마지막 조각만 — 앞 조각이 없어 판정 못 함(W2-03 전에는 조각이 다 있어도 'split_last' 로 Unknown 이었다 — 아래 새 시험)
+                File.Copy(FixtureCatalog.Get("zip_split").FullPath, path);
+                break;
             case "missing": break;   // 파일 없음
             case "prefixed": File.WriteAllBytes(path, new byte[] { (byte)'M', (byte)'Z' }.Concat(new byte[4094]).Concat(zc).ToArray()); break;   // SFX 처럼 앞에 다른 것
         }
         var r = ZipPasswordProbe.Probe(path, FixtureCatalog.DefaultPassword);
         Assert.Equal(PasswordBytes.Unknown, r.Match);
         Assert.False(r.AnyEncrypted);
+    }
+
+    /// <summary>
+    /// W2-03: PKZIP 나눔(.z01·.z02 … .zip)도 조각이 다 있으면 세트를 이어 보통 ZIP 처럼 판정한다(<see cref="SpannedZipStream"/>) —
+    /// 반디집 나눔 픽스처는 암호가 없어 NotApplicable, 목록은 manifest 의 항목 수 그대로. 반디집이 만든 한글 ZipCrypto 암호 ZIP 을 일집이 나눈 것은
+    /// CP949 로 맞는다(예전엔 마지막 조각만 봐서 Unknown → 엔진이 UTF-8 로만 맞춰 보다 '암호가 맞지 않아요').
+    /// </summary>
+    [Fact]
+    public void 나눔_ZIP도_조각이_다_있으면_판정한다()
+    {
+        var fx = FixtureCatalog.Get("zip_split");
+        var r = ZipPasswordProbe.Probe(fx.FullPath, FixtureCatalog.DefaultPassword);
+        Assert.Equal(PasswordBytes.NotApplicable, r.Match);
+        Assert.False(r.AnyEncrypted);
+        Assert.Equal(fx.Expected.Count, r.Entries.Count);
+
+        using var tmp = new TempDir("prbs");
+        string work = tmp.P("한글암호.zip");
+        File.Copy(FixtureCatalog.Get("zip_zipcrypto_korean_pw").FullPath, work);
+        var pieces = ZipSpanWriter.Split(work, tmp.P("한글암호나눔"), 1500, CancellationToken.None);
+        Assert.True(pieces.Count >= 3);
+        var k = ZipPasswordProbe.Probe(pieces[^1], FixtureCatalog.KoreanPassword);
+        Assert.Equal(PasswordBytes.Cp949, k.Match);
+        Assert.True(k.HasZipCrypto);
+        Assert.Equal(PasswordBytes.None, ZipPasswordProbe.Probe(pieces[^1], "틀린암호").Match);
     }
 
     /// <summary>진짜 자동 풀림 exe(반디집 SFX, 로컬 전용 픽스처)도 예외 없이 Unknown.</summary>

@@ -210,6 +210,7 @@ public class LocatorTests
             new EngineUnavailableException(), CorruptArchiveException.Truncated(), CorruptArchiveException.Truncated(null, "a/b.txt"),
             new ChecksumMismatchException("a/b.txt"), new UnsupportedFormatException(".zst"),
             new SourceUnreadableException(@"C:\a.txt", "다른 프로그램이 쓰고 있음"),
+            new TooManyVolumesException(99), new TooManyVolumesException(999), new SplitSizeTooSmallException(),   // W2-03 나눠 만들기
         };
         foreach (var ex in all)
         {

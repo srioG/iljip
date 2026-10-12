@@ -15,6 +15,8 @@ namespace Iljip.Services;
 /// 7z.dll 을 못 쓰는 PC 에서는 SharpCompress 로 대신 연다(아래 — main 의 구현 그대로).
 /// W2-02: 7z 만들기(<see cref="CompressAsync"/> — 수준·솔리드·AES-256·파일 이름 암호화, 7z.dll 로만). 목록까지 잠긴 7z 를 암호 없이 열면
 /// <see cref="ListPasswordRequiredException"/>.
+/// W2-03: 나눠 만들기(<see cref="CompressionOptions.SplitBytes"/>) — 7z 하나를 임시 폴더에 다 만든 뒤 숫자 조각(이름.7z.001 …)으로 자른다
+/// (<see cref="SplitArchiveOutput"/>·<see cref="VolumeSplitter"/>).
 /// SharpCompress 대체 경로: 7z 는 암호 확인값이 없어 틀린 암호가 'Data Error' 로만 드러난다 — 베이스가 암호 항목의 데이터 오류를 틀린 암호로 바꾸고(B5),
 /// 여기서는 헤더 암호 7z 를 열 때의 오류를 암호 예외로 바꾼다.
 /// </summary>
@@ -136,22 +138,36 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
         {
             SevenZipLibrary.ThrowIfUnavailable();
             var collected = SourceCollector.Collect(sources);
-            var tracker = new CompressProgress(progress);
-            // 읽는 도중 막힌(또는 크기가 바뀐) 원본은 그 파일을 빼고 처음부터 다시 쓴다(ZIP·TAR 의 RewriteWithoutUnreadable 과 같은 규칙).
-            // 파일마다 한 번뿐이라 끝이 있다. 임시 파일에 쓰므로 대상(덮어쓰려던 기존 파일)은 회차 사이에도 그대로다.
-            var dropped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            while (true)
-            {
-                try
-                {
-                    return WriteOnce(collected, dropped, archivePath, options, tracker, cancellationToken);
-                }
-                catch (SourceUnreadableException ex) when (!dropped.ContainsKey(ex.SourcePath))
-                {
-                    dropped[ex.SourcePath] = ex.Reason;
-                }
-            }
+
+            // 나눠 만들기(W2-03): 대상 폴더 안 숨김 임시 폴더에 7z 하나를 다 만든 뒤 숫자 조각(.7z.001 …)으로 자른다
+            // (7z 볼륨은 단순 절단이라 같은 바이트 — 7z.dll 볼륨 쓰기는 빈 폴더 덧붙이기와 같이 못 씀). 원본을 다 모은 뒤에 임시 폴더를 만든다.
+            if (options.SplitBytes is > 0 and long split)
+                return SplitArchiveOutput.Write(archivePath, split, SplitArchiveOutput.VolumeKind.SevenZip, progress, cancellationToken,
+                    (single, p) => WriteWithRetries(collected, single, options, new CompressProgress(p), cancellationToken, alsoSkip: archivePath));
+
+            return WriteWithRetries(collected, archivePath, options, new CompressProgress(progress), cancellationToken);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// 읽는 도중 막힌(또는 크기가 바뀐) 원본은 그 파일을 빼고 처음부터 다시 쓴다(ZIP·TAR 의 RewriteWithoutUnreadable 과 같은 규칙).
+    /// 파일마다 한 번뿐이라 끝이 있다. 임시 파일에 쓰므로 대상(덮어쓰려던 기존 파일)은 회차 사이에도 그대로다.
+    /// </summary>
+    private static CompressResult WriteWithRetries(
+        SourceSet collected, string archivePath, CompressionOptions options, CompressProgress tracker, CancellationToken ct, string? alsoSkip = null)
+    {
+        var dropped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        while (true)
+        {
+            try
+            {
+                return WriteOnce(collected, dropped, archivePath, options, tracker, ct, alsoSkip);
+            }
+            catch (SourceUnreadableException ex) when (!dropped.ContainsKey(ex.SourcePath))
+            {
+                dropped[ex.SourcePath] = ex.Reason;
+            }
+        }
     }
 
     /// <summary>담을 원본 파일 하나(7z 안 이름은 '\' 구분 — 7-Zip·반디집이 만든 7z 와 같은 모양).</summary>
@@ -160,9 +176,10 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
     /// <summary>
     /// 7z 를 한 번 쓴다(임시 파일 → 다 맞으면 바꿔 넣기). <paramref name="dropped"/>(앞 회차에서 읽는 도중 막힌 파일)는 열지 않고 건너뜀으로 적는다.
     /// </summary>
+    /// <param name="alsoSkip">이것도 담지 않는다(나눠 만들 때 저장 창에서 고른 이름 — 실제로 쓰는 곳은 임시 폴더, W2-03).</param>
     private static CompressResult WriteOnce(
         SourceSet collected, IReadOnlyDictionary<string, string> dropped, string archivePath,
-        CompressionOptions options, CompressProgress tracker, CancellationToken ct)
+        CompressionOptions options, CompressProgress tracker, CancellationToken ct, string? alsoSkip = null)
     {
         string target = Path.GetFullPath(archivePath);
         string folder = Path.GetDirectoryName(target) ?? throw new IOException("압축 파일을 둘 폴더를 알 수 없어요: " + archivePath);
@@ -175,7 +192,8 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
         {
             ct.ThrowIfCancellationRequested();
             // 만들 압축 파일 자신(원본 폴더 안에 덮어 저장)과 이 서비스의 임시 파일은 담지 않는다(스태시 WithoutOutput)
-            if (IsSameFile(sourceFile, target) || IsOwnTempFile(sourceFile, target)) continue;
+            if (IsSameFile(sourceFile, target) || IsOwnTempFile(sourceFile, target)
+                || (alsoSkip is not null && (IsSameFile(sourceFile, alsoSkip) || IsOwnTempFile(sourceFile, Path.GetFullPath(alsoSkip))))) continue;
             long length = SafeLength(sourceFile);
             totalBytes += length;
             totalFiles++;

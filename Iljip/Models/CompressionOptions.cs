@@ -44,5 +44,12 @@ public sealed class CompressionOptions
     /// </summary>
     public bool EncryptFileNames { get; init; }
 
+    /// <summary>
+    /// 나눠 만들기(분할 압축) 조각 크기(바이트). null 이면 나누지 않음 — W2-03(I2-2 만들기). ZIP·7Z 만 씀(TAR·GZ·BZ2 는 무시).
+    /// ZIP 은 PKZIP 나눔(이름.z01 … 이름.zip), 7Z 는 숫자 조각(이름.7z.001 …). 다 만든 결과가 이 크기 이하면 나누지 않고 보통 파일 하나로 둔다.
+    /// 화면은 1MB 이상만 받는다(서비스는 1바이트 이상이면 받음 — 시험은 작은 값을 직접 넣음).
+    /// </summary>
+    public long? SplitBytes { get; init; }
+
     public static CompressionOptions Default => new();
 }

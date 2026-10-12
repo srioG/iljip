@@ -52,3 +52,12 @@ public sealed class BandizipCliFactAttribute : FactAttribute
         if (!BandizipCli.Available) Skip = $"반디집 콘솔이 없음({BandizipCli.ExePath}) — 반디집을 지운 PC 에서는 건너뜀";
     }
 }
+
+/// <summary>반디집 콘솔(bz.exe)이 있을 때만 도는 Theory(W2-03 — 나눔 ZIP 여러 모양).</summary>
+public sealed class BandizipCliTheoryAttribute : TheoryAttribute
+{
+    public BandizipCliTheoryAttribute()
+    {
+        if (!BandizipCli.Available) Skip = $"반디집 콘솔이 없음({BandizipCli.ExePath}) — 반디집을 지운 PC 에서는 건너뜀";
+    }
+}

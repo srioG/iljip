@@ -47,7 +47,7 @@ public class RoutingTests
     // 숫자 분할 첫 조각(I2-2 고침)
     [InlineData("a.7z.001", typeof(SevenZipArchiveService))]
     [InlineData("a.zip.001", typeof(ZipArchiveService))]
-    // 분할 ZIP 의 마지막 조각(.zip)은 ZIP 처리기 — .z01 형제를 SharpCompress 가 알아서 찾는다(zip_split 통과)
+    // 분할 ZIP 의 마지막 조각(.zip)은 ZIP 처리기 — .z01 형제를 ZIP 처리기가 이어 붙인다(zip_split 통과, W2-03 부터 SpannedZipStream)
     [InlineData("k.zip", typeof(ZipArchiveService))]
     public void 등록된_확장자는_정해진_서비스로_간다(string path, Type expected)
     {

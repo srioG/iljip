@@ -16,6 +16,8 @@ namespace Iljip.Services;
 ///   풀다가 나는 데이터 오류를 틀린 암호가 아니라 손상으로 알린다.
 /// - 압축: SharpZipLib로 처리. AES-256(기본) 또는 ZipCrypto(호환, I2-11). ZipCrypto 암호는 CP949 로 바꿀 수 있으면 CP949 바이트로 쓴다
 ///   (한국어 Windows 반디집과 양방향 호환 실측). AES 암호는 SharpZipLib 가 늘 UTF-8 로 쓴다(바꿀 수 없음 — 한글이면 화면이 경고).
+/// - 나눠 만들기(W2-03, <see cref="CompressionOptions.SplitBytes"/>): 보통 ZIP 을 임시 폴더에 다 만든 뒤 PKZIP 나눔(이름.z01 … 이름.zip)으로 바꾼다
+///   (<see cref="SplitArchiveOutput"/>·<see cref="ZipSpanWriter"/>). 읽을 때 나눔 세트는 <see cref="SpannedZipStream"/> 로 보통 ZIP 처럼 연다(빠진 조각은 그 이름).
 /// </summary>
 public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 {
@@ -24,12 +26,17 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 
     /// <summary>
     /// ZIP 을 바이트로 읽는 스트림(암호 판정·WinZip AES 해제용): 숫자 분할 첫 조각('.zip.001')이면 조각을 이어 붙인 스트림
-    /// (뒤 조각이 빠졌거나 덜 받아졌으면 그 이름으로 알림 — <see cref="SplitVolumeStream"/>), 아니면 파일 그대로.
+    /// (뒤 조각이 빠졌거나 덜 받아졌으면 그 이름으로 알림 — <see cref="SplitVolumeStream"/>),
+    /// PKZIP 나눔(.z01 … .zip)의 마지막 조각이면 세트를 보통 ZIP 처럼 보이게 한 스트림(앞 조각이 없으면 그 이름으로 알림 — <see cref="SpannedZipStream"/>, W2-03),
+    /// 아니면 파일 그대로.
     /// </summary>
     internal static Stream OpenRawStream(string zipPath)
     {
         if (!SplitVolumeStream.IsNumberedFirstVolume(zipPath))
+        {
+            if (SpannedZipStream.IsLastVolume(zipPath)) return SpannedZipStream.Open(zipPath);
             return new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+        }
         var s = SplitVolumeStream.Open(zipPath);
         try
         {
@@ -43,10 +50,14 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         }
     }
 
-    /// <summary>숫자 분할 첫 조각이면 이어 붙인 스트림으로 연다(한글 이름 판별·암호 판정은 보통 ZIP 과 같음). 아니면 베이스 그대로.</summary>
+    /// <summary>
+    /// 숫자 분할 첫 조각·PKZIP 나눔의 마지막 조각이면 이어 붙인 스트림으로 연다(한글 이름 판별·암호 판정은 보통 ZIP 과 같음). 아니면 베이스 그대로.
+    /// (W2-03 전에는 나눔 ZIP 을 SharpCompress 가 형제 조각을 찾아 열었다 — 목록이 마지막 조각을 넘으면 못 읽어 <see cref="SpannedZipStream"/> 로 바꿈)
+    /// </summary>
     protected override IArchive OpenForRead(string archivePath, SharpCompress.Readers.ReaderOptions options)
     {
-        if (!SplitVolumeStream.IsNumberedFirstVolume(archivePath)) return base.OpenForRead(archivePath, options);
+        if (!SplitVolumeStream.IsNumberedFirstVolume(archivePath) && !SpannedZipStream.IsLastVolume(archivePath))
+            return base.OpenForRead(archivePath, options);
         var s = OpenRawStream(archivePath);
         try
         {
@@ -61,6 +72,11 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 
     protected override ExtractPlan PrepareExtract(string archivePath, string? password, Func<string, bool> shouldExtract)
     {
+        // 나뉜 ZIP(.zip.001·.z01 … .zip)의 조각이 빠졌으면 아무것도 만들기 전에 그 이름으로 알린다 — 대상 폴더도 안 생긴다(W2-03, RAR·7z 와 같게).
+        // (판정은 실패를 삼키므로 여기서 먼저 열어 본다. 나눔 ZIP 의 모양은 기억해 두어 판정·해제가 다시 만들지 않음)
+        if (SplitVolumeStream.IsNumberedFirstVolume(archivePath) || SpannedZipStream.IsLastVolume(archivePath))
+            OpenRawStream(archivePath).Dispose();
+
         var probe = ZipPasswordProbe.Probe(archivePath, password, shouldExtract);
         if (!probe.AnyEncrypted || probe.Match is PasswordBytes.Unknown or PasswordBytes.NotApplicable)
             return new ExtractPlan(BuildReaderOptions(password)) { VerifyCrc = true };   // 판정 못 함 → 엔진이 확인(+ CRC·번역·장부)
@@ -134,6 +150,14 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         {
             // 파일·빈 폴더·못 들어간 폴더를 한 번에 모은다(I0-2 — 하위 폴더 권한 오류로 전체가 실패하지 않게).
             var sources = SourceCollector.Collect(sourcePaths);
+
+            // 나눠 만들기(W2-03): 대상 폴더 안 숨김 임시 폴더에 보통 ZIP 을 다 만든 뒤 PKZIP 나눔(.z01 … .zip)으로 바꾼다(다시 압축하지 않음).
+            // 원본을 다 모은 뒤에 임시 폴더를 만든다 — 원본 폴더 안에 저장해도 임시 폴더가 원본으로 담기지 않게. 저장 창에서 고른 이름은 계속 담지 않는다.
+            if (options.SplitBytes is > 0 and long split)
+                return SplitArchiveOutput.Write(archivePath, split, SplitArchiveOutput.VolumeKind.Zip, progress, cancellationToken,
+                    (single, p) => RewriteWithoutUnreadable(single,
+                        dropped => WriteZip(sources, dropped, single, options, p, cancellationToken, alsoSkip: archivePath)));
+
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
             return RewriteWithoutUnreadable(archivePath,
                 dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken));
@@ -144,11 +168,16 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
     /// ZIP 을 한 번 쓴다. <paramref name="dropped"/>(앞 회차에서 읽는 도중 막힌 파일)는 열지 않고 건너뜀으로 적는다.
     /// 담은 파일이 하나도 없고 건너뛴 것이 있으면 압축 파일을 만들지 않고 <see cref="NothingToCompressException"/>(I0-2).
     /// </summary>
+    /// <param name="alsoSkip">이것도 담지 않는다(나눠 만들 때 저장 창에서 고른 이름 — 실제로 쓰는 곳은 임시 폴더, W2-03).</param>
     private static CompressResult WriteZip(
         SourceSet sources, IReadOnlyDictionary<string, string> dropped, string archivePath,
-        CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+        CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken, string? alsoSkip = null)
     {
-        var files = sources.Files;
+        // 압축 파일을 원본 폴더 안에 저장하는 경우: 지금 쓰고 있는 자기 자신(나눠 만들 때는 저장 창에서 고른 이름도)은 담지 않는다 —
+        // 못 열어 '건너뜀'으로 보이지 않게. 진행률의 총 파일 수·바이트에서도 미리 뺀다(W2-03 — 예전엔 총수에 들어가 끝에도 N-1/N 으로 보였다).
+        var files = sources.Files
+            .Where(f => !IsSameFile(f.SourceFile, archivePath) && (alsoSkip is null || !IsSameFile(f.SourceFile, alsoSkip)))
+            .ToList();
         var skipped = new List<SkippedSource>(sources.Skipped);
         long totalBytes = SumFileSizes(files);
         int totalFiles = files.Count;
@@ -178,9 +207,6 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         foreach (var (sourceFile, entryName) in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            // 압축 파일을 원본 폴더 안에 저장하는 경우: 지금 쓰고 있는 자기 자신은 담지 않는다(못 열어 '건너뜀'으로 보이지 않게)
-            if (IsSameFile(sourceFile, archivePath)) continue;
 
             // 앞 회차에서 읽는 도중 막혔던 파일 — 다시 열지 않고 건너뜀
             if (dropped.TryGetValue(sourceFile, out var droppedReason))

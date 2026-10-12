@@ -13,7 +13,7 @@ namespace Iljip.Services;
 /// <item><see cref="ResolveForAutomation"/>: 창 없이 풀기(--extract-to). 1 → 2. 단 속이 ZIP 인 문서(.docx·.xlsx·.hwpx…)는 늘 null.</item>
 /// </list>
 /// <see cref="ResolveByExtension"/> 은 파일을 읽지 않는다 — 끌어 놓기 분류(DropPolicy)·저장 대상·셸 확장과 같은 '확장자만' 규칙.
-/// .z01·.z02 는 처리기가 없다(분할 ZIP 은 마지막 .zip 으로 연다 — SharpCompress 가 형제 조각을 찾음).
+/// .z01·.z02 는 처리기가 없다(분할 ZIP 은 마지막 .zip 으로 연다 — ZIP 처리기가 형제 조각을 이어 붙임, W2-03 SpannedZipStream).
 /// </summary>
 public sealed class ArchiveServiceLocator
 {

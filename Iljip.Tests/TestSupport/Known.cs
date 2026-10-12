@@ -17,7 +17,7 @@ public static class Known
     // 그 Skip 을 풀었다(I2_9 사유 삭제). I2-2 는 '분할 만들기' 쪽만 남았다(W2-03 몫 — 쓰는 곳이 없으면 W2-03 이 지움).
     // W2-02 에서 I2-1(7z 만들기)을 메워 KnownGapTests.압축_7z_왕복이_원본과_같다 의 Skip 을 풀었다(I2_1 사유 삭제).
     // 같은 묶음에서 I1-7 의 남은 몫(목록까지 잠긴 압축 전용 예외 ListPasswordRequiredException·열 때 '암호가 맞지 않아요' 경고)도 메움 — ListPasswordFlowTests.
-    public const string I2_2 = "known gap I2-2: 분할 만들기 미지원 — 숫자 분할(.7z.001·.zip.001)·.z01 조각으로 나눠 압축하지 못함(풀기는 W2-01 에서 됨)";
+    // W2-03 에서 I2-2 의 '나눠 만들기'(7Z .7z.001 …·ZIP PKZIP 나눔 .z01 … .zip)를 메웠다 — 쓰는 Skip 이 없어 I2_2 사유를 지웠다(새 계약은 Contract/SplitCreateTests.cs).
     public const string I2_10 = "known gap I2-10: 맥 ZIP 의 NFD(자모 분리) 한글 이름을 NFC 로 바꾸지 않음 — 목록·풀린 파일 이름이 자모 분리 그대로";
 
     // ── 이번에 발견한 버그 ─────────────────────────

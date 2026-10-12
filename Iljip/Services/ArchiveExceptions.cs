@@ -273,3 +273,35 @@ public sealed class ListPasswordRequiredException : PasswordRequiredException
     {
     }
 }
+
+// ───── W2-03(나눠 만들기 — I2-2 만들기)에서 더한 것 ─────
+
+/// <summary>
+/// 나눠 만들면 조각이 너무 많다(ZIP 은 .z01 … .z99 까지라 99개, 7Z 는 .001 … .999 라 999개). 조각을 하나도 남기지 않는다.
+/// 나눌 크기를 키우면 된다.
+/// </summary>
+public sealed class TooManyVolumesException : ArchiveException
+{
+    public TooManyVolumesException(int maxVolumes, Exception? inner = null)
+        : base($"조각이 너무 많아요({maxVolumes}개까지). 나눌 크기를 키워 주세요.", inner)
+    {
+        MaxVolumes = maxVolumes;
+    }
+
+    /// <summary>만들 수 있는 조각 수의 한도.</summary>
+    public int MaxVolumes { get; }
+}
+
+/// <summary>
+/// 나눌 크기가 너무 작아 ZIP 의 파일 머리(이름 포함)나 목록 한 줄이 한 조각에 들어가지 않는다(화면은 1MB 이상만 받으므로 아주 긴 이름 등에서만).
+/// 조각을 하나도 남기지 않는다.
+/// </summary>
+public sealed class SplitSizeTooSmallException : ArchiveException
+{
+    public const string DefaultMessage = "나눌 크기가 너무 작아요. 더 크게 골라 주세요.";
+
+    public SplitSizeTooSmallException(Exception? inner = null)
+        : base(DefaultMessage, inner)
+    {
+    }
+}

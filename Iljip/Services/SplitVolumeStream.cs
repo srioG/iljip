@@ -78,6 +78,33 @@ public sealed class SplitVolumeStream : Stream
         }
     }
 
+    /// <summary>
+    /// 정해진 조각 목록을 그 차례대로 이어 붙인다(W2-03 — PKZIP 나눔 이름.z01 … 이름.zip 을 <see cref="SpannedZipStream"/> 가 읽을 때).
+    /// 조각이 없으면 <see cref="FileNotFoundException"/>(부르는 쪽이 먼저 확인해 그 이름으로 알림).
+    /// </summary>
+    internal static SplitVolumeStream OpenParts(IReadOnlyList<string> paths)
+    {
+        var parts = new List<FileStream>();
+        try
+        {
+            foreach (var p in paths)
+                parts.Add(new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.Read));
+            if (parts.Count == 0) throw new ArgumentException("조각이 없어요.", nameof(paths));
+            return new SplitVolumeStream(string.Empty, 3, paths.ToList(), parts);
+        }
+        catch
+        {
+            foreach (var s in parts) s.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>조각 수.</summary>
+    internal int PartCount => _parts.Count;
+
+    /// <summary>조각 <paramref name="index"/>(0부터)가 이어 붙인 스트림에서 시작하는 위치.</summary>
+    internal long PartStart(int index) => _starts[index];
+
     /// <summary>7z: 시작 머리가 가리키는 '다음 머리'의 끝(32 + 위치 + 크기)이 모은 길이를 넘으면 모자란 것(<see cref="Incomplete"/>).</summary>
     public void ThrowIfSevenZipIncomplete()
     {

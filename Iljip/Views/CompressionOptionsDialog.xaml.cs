@@ -10,6 +10,7 @@ namespace Iljip.Views;
 /// 압축 옵션 창(수준·암호). 암호는 두 번 넣어 일치를 확인하고, '암호 보이기'·8자 권장 안내(I0-3), ZIP 암호 방식 선택(I2-11),
 /// 한글 암호 호환 경고(B3)를 둔다. 판정은 <see cref="PasswordPolicy"/>(순수 함수) — 이 창은 그 결과대로 묻고 고칠 뿐이다.
 /// 7Z(W2-02): 솔리드·'파일 이름도 암호로 숨기기'를 보이고 ZIP 암호 방식 칸은 숨긴다. 칸 모양·결과는 <see cref="CompressionOptionsRules"/>.
+/// W2-03: ZIP·7Z 에 '나누기'(나누지 않음·10MB·20MB·직접 입력 MB) 칸 — 직접 입력이 1MB 미만이면 '1MB 이상으로 넣어 주세요'.
 /// </summary>
 public partial class CompressionOptionsDialog : Window
 {
@@ -19,7 +20,21 @@ public partial class CompressionOptionsDialog : Window
 
     private readonly string? _targetExtension;
     private readonly bool _passwordEnabled;   // ZIP·7Z
+    private readonly bool _splitEnabled;      // ZIP·7Z(W2-03)
     private bool _syncing;   // 암호 칸 ↔ 보이는 칸 맞추는 중(되먹임 방지)
+
+    /// <summary>'직접 입력'을 고르면 MB 칸을 보인다.</summary>
+    private void SplitCombo_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (SplitCustomBox is null) return;   // InitializeComponent 도중
+        bool custom = SplitCombo.SelectedIndex == CompressionOptionsRules.SplitCustomIndex;
+        SplitCustomBox.Visibility = SplitUnitText.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        if (custom)
+        {
+            SplitCustomBox.Focus();
+            SplitCustomBox.SelectAll();
+        }
+    }
 
     public CompressionOptionsDialog(string? targetExtension = null)
     {
@@ -33,6 +48,13 @@ public partial class CompressionOptionsDialog : Window
         ZipEncryptionPanel.Visibility = layout.ShowZipEncryption ? Visibility.Visible : Visibility.Collapsed;
         SevenZipPanel.Visibility = layout.ShowSevenZipOptions ? Visibility.Visible : Visibility.Collapsed;
         HintText.Text = layout.Hint;
+
+        // 나누기(W2-03) — ZIP·7Z 만. 기본은 '나누지 않음'
+        _splitEnabled = layout.ShowSplit;
+        SplitPanel.Visibility = layout.ShowSplit ? Visibility.Visible : Visibility.Collapsed;
+        SplitCombo.ItemsSource = CompressionOptionsRules.SplitLabels;
+        SplitCombo.SelectedIndex = 0;
+        SplitHintText.Text = CompressionOptionsRules.SplitHint;
 
         if (!_passwordEnabled)
         {
@@ -101,6 +123,16 @@ public partial class CompressionOptionsDialog : Window
             return;
         }
 
+        // 1-2) 나누기 크기(W2-03) — 직접 입력이 1MB 미만·숫자가 아니면 알리고 그 칸으로
+        long? splitBytes = null;
+        if (_splitEnabled && !CompressionOptionsRules.TryGetSplitBytes(SplitCombo.SelectedIndex, SplitCustomBox.Text, out splitBytes, out string? splitError))
+        {
+            MessageBox.Show(splitError, "일집", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SplitCustomBox.Focus();
+            SplitCustomBox.SelectAll();
+            return;
+        }
+
         bool hasPassword = _passwordEnabled && !string.IsNullOrEmpty(p1);
         var encryption = CompressionOptionsRules.IsZip(_targetExtension) && ZipCryptoRadio.IsChecked == true ? ZipEncryption.ZipCrypto : ZipEncryption.Aes256;
 
@@ -148,7 +180,7 @@ public partial class CompressionOptionsDialog : Window
         }
 
         Result = CompressionOptionsRules.Build(LevelCombo.SelectedIndex, p1, _targetExtension, encryption,
-            solid: SolidCheck.IsChecked == true, encryptFileNames: EncryptNamesCheck.IsChecked == true);
+            solid: SolidCheck.IsChecked == true, encryptFileNames: EncryptNamesCheck.IsChecked == true, splitBytes: splitBytes);
 
         DialogResult = true;
     }
