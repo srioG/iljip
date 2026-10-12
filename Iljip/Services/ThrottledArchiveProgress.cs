@@ -12,6 +12,7 @@ namespace Iljip.Services;
 /// 통과한 것만 캡처된 SynchronizationContext(보통 UI)로 Post 한다.
 ///
 /// 단, 완료 보고(CurrentFile이 비어 있음)는 항상 통과시켜 진행바가 99%에서 멈추지 않도록 한다.
+/// 첫 중간 보고는 바로 통과시키고, 그다음부터 간격마다 통과시킨다.
 /// </summary>
 public sealed class ThrottledArchiveProgress : IProgress<ArchiveProgress>
 {
@@ -19,7 +20,10 @@ public sealed class ThrottledArchiveProgress : IProgress<ArchiveProgress>
     private readonly SynchronizationContext? _context;
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly long _intervalMs;
-    private long _lastReportMs = long.MinValue;
+    // 예전에는 _lastReportMs = long.MinValue 로 시작해 'now - long.MinValue' 가 오버플로(음수)되어
+    // 중간 보고가 하나도 통과하지 못했다(B7 — 진행 막대가 끝까지 0). '한 번 보냈는지' 플래그로 대신한다.
+    private bool _reportedOnce;
+    private long _lastReportMs;
 
     /// <param name="handler">실제 UI 갱신 동작.</param>
     /// <param name="intervalMs">최소 보고 간격(ms). 기본 40ms ≈ 초당 25회.</param>
@@ -38,8 +42,9 @@ public sealed class ThrottledArchiveProgress : IProgress<ArchiveProgress>
         if (!isFinal)
         {
             long now = _stopwatch.ElapsedMilliseconds;
-            if (now - _lastReportMs < _intervalMs)
+            if (_reportedOnce && now - _lastReportMs < _intervalMs)
                 return;
+            _reportedOnce = true;
             _lastReportMs = now;
         }
 

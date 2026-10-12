@@ -12,8 +12,8 @@ public sealed class SequentialCollection
 
 /// <summary>
 /// 열기에 실패한 압축 파일을 일집이 '잠근 채' 두지 않는지 — 사용자가 손상 파일을 바로 지우거나 옮길 수 있어야 한다.
-/// 현재: 손상 7z·손상 egg/alz 는 라이브러리가 열다 실패하면서 파일 핸들을 닫지 않아(GC 가 돌 때까지) 파일이 잠긴다(B8).
-/// zip·tar·rar 등 나머지는 바로 풀린다.
+/// 예전(B8): 손상 7z·손상 egg/alz 는 라이브러리가 열다 실패하면서 파일 핸들을 닫지 않아(GC 가 돌 때까지) 파일이 잠겼다.
+/// 7z 는 SharpCompress 0.50 으로, egg/alz 는 서비스가 스트림을 직접 열고 실패 때 닫도록 고쳤다.
 /// </summary>
 [Collection(SequentialCollection.Name)]
 public class FileLockTests
@@ -51,8 +51,8 @@ public class FileLockTests
         Assert.False(File.Exists(arc));
     }
 
-    /// <summary>[B8] 손상 7z·egg·alz 도 열기 실패 직후 원본을 바로 지울 수 있어야 한다.</summary>
-    [Theory(Skip = Known.B8)]
+    /// <summary>[B8 고침] 손상 7z·egg·alz 도 열기 실패 직후 원본을 바로 지울 수 있어야 한다.</summary>
+    [Theory]
     [InlineData("trunc_half.7z", "bandizip/7z_default.7z", "half", "list")]
     [InlineData("trunc_half.7z", "bandizip/7z_default.7z", "half", "extract")]
     [InlineData("garbage.egg", "bandizip/zip_default.zip", "garbage", "list")]
@@ -64,33 +64,54 @@ public class FileLockTests
         var (ex, del) = await FailThenDelete(op, arc, tmp.P("out"));
         Assert.NotNull(ex);
         Assert.Null(del);
-    }
-
-    /// <summary>
-    /// [B8 근거] 손상 7z·egg·alz 는 열기 실패 직후 원본을 지우려 하면 IOException(다른 프로세스가 사용 중) — GC 를 막아 둔 상태에서 재현.
-    /// ★ 고쳐지면 실패하는 게 정상(BugEvidenceTests 와 같은 규칙: 지우고 위 Skip 해제).
-    /// </summary>
-    [Theory, Trait(Kinds.Key, Kinds.Record)]
-    [InlineData("trunc_half.7z", "bandizip/7z_default.7z", "half", "list")]
-    [InlineData("trunc_half.7z", "bandizip/7z_default.7z", "half", "extract")]
-    [InlineData("garbage.egg", "bandizip/zip_default.zip", "garbage", "list")]
-    [InlineData("garbage.alz", "bandizip/zip_default.zip", "garbage", "extract")]
-    public async Task B8_손상_7z_egg_alz는_열기_실패후_파일이_잠긴다(string name, string sourceRel, string how, string op)
-    {
-        using var tmp = new TempDir("lockb8");
-        string arc = Make(tmp, name, sourceRel, how);
-        var (ex, del) = await FailThenDelete(op, arc, tmp.P("out"));
-        Assert.NotNull(ex);
-        Assert.IsType<IOException>(del);
-        // GC 가 놓친 핸들을 닫으면 그제야 지워진다 → '누수'임을 확인
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        File.Delete(arc);
         Assert.False(File.Exists(arc));
     }
 
-    /// <summary>실패시키고 곧바로 원본 삭제를 시도한다. 그 사이 GC 가 핸들을 닫아 버리지 않게 GC 금지 구간에서.</summary>
-    private static async Task<(Exception? Failure, Exception? DeleteError)> FailThenDelete(string op, string arc, string dest)
+    // (B8 근거 테스트 'B8_손상_7z_egg_alz는_열기_실패후_파일이_잠긴다'는 위 테스트로 대체됨 — 같은 데이터, 기대만 뒤집힘)
+
+    /// <summary>
+    /// 분할 EGG: 첫 조각이 가리키는 다음 조각이 없어 열기에 실패해도(EggDotNet MissingVolumeException), 첫 조각과 같은 폴더의
+    /// 다른 조각(EggDotNet 이 분할 후보로 연 형제 파일)까지 모두 바로 지울 수 있다.
+    /// </summary>
+    [Theory]
+    [InlineData("list")]
+    [InlineData("extract")]
+    public async Task 조각이_빠진_분할_EGG도_열기_실패후_모든_조각을_바로_지울_수_있다(string op)
+    {
+        using var tmp = new TempDir("lockspl");
+        string dir = tmp.Dir("vols");
+        string first = Path.Combine(dir, "분할.vol1.egg");
+        string other = Path.Combine(dir, "분할.vol3.egg");
+        RawEgg.WriteVolumeHeaderOnly(first, headerId: 0x1111, previousId: 0, nextId: 0x2222);   // 다음 조각(0x2222)이 없음
+        RawEgg.WriteVolumeHeaderOnly(other, headerId: 0x3333, previousId: 0x2222, nextId: 0);
+        var (ex, del) = await FailThenDelete(op, first, tmp.P("out"), other);
+        Assert.NotNull(ex);
+        Assert.Null(del);
+        Assert.False(File.Exists(first) || File.Exists(other));
+    }
+
+    /// <summary>분할 EGG 를 정상으로 목록 보기·풀기 한 뒤에는(서비스가 아카이브를 닫은 뒤) 모든 조각을 바로 지울 수 있다.</summary>
+    [Fact]
+    public async Task 분할_EGG를_풀고나면_모든_조각을_바로_지울_수_있다()
+    {
+        using var tmp = new TempDir("lockspl2");
+        var (items, files, tree) = EggAlzTests.EggSample(tmp);
+        string dir = tmp.Dir("vols");
+        var vols = RawEgg.WriteSplit(Path.Combine(dir, "분할"), items, parts: 3);
+        var svc = Svc.For(vols[0]);
+        TreeAssert.ListEquals(await svc.ListEntriesAsync(vols[0]), files, context: "분할 egg");
+        string dest = tmp.P("out");
+        await svc.ExtractAsync(vols[0], dest);
+        TreeAssert.ExtractedTreeEquals(dest, tree, context: "분할 egg");
+        foreach (var v in vols)
+            Assert.Null(Record.Exception(() => File.Delete(v)));
+    }
+
+    /// <summary>
+    /// 실패시키고 곧바로 원본(과 <paramref name="alsoDelete"/>) 삭제를 시도한다. 그 사이 GC 가 핸들을 닫아 버리지 않게 GC 금지 구간에서.
+    /// DeleteError 는 처음 실패한 삭제의 예외.
+    /// </summary>
+    private static async Task<(Exception? Failure, Exception? DeleteError)> FailThenDelete(string op, string arc, string dest, params string[] alsoDelete)
     {
         bool noGc = false;
         try
@@ -102,6 +123,8 @@ public class FileLockTests
         {
             var ex = await Svc.Catch(() => Run(op, arc, dest));
             var del = Record.Exception(() => File.Delete(arc));
+            foreach (var extra in alsoDelete)
+                del ??= Record.Exception(() => File.Delete(extra));
             return (ex, del);
         }
         finally

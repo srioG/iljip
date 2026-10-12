@@ -83,8 +83,8 @@ public class KnownGapTests
         TreeAssert.ExtractedTreeEquals(dest, expected);
     }
 
-    /// <summary>[TAR-빈폴더] TAR 로 압축할 때 빈 폴더도 담겨야 한다(ZIP 은 이미 담음).</summary>
-    [Fact(Skip = Known.TarEmptyDir)]
+    /// <summary>[TAR-빈폴더 고침] TAR 로 압축할 때 빈 폴더도 담겨야 한다(ZIP 과 같게 — SharpCompress 0.50 TarWriter.WriteDirectory).</summary>
+    [Fact]
     public async Task TAR_압축이_빈폴더를_담는다()
     {
         using var tmp = new TempDir("tare");

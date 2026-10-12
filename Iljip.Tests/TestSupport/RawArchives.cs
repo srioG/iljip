@@ -264,8 +264,8 @@ public static class DeflateStored
 }
 
 /// <summary>
-/// 최소 EGG 작성기(이스트소프트 알집 형식, Store 방식만, 암호·분할·솔리드 없음, 이름 UTF-8).
-/// 반디집은 EGG 를 만들 수 없고 이 PC 에는 알집도 없어서, EGG 규격과 EggDotNet 0.3.0 파서가 읽는 구조대로 직접 쓴다:
+/// 최소 EGG 작성기(이스트소프트 알집 형식, Store 방식만, 암호·솔리드 없음, 이름 UTF-8, 분할은 <see cref="WriteSplit"/>).
+/// 반디집은 EGG 를 만들 수 없고 이 PC 에는 알집도 없어서, EGG 규격과 EggDotNet(0.3.0·0.4.0) 파서가 읽는 구조대로 직접 쓴다:
 /// <code>
 ///   'EGGA'(0x41474745) 버전 0x0100 · 머리 ID · 예약 → 끝(0x08E28222)
 ///   항목마다: 파일 머리(0x0A8590E3: ID·원본 크기) · 파일 이름(0x0A8591AC: 플래그·길이·UTF-8) ·
@@ -275,28 +275,82 @@ public static class DeflateStored
 /// </code>
 /// 크기 0 인 항목(폴더·빈 파일)에는 블록을 쓰지 않는다 — EggDotNet 파서는 크기 0 이면 블록을 찾지 않고,
 /// 블록이 있으면 다음 항목 머리로 잘못 읽는다. 진짜 알집 산출물이 빈 파일을 이렇게 쓰는지는 확인하지 못했다(알집 없음).
-/// 폴더는 이름 끝 '/' 로 나타낸다(일집 EggAlzArchiveService 가 끝 '/' 로 폴더를 가린다).
+/// 폴더는 이름 끝 '/' 와 윈도 속성 0x80 으로 나타낸다(일집 EggAlzArchiveService 는 둘 중 하나만 있어도 폴더로 본다 —
+/// 끝 '/' 없이 속성만 있는 폴더는 <see cref="Item.DirSlash"/> = false).
 /// </summary>
 public static class RawEgg
 {
-    /// <param name="Data">null 이면 폴더.</param>
-    public sealed record Item(string Name, byte[]? Data)
+    /// <param name="Data">null 이면 폴더(윈도 속성 0x80).</param>
+    /// <param name="DirSlash">폴더 이름 끝에 '/' 를 붙일지. false 면 이름 그대로 — 폴더 속성으로만 폴더임을 알 수 있는 항목 재현용.</param>
+    public sealed record Item(string Name, byte[]? Data, bool DirSlash = true)
     {
         public bool IsDir => Data is null;
     }
 
     public static void Write(string path, IEnumerable<Item> items, DateTime? mtimeUtc = null)
     {
-        long fileTime = (mtimeUtc ?? FixtureCatalog.FixedMtimeUtc).ToFileTimeUtc();
         using var fs = File.Create(path);
         using var w = new BinaryWriter(fs);
         w.Write(0x41474745u); w.Write((ushort)0x0100); w.Write(0x1A2B3C4Du); w.Write(0u);
         w.Write(0x08E28222u);
+        w.Write(Body(items, mtimeUtc));
+    }
+
+    /// <summary>
+    /// 분할 EGG(.vol1.egg, .vol2.egg …): 머리 뒤의 본문(항목들 + 보관 끝)을 <paramref name="parts"/> 조각으로 나눠,
+    /// 조각마다 '분할 머리'(0x24F5A262: 앞·다음 조각 ID)를 단 EGG 머리를 붙인다(EggDotNet 이 조각 본문을 이어 붙여 읽는 구조).
+    /// 돌려주는 목록의 첫 번째가 첫 조각.
+    /// </summary>
+    public static List<string> WriteSplit(string basePath, IEnumerable<Item> items, int parts, DateTime? mtimeUtc = null)
+    {
+        byte[] body = Body(items, mtimeUtc);
+        int chunk = (body.Length + parts - 1) / parts;
+        var paths = new List<string>();
+        for (int i = 0; i < parts; i++)
+        {
+            string path = $"{basePath}.vol{i + 1}.egg";
+            uint id = 0x5000u + (uint)i;
+            uint prev = i == 0 ? 0 : id - 1;
+            uint next = i == parts - 1 ? 0 : id + 1;
+            int from = Math.Min(body.Length, i * chunk), to = Math.Min(body.Length, (i + 1) * chunk);
+            using (var fs = File.Create(path))
+            using (var w = new BinaryWriter(fs))
+            {
+                WriteVolumeHeader(w, id, prev, next);
+                w.Write(body, from, to - from);
+            }
+            paths.Add(path);
+        }
+        return paths;
+    }
+
+    /// <summary>항목 없이 '분할 머리'가 달린 EGG 머리만 쓴다(조각이 빠진 분할 EGG 재현용).</summary>
+    public static void WriteVolumeHeaderOnly(string path, uint headerId, uint previousId, uint nextId)
+    {
+        using var fs = File.Create(path);
+        using var w = new BinaryWriter(fs);
+        WriteVolumeHeader(w, headerId, previousId, nextId);
+        w.Write(0x08E28222u);
+    }
+
+    private static void WriteVolumeHeader(BinaryWriter w, uint headerId, uint previousId, uint nextId)
+    {
+        w.Write(0x41474745u); w.Write((ushort)0x0100); w.Write(headerId); w.Write(0u);
+        w.Write(0x24F5A262u); w.Write((byte)0); w.Write((ushort)8); w.Write(previousId); w.Write(nextId);
+        w.Write(0x08E28222u);
+    }
+
+    /// <summary>EGG 머리 뒤에 오는 본문: 항목들 + 보관 끝(0x08E28222).</summary>
+    private static byte[] Body(IEnumerable<Item> items, DateTime? mtimeUtc)
+    {
+        long fileTime = (mtimeUtc ?? FixtureCatalog.FixedMtimeUtc).ToFileTimeUtc();
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
         uint id = 0;
         foreach (var it in items)
         {
             byte[] data = it.Data ?? Array.Empty<byte>();
-            string name = it.IsDir && !it.Name.EndsWith('/') ? it.Name + "/" : it.Name;
+            string name = it.IsDir && it.DirSlash && !it.Name.EndsWith('/') ? it.Name + "/" : it.Name;
             byte[] nb = Encoding.UTF8.GetBytes(name);
             if (nb.Length > 256) throw new ArgumentException("EGG 이름이 너무 김(EggDotNet 한도 256B): " + name);
 
@@ -313,6 +367,8 @@ public static class RawEgg
             }
         }
         w.Write(0x08E28222u);
+        w.Flush();
+        return ms.ToArray();
     }
 
     /// <summary>폴더 하나를 통째로 EGG 항목으로(부모 기준 상대경로, 폴더 항목 포함 — 알집처럼).</summary>
@@ -330,7 +386,7 @@ public static class RawEgg
 }
 
 /// <summary>
-/// 최소 ALZ 작성기(Store 방식만, 암호 없음). unalz·EggDotNet 0.3.0 이 읽는 구조:
+/// 최소 ALZ 작성기(Store 방식만, 암호 없음). unalz·EggDotNet(0.3.0·0.4.0) 이 읽는 구조:
 /// <code>
 ///   'ALZ\1'(0x015A4C41) 버전 10 · ID
 ///   항목마다: 'BLZ\1'(0x015A4C42) 이름 길이(2) · 속성(1) · DOS 시각(4) · 플래그(2, 낮은 바이트 윗 4비트 = 크기 칸 바이트 수)

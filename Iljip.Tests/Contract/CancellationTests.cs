@@ -86,10 +86,11 @@ public class CancellationTests
     }
 
     /// <summary>
-    /// [B6] TAR 압축 도중(큰 파일을 쓰는 중) 취소하면 OCE 가 나야 한다.
-    /// 현재: TarArchiveService 는 파일과 파일 '사이'에서만 취소를 확인해, 마지막 큰 파일을 쓰는 동안 누른 취소는 무시되고 정상 완료된다.
+    /// [B6 고침] TAR 압축 도중(큰 파일을 쓰기 시작할 때) 취소하면 OCE 가 나야 한다.
+    /// 예전: TarArchiveService 는 파일과 파일 '사이'에서만 취소를 확인해, 마지막 큰 파일을 쓰는 동안 누른 취소는 무시되고 정상 완료됐다.
+    /// (파일 '한가운데'에서 누른 취소는 FixedBugTests.TAR_마지막_큰파일_쓰는중_취소하면_OCE)
     /// </summary>
-    [Fact(Skip = Known.B6)]
+    [Fact]
     public async Task TAR_압축_도중_취소하면_OCE()
     {
         using var tmp = new TempDir("ct");

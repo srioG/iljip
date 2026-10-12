@@ -13,12 +13,12 @@ namespace Iljip.Tests.Contract;
 /// 부분 파일 정리·진행률을 따로 복제해 갖고 있으므로, 같은 계약을 여기서 따로 고정한다.
 /// 엔진을 7z.dll 계열로 바꾸면 EGG/ALZ 는 지원이 없으니(7-Zip 은 egg 미지원) 이 묶음이 '빠지면 안 되는 형식'을 지킨다.
 /// </para>
-/// 알려진 한계: 크기 0 항목(폴더 항목·빈 파일)이 든 EGG 는 B9, CP949 한글 이름 ALZ 는 B10(Known.cs).
+/// 예전 버그: 크기 0 항목(폴더 항목·빈 파일)이 든 EGG(B9), CP949 한글 이름 ALZ(B10) — 둘 다 서비스에서 우회해 고침(아래 테스트).
 /// 진짜 알집 산출물로는 확인하지 못했다(MANUAL_CHECKLIST 의 egg 항목으로 사람이 확인).
 /// </summary>
 public class EggAlzTests
 {
-    /// <summary>EGG 표본: SampleTree 의 '크기가 있는 파일'만(폴더 항목·빈 파일은 B9 라 뺌). 기대 목록·기대 트리 포함.</summary>
+    /// <summary>EGG 표본: SampleTree 의 '크기가 있는 파일'만(폴더 항목·빈 파일은 따로 시험 — EGG_폴더항목과_빈파일이_있어도_열리고_풀린다). 기대 목록·기대 트리 포함.</summary>
     internal static (List<RawEgg.Item> Items, List<ExpectedEntry> ExpectedFiles, List<ExpectedEntry> ExpectedTree) EggSample(TempDir tmp)
     {
         string src = SampleTree.Create(tmp.Dir("src"));
@@ -169,8 +169,8 @@ public class EggAlzTests
         TreeAssert.ExtractedTreeEquals(dest, expected, context: "alz");
     }
 
-    /// <summary>[B10] 알집이 만드는 ALZ 의 한글 이름(CP949)이 바르게 보이고 그 이름으로 풀려야 한다.</summary>
-    [Fact(Skip = Known.B10)]
+    /// <summary>[B10 고침] 알집이 만드는 ALZ 의 한글 이름(CP949)이 바르게 보이고 그 이름으로 풀려야 한다.</summary>
+    [Fact]
     public async Task ALZ_CP949_한글_이름이_바르게_보인다()
     {
         using var tmp = new TempDir("alzk");
@@ -183,6 +183,24 @@ public class EggAlzTests
         Assert.Equal(new[] { "문서/견적서.txt" }, TreeAssert.Files(dest));
     }
 
+    /// <summary>
+    /// 화면이 넘기는 '복구된 한글 이름'으로 고른 ALZ 항목도 풀린다(서비스가 복구 이름 ↔ EggDotNet 항목을 짝지어 둠).
+    /// 폴더를 고르면 그 아래가, 파일을 고르면 그 파일만.
+    /// </summary>
+    [Theory]
+    [InlineData("문서")]
+    [InlineData("문서/견적서.txt")]
+    public async Task ALZ_한글_이름으로_선택해제가_된다(string selector)
+    {
+        using var tmp = new TempDir("alzks");
+        string arc = tmp.P("korean.alz");
+        WriteKoreanAlz(arc);
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractEntriesAsync(arc, dest, new[] { selector });
+        Assert.Equal(new[] { "문서/견적서.txt" }, TreeAssert.Files(dest));
+        Assert.Equal("korean name", File.ReadAllText(Path.Combine(dest, "문서", "견적서.txt")));
+    }
+
     internal static void WriteKoreanAlz(string arc)
     {
         var cp949 = Encoding.GetEncoding(949);
@@ -191,8 +209,202 @@ public class EggAlzTests
             new RawAlz.Item(cp949.GetBytes("문서\\견적서.txt"), Encoding.UTF8.GetBytes("korean name")));
     }
 
-    /// <summary>[B9] 크기 0 항목(폴더 항목·빈 파일)이 든 EGG 도 목록·해제가 원본과 같아야 한다(알집처럼).</summary>
-    [Fact(Skip = Known.B9)]
+    /// <summary>
+    /// [B10 보강] ALZ 이름이 한글 없이 한자·기호만 있는 CP949('漢字①.txt'), CP949 확장 한글('똠방각하_뷁.txt'), UTF-8 이 섞여도 모두 바르다.
+    /// 예전엔 ZIP 용 판별(CP949 결과에 한글이 있어야 채택)을 써서 한자·기호 이름이 CP437 로 깨졌다('∙╙φ«¿τ.txt').
+    /// </summary>
+    [Fact]
+    public async Task ALZ_한자_기호_확장한글_UTF8_이름이_모두_바르게_보인다()
+    {
+        var cp949 = Encoding.GetEncoding(949);
+        string[] cpNames = { "漢字①.txt", "똠방각하_뷁.txt" };
+        foreach (var n in cpNames)
+        {
+            byte[] raw = cp949.GetBytes(n);
+            Assert.Equal(n, cp949.GetString(raw));                       // 전제: CP949 로 표현됨
+            Assert.False(System.Text.Unicode.Utf8.IsValid(raw), n);       // 전제: UTF-8 로는 깨짐(EggDotNet 이 � 로 읽음)
+        }
+        using var tmp = new TempDir("alzh");
+        string arc = tmp.P("mixed.alz");
+        RawAlz.Write(arc,
+            new RawAlz.Item(cp949.GetBytes(cpNames[0]), Encoding.UTF8.GetBytes("hanja")),
+            new RawAlz.Item(cp949.GetBytes(cpNames[1]), Encoding.UTF8.GetBytes("ext hangul")),
+            new RawAlz.Item(Encoding.UTF8.GetBytes("유티에프.txt"), Encoding.UTF8.GetBytes("utf8")));
+        var want = new[] { "漢字①.txt", "똠방각하_뷁.txt", "유티에프.txt" };
+        Assert.Equal(want, (await Svc.For(arc).ListEntriesAsync(arc)).Select(e => e.Path));
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractAsync(arc, dest);
+        Assert.Equal(want.OrderBy(x => x, StringComparer.Ordinal), TreeAssert.Files(dest));
+        Assert.Equal("hanja", File.ReadAllText(Path.Combine(dest, "漢字①.txt")));
+    }
+
+    /// <summary>
+    /// 이름 끝에 구분자가 없는 폴더 항목(폴더 속성만 있음 — ALZ 0x10, EGG 0x80)도 폴더로 보이고 폴더로 풀린다.
+    /// 예전엔 끝 '/' 만 봐서 0바이트 '파일'로 풀리고, 그 아래 항목에서 "Cannot create … already exists" 로 해제가 실패했다.
+    /// (진짜 알집이 폴더 이름 끝에 구분자를 붙이는지는 확인 못 함 — MANUAL_CHECKLIST 6절)
+    /// </summary>
+    [Theory]
+    [InlineData("alz_cp949")]
+    [InlineData("alz_ascii")]
+    [InlineData("egg")]
+    public async Task 끝_구분자_없는_폴더항목도_폴더로_풀린다(string kind)
+    {
+        using var tmp = new TempDir("dirattr");
+        var cp949 = Encoding.GetEncoding(949);
+        byte[] data = Encoding.UTF8.GetBytes("in folder");
+        string folder = kind == "alz_ascii" ? "docs" : "문서";
+        string arc;
+        if (kind == "egg")
+        {
+            arc = tmp.P("noslash.egg");
+            RawEgg.Write(arc, new[] { new RawEgg.Item(folder, null, DirSlash: false), new RawEgg.Item(folder + "/a.txt", data) });
+        }
+        else
+        {
+            var enc = kind == "alz_ascii" ? Encoding.ASCII : cp949;
+            arc = tmp.P("noslash.alz");
+            RawAlz.Write(arc, new RawAlz.Item(enc.GetBytes(folder), null), new RawAlz.Item(enc.GetBytes(folder + "\\a.txt"), data));
+        }
+        var svc = Svc.For(arc);
+        var listed = await svc.ListEntriesAsync(arc);
+        Assert.Equal(new[] { (folder + "/", true), (folder + "/a.txt", false) }, listed.Select(e => (e.Path, e.IsDirectory)));
+        string dest = tmp.P("out");
+        await svc.ExtractAsync(arc, dest);
+        Assert.True(Directory.Exists(Path.Combine(dest, folder)), "폴더가 안 생김");
+        Assert.Equal(new[] { folder + "/a.txt" }, TreeAssert.Files(dest));
+        Assert.Equal("in folder", File.ReadAllText(Path.Combine(dest, folder, "a.txt")));
+    }
+
+    // ───────────── 내용 확인(크기·CRC) — W1-A 1차 검증 지적 ─────────────
+    // EggDotNet 은 풀린 내용을 확인하지 않아(ChecksumValid 를 따로 부르지 않으면) 받다 만 egg/alz 도 짧은 파일을 남기고 '완료'로 끝났다.
+    // 서비스가 크기·CRC 를 직접 맞춰 보고, 틀리면 쓰다 만 파일을 지우고 예외를 낸다.
+
+    private static readonly byte[] BigData = Pseudo(200_000, 77);
+
+    private static byte[] Pseudo(int n, int seed)
+    {
+        var b = new byte[n];
+        new Random(seed).NextBytes(b);
+        return b;
+    }
+
+    /// <summary>앞.txt(작음) + 큰.bin(200,000B, Store) 을 담은 EGG 또는 ALZ. ALZ 이름은 CP949.</summary>
+    private static string WriteFrontAndBig(TempDir tmp, string kind, string name)
+    {
+        string arc = tmp.P(name + "." + kind);
+        if (kind == "egg")
+        {
+            RawEgg.Write(arc, new[] { new RawEgg.Item("폴더/앞.txt", FrontData), new RawEgg.Item("폴더/큰.bin", BigData) });
+        }
+        else
+        {
+            var cp949 = Encoding.GetEncoding(949);
+            RawAlz.Write(arc,
+                new RawAlz.Item(cp949.GetBytes("폴더\\"), null),
+                new RawAlz.Item(cp949.GetBytes("폴더\\앞.txt"), FrontData),
+                new RawAlz.Item(cp949.GetBytes("폴더\\큰.bin"), BigData));
+        }
+        return arc;
+    }
+
+    private static readonly byte[] FrontData = Encoding.UTF8.GetBytes("앞 파일 — 온전함");
+
+    /// <summary>예외(암호 문제로 오해하지 않음) + 대상 폴더에는 온전히 끝난 앞.txt 만 남음(잘리거나 틀린 큰.bin 은 지워짐).</summary>
+    private static async Task AssertFailsLeavingOnlyFront(string arc, string dest, string context)
+    {
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+        Assert.True(ex is not null, context + ": 손상 파일인데 예외 없이 끝남");
+        Assert.IsType<InvalidDataException>(ex);
+        Assert.False(Internals.IsPasswordRelated(ex!), context + ": 손상을 암호 문제로 오해함: " + ex!.Message);
+        Assert.Equal(new[] { "폴더/앞.txt" }, TreeAssert.Files(dest));
+        Assert.Equal(TreeAssert.Sha256(FrontData), TreeAssert.Sha256(Path.Combine(dest, "폴더", "앞.txt")));
+    }
+
+    /// <summary>계약: 뒤가 잘린 EGG·ALZ(받다 만 파일)는 예외로 알리고, 잘린 큰 파일을 짧은 채로 남기지 않는다.</summary>
+    [Theory]
+    [InlineData("egg", 30)]
+    [InlineData("egg", 60)]
+    [InlineData("egg", 98)]
+    [InlineData("alz", 30)]
+    [InlineData("alz", 98)]
+    public async Task 잘린_EGG_ALZ는_예외_그리고_짧은_파일을_남기지_않는다(string kind, int percent)
+    {
+        using var tmp = new TempDir("eggcut");
+        byte[] b = File.ReadAllBytes(WriteFrontAndBig(tmp, kind, "full"));
+        string arc = tmp.P("cut." + kind);
+        File.WriteAllBytes(arc, b[..(int)(b.Length * (long)percent / 100)]);
+        await AssertFailsLeavingOnlyFront(arc, tmp.P("out"), $"{kind} {percent}%");
+    }
+
+    /// <summary>계약: 데이터 1바이트가 깨진 EGG·ALZ(크기는 맞음) — CRC 가 맞지 않으니 예외, 틀린 내용 파일을 남기지 않는다.</summary>
+    [Theory]
+    [InlineData("egg")]
+    [InlineData("alz")]
+    public async Task 데이터가_깨진_EGG_ALZ는_CRC로_알아챈다(string kind)
+    {
+        using var tmp = new TempDir("eggcrc");
+        string arc = WriteFrontAndBig(tmp, kind, "crc");
+        byte[] b = File.ReadAllBytes(arc);
+        int at = CorruptArchiveTests.IndexOf(b, BigData[..64]);
+        Assert.True(at > 0, "큰.bin 데이터 위치를 못 찾음");
+        b[at + 100_000] ^= 0x01;
+        File.WriteAllBytes(arc, b);
+        await AssertFailsLeavingOnlyFront(arc, tmp.P("out"), kind);
+    }
+
+    /// <summary>
+    /// 잘린 ALZ 라도 이름까지 온전한 항목은 CP949 한글 이름이 바르게 보인다(예전엔 끝 표시 'CLZ' 가 없으면 이름 복구를 포기해 �).
+    /// 끝 표시만 빠지고 데이터는 온전하면 끝까지 풀린다.
+    /// </summary>
+    [Fact]
+    public async Task 잘린_ALZ도_온전한_항목의_한글_이름은_보인다()
+    {
+        using var tmp = new TempDir("alzcutname");
+        byte[] b = File.ReadAllBytes(WriteFrontAndBig(tmp, "alz", "full"));
+        var want = new[] { "폴더/", "폴더/앞.txt", "폴더/큰.bin" };
+
+        string cutData = tmp.P("cut_data.alz");             // 큰.bin 데이터 중간에서 끊김
+        File.WriteAllBytes(cutData, b[..(b.Length - 50_000)]);
+        Assert.Equal(want, (await Svc.For(cutData).ListEntriesAsync(cutData)).Select(e => e.Path));
+
+        string cutEnd = tmp.P("cut_end.alz");               // 끝 표시(CLZ 8바이트)만 빠짐
+        File.WriteAllBytes(cutEnd, b[..(b.Length - 8)]);
+        Assert.Equal(want, (await Svc.For(cutEnd).ListEntriesAsync(cutEnd)).Select(e => e.Path));
+        string dest = tmp.P("out");
+        await Svc.For(cutEnd).ExtractAsync(cutEnd, dest);
+        Assert.Equal(new[] { "폴더/앞.txt", "폴더/큰.bin" }, TreeAssert.Files(dest));
+        Assert.Equal(TreeAssert.Sha256(BigData), TreeAssert.Sha256(Path.Combine(dest, "폴더", "큰.bin")));
+    }
+
+    /// <summary>
+    /// 확인 실패 문구: 암호 걸린 항목이면 화면이 암호를 다시 묻게('암호' 포함 — 옛 ZIP 방식 EGG 암호는 틀린 암호가 검사를 우연히
+    /// 통과해 내용만 틀릴 수 있음), 아니면 묻지 않게. (암호 EGG 작성기가 없어 문구 판정만 시험)
+    /// </summary>
+    [Fact]
+    public void 확인값_불일치는_암호_항목에서만_암호를_다시_묻게_한다()
+    {
+        Assert.True(Internals.IsPasswordRelated(EggAlzArchiveService.DamagedEntry("a.txt", encrypted: true, "x")));
+        Assert.False(Internals.IsPasswordRelated(EggAlzArchiveService.DamagedEntry("a.txt", encrypted: false, "x")));
+    }
+
+    /// <summary>
+    /// 분할 EGG 의 다음 조각 후보는 같은 폴더의 다른 '.egg' 파일뿐(대소문자 무시) — 예전(EggDotNet 기본)엔 폴더의 모든 파일을 열어
+    /// 수천 개 폴더에서 느리고 OneDrive '온라인 전용' 파일을 내려받게 만들 수 있었다.
+    /// </summary>
+    [Fact]
+    public void 분할_EGG_조각_후보는_같은_폴더의_다른_egg_파일만()
+    {
+        using var tmp = new TempDir("splitcand");
+        string dir = tmp.Dir("vols");
+        foreach (var n in new[] { "a.vol1.egg", "a.vol2.EGG", "b.egg", "notes.txt", "data.bin", "a.vol1.egg.bak", "egg" })
+            File.WriteAllBytes(Path.Combine(dir, n), new byte[] { 1 });
+        string first = Path.Combine(dir, "a.vol1.egg");
+        var got = EggAlzArchiveService.SplitVolumeCandidates(first).Select(Path.GetFileName).OrderBy(x => x, StringComparer.Ordinal);
+        Assert.Equal(new[] { "a.vol2.EGG", "b.egg" }, got);
+    }
+
+    /// <summary>[B9 고침] 크기 0 항목(폴더 항목·빈 파일)이 든 EGG 도 목록·해제가 원본과 같아야 한다(알집처럼).</summary>
+    [Fact]
     public async Task EGG_폴더항목과_빈파일이_있어도_열리고_풀린다()
     {
         using var tmp = new TempDir("egg0");

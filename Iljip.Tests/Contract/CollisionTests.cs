@@ -58,6 +58,39 @@ public class CollisionTests
         Assert.True(File.Exists(Path.Combine(dest, "일집_샘플", "견적서_2026 (1).txt")));
     }
 
+    /// <summary>
+    /// 같은 압축 파일을 같은 폴더에 '동시에' 여러 번 풀어도 모두 성공하고, 서로 다른 이름(원래 이름, 이름 (1) …)으로 하나씩 생긴다.
+    /// 예전엔 '있는지 확인 → 만들기' 사이에 다른 해제가 끼어들어 진 쪽이 '다른 프로세스가 사용 중' 오류로 실패했다
+    /// (6개 동시에 2개만 성공 — W1-A 1차 검증). 지금은 만들기를 '없을 때만 만들기'로 한 번에 한다(OutputFiles).
+    /// SharpCompress 계열(gz·zip)과 EGG 서비스가 각자 해제 코드를 가지므로 둘 다 본다.
+    /// </summary>
+    [Theory]
+    [InlineData("gz")]
+    [InlineData("zip")]
+    [InlineData("egg")]
+    public async Task 같은_폴더에_동시에_여러번_풀어도_모두_다른_이름으로_풀린다(string kind)
+    {
+        const int n = 8;
+        using var tmp = new TempDir("colpar");
+        var payload = new byte[300_000];
+        new Random(8).NextBytes(payload);
+        string arc = tmp.P("src." + kind);
+        switch (kind)
+        {
+            case "gz": RawGz.Write(tmp.P("src.txt.gz"), null, payload); arc = tmp.P("src.txt.gz"); break;
+            case "zip": RawZip.Write(arc, new RawZip.Item(System.Text.Encoding.UTF8.GetBytes("src.txt"), payload)); break;
+            default: RawEgg.Write(arc, new[] { new RawEgg.Item("src.txt", payload) }); break;
+        }
+        string dest = tmp.Dir("out");
+        var svc = Svc.For(arc);
+        await Task.WhenAll(Enumerable.Range(0, n).Select(_ => Task.Run(() => svc.ExtractAsync(arc, dest))));
+
+        var want = new[] { "src.txt" }.Concat(Enumerable.Range(1, n - 1).Select(i => $"src ({i}).txt")).OrderBy(x => x, StringComparer.Ordinal);
+        Assert.Equal(want, TreeAssert.Files(dest));
+        string sha = TreeAssert.Sha256(payload);
+        Assert.All(TreeAssert.Files(dest), f => Assert.Equal(sha, TreeAssert.Sha256(Path.Combine(dest, f))));
+    }
+
     /// <summary>bz2 단일 스트림 경로도 같은 규칙.</summary>
     [Fact]
     public async Task bz2도_덮어쓰지_않는다()

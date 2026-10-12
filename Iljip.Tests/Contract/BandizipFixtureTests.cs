@@ -11,7 +11,7 @@ public class BandizipFixtureTests
 {
     public static TheoryData<string> ListOk => FixtureSets.Data(FixtureSets.ListOk);
     public static TheoryData<string> ExtractOk => FixtureSets.Data(FixtureSets.ExtractOk);
-    public static TheoryData<string> SevenZip => FixtureSets.Data(FixtureSets.SevenZipEmptyFileBug);
+    public static TheoryData<string> SevenZip => FixtureSets.Data(FixtureSets.SevenZipBandizip);
     public static TheoryData<string> KoreanPw => FixtureSets.Data(FixtureSets.KoreanPasswordZip);
     public static TheoryData<string> Nfd => FixtureSets.Data(FixtureSets.Nfd);
 
@@ -73,7 +73,7 @@ public class BandizipFixtureTests
 
     /// <summary>
     /// 반디집 7z(일반·헤더 암호·한글 암호): 빈 파일을 뺀 나머지는 선택 해제로 내용이 정확히 풀린다.
-    /// (전체 해제는 B1 때문에 실패 — 아래 Skip 테스트 참고)
+    /// (전체 해제는 아래 두 테스트 — 예전엔 빈 파일에서 실패했던 B1, SharpCompress 0.50 으로 고쳐짐)
     /// </summary>
     [Theory]
     [MemberData(nameof(SevenZip))]
@@ -91,8 +91,8 @@ public class BandizipFixtureTests
         Assert.Equal(nonEmpty.Count, snap.Values.Count(v => v is not null));
     }
 
-    /// <summary>[B1] 반디집 7z 전체 해제 — 빈 파일까지 반디집과 똑같이 풀려야 한다.</summary>
-    [Theory(Skip = Known.B1)]
+    /// <summary>[B1 고침] 반디집 7z 전체 해제 — 빈 파일까지 반디집과 똑같이 풀려야 한다.</summary>
+    [Theory]
     [InlineData("7z_default")]
     public async Task 반디집_7z_전체_해제가_반디집과_같다(string id)
     {
@@ -104,11 +104,11 @@ public class BandizipFixtureTests
     }
 
     /// <summary>
-    /// [B1] 헤더(파일명) 암호 7z 를 서비스에 맞는 암호를 직접 주고 전체 해제하면 반디집과 같아야 한다.
-    /// 지금은 B1(빈 파일) 때문에만 실패한다. ★ I1-7(화면이 열기 단계에서 암호를 안 물음)과는 무관 —
+    /// [B1 고침] 헤더(파일명) 암호 7z 를 서비스에 맞는 암호를 직접 주고 전체 해제하면 반디집과 같아야 한다.
+    /// 예전엔 B1(빈 파일) 때문에만 실패했다. ★ I1-7(화면이 열기 단계에서 암호를 안 물음)과는 무관 —
     /// 이 테스트가 통과해도 I1-7 이 해결된 것이 아니다(I1-7 은 자동 테스트 없음, MANUAL_CHECKLIST 2절).
     /// </summary>
-    [Theory(Skip = Known.B1)]
+    [Theory]
     [InlineData("7z_header_encrypted")]
     [InlineData("7z_header_encrypted_korean_pw")]
     public async Task 헤더암호_7z_전체_해제가_반디집과_같다(string id)
@@ -222,8 +222,8 @@ public class BandizipFixtureTests
         Assert.All(entries, e => Assert.Equal(0, e.CompressedSize));
     }
 
-    /// <summary>[B2] 반디집 .gz(FNAME 없음): 이름은 파일명에서 .gz 를 뗀 것으로 보이고 정확히 풀려야 한다(반디집 동작).</summary>
-    [Fact(Skip = Known.B2)]
+    /// <summary>[B2 고침] 반디집 .gz(FNAME 없음): 이름은 파일명에서 .gz 를 뗀 것으로 보이고 정확히 풀려야 한다(반디집 동작).</summary>
+    [Fact]
     public async Task gz_단일파일_반디집산출물이_풀린다()
     {
         var fx = FixtureCatalog.Get("gz_single");
@@ -234,5 +234,29 @@ public class BandizipFixtureTests
         string dest = tmp.P("out");
         await svc.ExtractAsync(fx.FullPath, dest);
         TreeAssert.ExtractedTreeEquals(dest, fx.Expected, context: fx.Id);
+    }
+
+    /// <summary>
+    /// 현재 동작 기록: 반디집 .tar.gz 는 GZ 처리기가 안쪽 .tar 하나('이름.tar', 한 겹만 벗긴 크기)로 보여 주고 그 .tar 를 꺼낸다
+    /// (.tar.bz2 를 BZ2 처리기가 다루는 방식과 같음). 반디집은 tar 안 내용을 바로 보여 준다(KnownGapTests I2-9) —
+    /// tar 까지 한 번에 펼치게 바뀌면 이 기록은 지우거나 고칠 것.
+    /// (SharpCompress 0.38 때는 이름 빈 항목 하나 + 해제 '안전하지 않은 경로'(B2), 0.50 형식 판별로는 아예 못 열어 GZ 처리기가 gzip 으로 직접 연다)
+    /// </summary>
+    [Fact, Trait(Kinds.Key, Kinds.Record)]
+    public async Task 기록_tar_gz는_안쪽_tar_하나로_보이고_풀린다()
+    {
+        var fx = FixtureCatalog.Get("targz_default");
+        var inner = fx.InnerTar ?? throw new InvalidOperationException("targz_default 에 inner_tar 가 없음");
+        var svc = Svc.For(fx.FullPath);
+        Assert.IsType<GZipArchiveService>(svc);
+        var only = Assert.Single(await svc.ListEntriesAsync(fx.FullPath));
+        Assert.Equal(inner.Name, only.Path);
+        Assert.Equal(inner.Size, only.Size);
+
+        using var tmp = new TempDir("tgzr");
+        string dest = tmp.P("out");
+        await svc.ExtractAsync(fx.FullPath, dest);
+        Assert.Equal(new[] { inner.Name }, TreeAssert.Files(dest));
+        Assert.Equal(inner.Sha256, TreeAssert.Sha256(Path.Combine(dest, inner.Name)));
     }
 }

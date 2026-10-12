@@ -4,28 +4,39 @@ using Iljip.Tests.TestSupport;
 namespace Iljip.Tests.Contract;
 
 /// <summary>
-/// [범위 6] 손상 파일: 뒷부분을 자른 zip/7z/tar, 바이트를 망가뜨린 zip/7z, 쓰레기·빈 파일, 데이터 한가운데가 깨진 zip →
-/// 예외가 나고, 대상 폴더에 '틀린 내용'이나 절반짜리(0바이트 포함) 파일이 남지 않는다.
+/// [범위 6] 손상 파일: 뒷부분을 자른 zip/7z/tar/gz/tar.gz, 바이트를 망가뜨린 zip/7z/gz, 쓰레기·빈 파일, 서명 뒤가 쓰레기인 rar,
+/// 데이터 한가운데가 깨진 zip → 예외가 나고, 대상 폴더에 '틀린 내용'이나 절반짜리(0바이트 포함) 파일이 남지 않는다.
+/// (EGG/ALZ 의 잘림·CRC 는 EggAlzTests)
 /// 계약 테스트(예외 + 오염 없음)와 '기록_' 테스트(지금 엔진의 예외 타입·문구)를 나눠 두었다 —
 /// 엔진을 바꾸면 기록 쪽만 새 값으로 고치고, 계약 쪽은 그대로 통과해야 한다.
 /// </summary>
 public class CorruptArchiveTests
 {
-    /// <summary>(이름(확장자로 서비스 결정), 원본 픽스처, 망가뜨리는 방법, 지금 예외 타입 전체 이름, 문구 핵심(없으면 null))</summary>
+    /// <summary>
+    /// (이름(확장자로 서비스 결정), 원본 픽스처, 망가뜨리는 방법, 지금 예외 타입 전체 이름, 문구 핵심(없으면 null))
+    /// 예외 타입·문구는 SharpCompress 0.50.5 / EggDotNet 0.4.0 실측 값(W1-B 에서 일집 자체 예외로 한 번 더 바뀜).
+    /// </summary>
     public static TheoryData<string, string, string, string, string?> Cases => new()
     {
         { "trunc_half.zip", "bandizip/zip_default.zip", "half", "SharpCompress.Common.ArchiveException", "Failed to locate the Zip Header" },
         { "trunc_tail.zip", "bandizip/zip_default.zip", "tail30", "SharpCompress.Common.ArchiveException", "Failed to locate the Zip Header" },
         { "deflate_broken.zip", "bandizip/zip_default.zip", "xor200", "SharpCompress.Compressors.Deflate.ZlibException", "Bad state (invalid block type)" },
-        { "trunc_half.7z", "bandizip/7z_default.7z", "half", "System.InvalidOperationException", "nextHeaderOffset is invalid" },
+        { "trunc_half.7z", "bandizip/7z_default.7z", "half", "SharpCompress.Common.ArchiveOperationException", "nextHeaderOffset is invalid" },
         { "data_broken.7z", "bandizip/7z_default.7z", "xor100", "SharpCompress.Compressors.LZMA.DataErrorException", "Data Error" },
         { "trunc_half.tar", "bandizip/tar_default.tar", "half", "SharpCompress.Common.IncompleteArchiveException", "Failed to read TAR header" },
-        { "garbage.zip", "bandizip/zip_default.zip", "garbage", "System.InvalidOperationException", "Cannot determine compressed stream type" },
-        { "empty.zip", "bandizip/zip_default.zip", "empty", "System.InvalidOperationException", "Cannot determine compressed stream type" },
-        { "garbage.7z", "bandizip/7z_default.7z", "garbage", "System.InvalidOperationException", "Cannot determine compressed stream type" },
+        { "garbage.zip", "bandizip/zip_default.zip", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
+        { "empty.zip", "bandizip/zip_default.zip", "empty", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
+        { "garbage.7z", "bandizip/7z_default.7z", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
         { "garbage.bz2", "python/견적서_2026.txt.bz2", "garbage", "System.IO.InvalidDataException", "올바른 BZIP2(.bz2) 형식이 아니거나 손상" },
+        // .gz 는 W1-A 1차 검증 지적으로 추가: 잘린 .gz 가 '완료'로 끝나며 절반짜리를 남기던 문제(GZipArchiveService 가 확인값을 봄)
+        { "trunc_half.gz", "bandizip/견적서_2026.txt.gz", "half", "System.IO.InvalidDataException", "끝부분이 잘려 있어요" },
+        { "trunc_half.tar.gz", "bandizip/targz_default.tar.gz", "half", "System.IO.InvalidDataException", "끝부분이 잘려 있어요" },
         // RAR·EGG·ALZ 는 반디집이 만들 수 없어 픽스처가 없다 — 여기선 '깨진 파일 거절'만(EGG/ALZ 성공 경로는 EggAlzTests)
-        { "garbage.rar", "bandizip/zip_default.zip", "garbage", "System.InvalidOperationException", "Cannot determine compressed stream type" },
+        { "garbage.rar", "bandizip/zip_default.zip", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
+        // RAR 서명 + 쓰레기: SharpCompress 0.50 은 RAR5 를 '항목 0개'로 조용히 열었다 → RarArchiveService 가 손상으로 알림.
+        // RAR4 는 엔진이 이미 머리 오류를 낸다(대조용).
+        { "rar5_sig_garbage.rar", "bandizip/zip_default.zip", "rar5sig", "System.IO.InvalidDataException", "손상되었거나 들어 있는 파일이 없어요" },
+        { "rar4_sig_garbage.rar", "bandizip/zip_default.zip", "rar4sig", "SharpCompress.Common.InvalidFormatException", "Unknown Rar Header" },
         { "garbage.egg", "bandizip/zip_default.zip", "garbage", "EggDotNet.Exceptions.UnknownEggException", "EGG format is unknown or unsupported" },
         { "garbage.alz", "bandizip/zip_default.zip", "garbage", "EggDotNet.Exceptions.UnknownEggException", "EGG format is unknown or unsupported" },
     };
@@ -69,6 +80,8 @@ public class CorruptArchiveTests
     [Theory]
     [InlineData("trunc_half.bz2", "python/견적서_2026.txt.bz2")]
     [InlineData("trunc_data.tar", "bandizip/tar_default.tar")]
+    [InlineData("trunc_half.gz", "bandizip/견적서_2026.txt.gz")]
+    [InlineData("trunc_half.tar.gz", "bandizip/targz_default.tar.gz")]
     public async Task 잘린_파일은_절반짜리를_남기지_않는다(string name, string sourceRel)
     {
         using var tmp = new TempDir("bad2");
@@ -105,6 +118,90 @@ public class CorruptArchiveTests
             ["앞.txt"] = TreeAssert.Sha256(first),
             ["큰.bin"] = TreeAssert.Sha256(data),
         });
+    }
+
+    // ───── .gz 내용 확인(W1-A 1차 검증 지적) ─────
+    // SharpCompress 0.50 과 .NET GZipStream 은 gzip 끝의 CRC32·원래 크기를 보지 않고 잘림도 알아채지 못해, 받다 만 .gz 가
+    // '완료'로 끝나며 절반짜리 파일을 정상 이름으로 남겼다(B2 를 고친 뒤로는 반디집·일집이 만든 흔한 .gz 가 모두 이 길).
+    // 일집은 풀린 내용을 SharpZipLib GZipInputStream 으로 읽어 멤버마다 맞춰 본다(GZipArchiveService.OpenEntryData).
+
+    private static readonly byte[] GzPayload = Payload(300_000, 11);
+
+    /// <summary>
+    /// 계약: 잘리거나 확인값이 틀린 .gz 는 예외로 알리고(화면이 암호 문제로 오해하지 않게), 대상 폴더에 아무 파일도 남기지 않는다.
+    /// half=반만, header10=머리 10바이트만, crc/isize=끝 확인값 1바이트 뒤집기, trailer_cut4=끝 4바이트 잘림,
+    /// second_member_half=온전한 멤버 뒤에 잘린 둘째 멤버. withName=원본 이름(FNAME) 칸 있음(리눅스 gzip 방식).
+    /// </summary>
+    [Theory]
+    [InlineData("half", false)]
+    [InlineData("half", true)]
+    [InlineData("header10", false)]
+    [InlineData("crc", false)]
+    [InlineData("crc", true)]
+    [InlineData("isize", false)]
+    [InlineData("trailer_cut4", false)]
+    [InlineData("second_member_half", false)]
+    public async Task 손상된_gz는_예외_그리고_파일을_남기지_않는다(string how, bool withName)
+    {
+        using var tmp = new TempDir("gzbad");
+        string good = tmp.P("good.bin.gz");
+        RawGz.Write(good, withName ? Encoding.UTF8.GetBytes("원본.bin") : null, GzPayload);
+        byte[] b = File.ReadAllBytes(good);
+        byte[] bad = how switch
+        {
+            "half" => b[..(b.Length / 2)],
+            "header10" => b[..10],
+            "crc" => Xor(b, b.Length - 8, b.Length - 7),
+            "isize" => Xor(b, b.Length - 4, b.Length - 3),
+            "trailer_cut4" => b[..(b.Length - 4)],
+            "second_member_half" => b.Concat(b[..(b.Length / 2)]).ToArray(),
+            _ => throw new ArgumentException(how)
+        };
+        string arc = tmp.P("bad.bin.gz");
+        File.WriteAllBytes(arc, bad);
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+        Assert.True(ex is not null, $"{how}: 손상된 .gz 인데 예외 없이 끝남");
+        Assert.False(Internals.IsPasswordRelated(ex!), "손상을 암호 문제로 오해함: " + ex!.Message);
+        TreeAssert.NoFiles(dest);
+    }
+
+    /// <summary>계약: 여러 멤버를 이어 붙인 .gz 는 멤버를 모두 이어서 푼다(gzip·7-Zip 과 같게) — 예전엔 첫 멤버만 쓰고 '완료'.</summary>
+    [Fact]
+    public async Task 여러_멤버를_이어붙인_gz는_모두_풀린다()
+    {
+        using var tmp = new TempDir("gzcat");
+        byte[] second = Payload(123_457, 12);
+        RawGz.Write(tmp.P("m1.gz"), null, GzPayload);
+        RawGz.Write(tmp.P("m2.gz"), null, second);
+        string arc = tmp.P("둘.bin.gz");
+        File.WriteAllBytes(arc, File.ReadAllBytes(tmp.P("m1.gz")).Concat(File.ReadAllBytes(tmp.P("m2.gz"))).ToArray());
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractAsync(arc, dest);
+        Assert.Equal(new[] { "둘.bin" }, TreeAssert.Files(dest));
+        Assert.Equal(TreeAssert.Sha256(GzPayload.Concat(second).ToArray()), TreeAssert.Sha256(Path.Combine(dest, "둘.bin")));
+    }
+
+    /// <summary>계약: 온전한 멤버 뒤에 붙은 0 채움(테이프·전송 도구가 붙이는 것)은 무시하고 푼다(gzip 은 경고만, 7-Zip 은 '끝 뒤에 데이터 있음' 경고).</summary>
+    [Fact]
+    public async Task 끝에_0이_덧붙은_gz도_풀린다()
+    {
+        using var tmp = new TempDir("gzpad");
+        string good = tmp.P("good.gz");
+        RawGz.Write(good, null, GzPayload);
+        string arc = tmp.P("채움.bin.gz");
+        File.WriteAllBytes(arc, File.ReadAllBytes(good).Concat(new byte[512]).ToArray());
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractAsync(arc, dest);
+        Assert.Equal(new[] { "채움.bin" }, TreeAssert.Files(dest));
+        Assert.Equal(TreeAssert.Sha256(GzPayload), TreeAssert.Sha256(Path.Combine(dest, "채움.bin")));
+    }
+
+    private static byte[] Payload(int n, int seed)
+    {
+        var b = new byte[n];
+        new Random(seed).NextBytes(b);
+        return b;
     }
 
     /// <summary>현재 동작 기록: 손상 파일 목록 보기 — 머리(목록)가 멀쩡한 경우만 읽히고, 아니면 예외.</summary>
@@ -178,8 +275,15 @@ public class CorruptArchiveTests
         "xor100" => Xor(b, 100, 140),
         "garbage" => Enumerable.Range(0, 5000).Select(i => (byte)(i * 7 + 3)).ToArray(),
         "empty" => Array.Empty<byte>(),
+        "rar5sig" => RarSignature5.Concat(Garbage(5000)).ToArray(),
+        "rar4sig" => RarSignature4.Concat(Garbage(5000)).ToArray(),
         _ => throw new ArgumentException(how)
     };
+
+    private static readonly byte[] RarSignature5 = { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00 };   // 'Rar!' 1A 07 01 00
+    private static readonly byte[] RarSignature4 = { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00 };         // 'Rar!' 1A 07 00
+
+    private static byte[] Garbage(int n) => Payload(n, 4242);
 
     private static byte[] Xor(byte[] b, int from, int to)
     {

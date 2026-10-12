@@ -18,15 +18,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SharpCompress" Version="0.38.0" />
+    <!-- 0.38.0 은 보안 권고(GHSA-6c8g-7p36-r338)가 붙어 0.50.5 로 올림. 문제가 생기면 0.50.4(같은 API)로 내릴 것 -->
+    <PackageReference Include="SharpCompress" Version="0.50.5" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
-    <PackageReference Include="EggDotNet" Version="0.3.0" />
+    <PackageReference Include="EggDotNet" Version="0.4.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Resources\iljip.ico" Condition="Exists('Resources\iljip.ico')" />
+  </ItemGroup>
+
+  <!-- 계약 테스트가 internal 도우미(AlzNameScanner 등)를 직접 시험할 수 있게 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Iljip.Tests" />
   </ItemGroup>
 
 </Project>

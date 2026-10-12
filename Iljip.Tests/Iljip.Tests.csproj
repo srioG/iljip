@@ -16,7 +16,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Iljip.Tests</RootNamespace>
-    <!-- SharpCompress 0.38.0 의 알려진 취약성 경고(NU1902)는 본체 쪽 사안이라 테스트 빌드에서는 숨긴다 -->
+    <!-- NU1902(패키지 취약성 경고)는 본체 쪽 사안이라 테스트 빌드에서는 숨긴다(SharpCompress 는 0.50.5 로 올려 해소) -->
     <NoWarn>$(NoWarn);NU1902;xUnit1004</NoWarn>
   </PropertyGroup>
 

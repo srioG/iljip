@@ -190,7 +190,7 @@ public class RoundTripTests
         string arc = tmp.P("aes.zip");
         await new ZipArchiveService().CompressAsync(new[] { src }, arc, new CompressionOptions { Password = FixtureCatalog.DefaultPassword });
 
-        using var archive = SharpCompress.Archives.Zip.ZipArchive.Open(arc, new SharpCompress.Readers.ReaderOptions { Password = FixtureCatalog.DefaultPassword });
+        using var archive = SharpCompress.Archives.Zip.ZipArchive.OpenArchive(arc, new SharpCompress.Readers.ReaderOptions { Password = FixtureCatalog.DefaultPassword });
         int n = 0;
         foreach (var e in archive.Entries.Where(e => !e.IsDirectory))
         {
@@ -204,8 +204,8 @@ public class RoundTripTests
     }
 
     /// <summary>
-    /// TAR 왕복: 파일·내용·수정 시각이 그대로. 빈 폴더는 지금 빠지므로(KnownGapTests 의 TAR-빈폴더) '있어도 없어도 됨'으로 둔다 —
-    /// 고쳐져서 빈 폴더가 생겨도 이 계약 테스트는 그대로 통과.
+    /// TAR 왕복: 파일·내용·수정 시각이 그대로. 빈 폴더는 엔진마다 다를 수 있어 '있어도 없어도 됨'으로 둔다
+    /// (지금은 담김 — KnownGapTests.TAR_압축이_빈폴더를_담는다).
     /// </summary>
     [Fact]
     public async Task TAR_왕복이_원본과_같다_빈폴더_제외()
@@ -225,9 +225,12 @@ public class RoundTripTests
         TreeAssert.ListFilesEqual(await svc.ListEntriesAsync(arc), expected);
     }
 
-    /// <summary>현재 동작 기록: TAR 처리기, 일집 TAR 목록에는 폴더 항목이 하나도 없다(파일만 — 폴더는 해제할 때 경로에서 생김).</summary>
+    /// <summary>
+    /// 현재 동작 기록: TAR 처리기, 일집 TAR 목록에는 파일과 '빈 폴더'만 폴더 항목으로 있다(일집 ZIP 과 같은 모양 —
+    /// 파일이 든 폴더는 해제할 때 경로에서 생김). 예전(SharpCompress 0.38)엔 빈 폴더도 빠져 폴더 항목이 하나도 없었다.
+    /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
-    public async Task 기록_일집_TAR_목록에는_폴더항목이_없다()
+    public async Task 기록_일집_TAR_목록에는_빈폴더만_폴더항목이다()
     {
         using var tmp = new TempDir("rttr");
         string src = SampleTree.Create(tmp.Dir("src"));
@@ -235,7 +238,7 @@ public class RoundTripTests
         var svc = Svc.For(arc);
         Assert.IsType<TarArchiveService>(svc);
         await svc.CompressAsync(new[] { src }, arc);
-        TreeAssert.ListEquals(await svc.ListEntriesAsync(arc), SampleTree.ExpectedOf(src).Where(e => !e.IsDir));
+        TreeAssert.ListEquals(await svc.ListEntriesAsync(arc), SampleTree.FilesAndEmptyDirs(SampleTree.ExpectedOf(src)));
     }
 
     /// <summary>교차 확인: 일집 TAR 를 .NET 표준 System.Formats.Tar 로 읽으면 한글 이름(UTF-8)·내용이 맞다.</summary>
@@ -281,13 +284,13 @@ public class RoundTripTests
         Assert.Single(TreeAssert.Files(dest));
 
         await using var fs = File.OpenRead(arc);
-        using var bz = new SharpCompress.Compressors.BZip2.BZip2Stream(fs, SharpCompress.Compressors.CompressionMode.Decompress, true);
+        using var bz = SharpCompress.Compressors.BZip2.BZip2Stream.Create(fs, SharpCompress.Compressors.CompressionMode.Decompress, true);
         using var ms = new MemoryStream();
         bz.CopyTo(ms);
         Assert.Equal(TreeAssert.Sha256(one), TreeAssert.Sha256(ms.ToArray()));
     }
 
-    /// <summary>교차 확인: 일집이 만든 .gz 자체는 정상 gzip 이다(.NET GZipStream 으로 풀면 원본과 같음). 일집이 못 읽는 건 B2.</summary>
+    /// <summary>교차 확인: 일집이 만든 .gz 자체는 정상 gzip 이다(.NET GZipStream 으로 풀면 원본과 같음).</summary>
     [Fact]
     public async Task 일집_GZ는_표준_gzip으로_풀면_원본과_같다()
     {
@@ -304,7 +307,10 @@ public class RoundTripTests
         Assert.Equal(TreeAssert.Sha256(one), TreeAssert.Sha256(ms.ToArray()));
     }
 
-    /// <summary>현재 동작 기록: 일집 .gz 는 gzip 헤더에 원본 이름(FNAME, 플래그 0x08)을 넣지 않는다(B2 의 원인 중 하나).</summary>
+    /// <summary>
+    /// 현재 동작 기록: 일집 .gz 는 gzip 헤더의 FLG 바이트에 원본 이름(FNAME, 0x08)을 넣지 않는다 — 반디집과 같은 형식.
+    /// 풀 때는 이름을 압축 파일 이름에서 정한다(B2 고침, GZ_단일파일_왕복이_원본과_같다).
+    /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public async Task 기록_일집_GZ는_FNAME을_넣지_않는다()
     {
@@ -316,8 +322,8 @@ public class RoundTripTests
         Assert.Equal(0, File.ReadAllBytes(arc)[3] & 0x08);
     }
 
-    /// <summary>[B2] GZ 단일 파일 왕복 — 일집이 만든 .gz 를 일집이 다시 풀 수 있어야 한다.</summary>
-    [Fact(Skip = Known.B2)]
+    /// <summary>[B2 고침] GZ 단일 파일 왕복 — 일집이 만든 .gz 를 일집이 다시 풀 수 있어야 한다.</summary>
+    [Fact]
     public async Task GZ_단일파일_왕복이_원본과_같다()
     {
         using var tmp = new TempDir("rtg");

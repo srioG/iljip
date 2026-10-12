@@ -86,6 +86,25 @@ public class ProgressTests
         Assert.Equal(count, rec.Reports[^1].TotalFiles);
     }
 
+    /// <summary>
+    /// TAR 압축은 큰 파일(32 MiB)을 쓰는 '도중'에도 진행률이 오른다 — 예전엔 파일 하나를 통째로 쓴 뒤에만 보고해
+    /// 큰 파일 하나면 진행 막대가 멈춰 있었다(B6 수정 때 같이 고침).
+    /// </summary>
+    [Fact]
+    public async Task TAR_압축은_큰파일_안에서도_진행률이_오른다()
+    {
+        using var tmp = new TempDir("pct");
+        string src = CancellationTests.MakeSource(tmp);
+        string arc = tmp.P("big.tar");
+        var rec = new ProgressRecorder();
+        await Svc.For(arc).CompressAsync(new[] { src }, arc, null, rec);
+        AssertWellFormed(rec.Reports, "tar 큰 파일", expectIntermediate: true);
+        var big = rec.Reports.Where(r => r.CurrentFile.EndsWith("z_큰.bin", StringComparison.Ordinal)).Select(r => r.BytesProcessed).Distinct().ToList();
+        Assert.True(big.Count >= 2, $"큰 파일을 쓰는 동안 진행 보고(서로 다른 처리량)가 {big.Count}번뿐");
+        long smallSize = new FileInfo(Path.Combine(src, "a_작은.txt")).Length;
+        Assert.Contains(big, b => b > smallSize && b < smallSize + CancellationTests.BigSize);   // 큰 파일 한가운데 지점
+    }
+
     [Theory]
     [InlineData(".gz")]
     [InlineData(".bz2")]
@@ -149,8 +168,8 @@ public class ProgressTests
         Assert.Equal(100.0, last.Percentage);
     }
 
-    /// <summary>[B7] 중간 보고도 첫 건은 바로, 이후는 간격마다 통과해야 진행 창이 움직인다.</summary>
-    [Fact(Skip = Known.B7)]
+    /// <summary>[B7 고침] 중간 보고도 첫 건은 바로, 이후는 간격마다 통과해야 진행 창이 움직인다.</summary>
+    [Fact]
     public void 솎아내기_진행률은_첫_중간보고를_통과시킨다()
     {
         var seen = RunThrottled(intervalMs: 60_000, intermediateCount: 50);
