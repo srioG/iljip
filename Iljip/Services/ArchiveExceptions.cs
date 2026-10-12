@@ -5,6 +5,8 @@ namespace Iljip.Services;
 // 그대로 맞고, 엔진의 원래 예외는 InnerException 에 넣어 Logger 로 남긴다.
 // 화면(MainViewModel.IsPasswordRelated)은 문구가 아니라 타입으로 '암호 문제'를 판정한다(B5) — ArchivePasswordException 이면 암호를 다시 묻는다.
 // W1-C 에는 암호·무결성에 필요한 것만 있다(W1-D 에서 '원본 못 읽음' 추가). 설계표의 나머지(분할 조각 없음·형식 미지원·7z.dll 없음)는 W1-B(7z.dll)와 같이 들어온다.
+// → W2-01(1차 W1-B 재작업): 분할 조각 없음·덜 받아짐·형식 미지원·7z.dll 없음·잘림 표시를 아래에 덧붙였다(기존 타입·문구는 그대로).
+// 화면·창 없이 풀기의 문구는 ErrorMessages.ToUserMessage 한 곳에서 만든다(일집 예외는 Message 그대로).
 // ★ 손상 문구에 '압축 파일이 아닌'·'not archive' 를 넣지 말 것 — 재사용장치가 그 문자열로 '압축 아님'을 분류한다(재사용장치_processor.py 491행).
 
 /// <summary>일집 압축 예외의 공통 부모. <see cref="EntryPath"/> 는 문제가 난 항목(알 때만).</summary>
@@ -72,6 +74,9 @@ public class CorruptArchiveException : ArchiveException
 {
     public const string DefaultMessage = "압축 파일이 손상됐어요. 다시 받아 보세요.";
 
+    /// <summary>끝이 잘린 압축(받다 만 파일·복사가 덜 된 파일)이라고 알아냈을 때의 문구(W2-01).</summary>
+    public const string TruncatedMessage = "압축 파일의 끝부분이 잘려 있어요. 내려받기나 복사가 끝까지 됐는지 확인해 주세요.";
+
     public CorruptArchiveException(Exception? inner = null, string? entryPath = null)
         : base(entryPath is null ? DefaultMessage : $"{DefaultMessage} (문제 위치: {entryPath})", inner, entryPath)
     {
@@ -82,6 +87,23 @@ public class CorruptArchiveException : ArchiveException
         : base(message, inner, entryPath)
     {
     }
+
+    /// <summary>파생 예외가 자기 문구를 쓰고 '잘림'인지도 정할 때(W2-01 — <see cref="VolumeIncompleteException"/> 등).</summary>
+    protected CorruptArchiveException(string message, Exception? inner, string? entryPath, bool isTruncated)
+        : base(message, inner, entryPath)
+    {
+        IsTruncated = isTruncated;
+    }
+
+    /// <summary>
+    /// 끝이 잘린 압축이라고 알아낸 경우(W2-01). 형식별 구조 검사(<see cref="ArchiveCompleteness"/>)·7z.dll 의 '갑자기 끝남'·
+    /// 압축된 tar 의 바깥 압축 잘림에서 true. 화면 문구는 <see cref="TruncatedMessage"/>.
+    /// </summary>
+    public bool IsTruncated { get; }
+
+    /// <summary>끝이 잘린 압축의 손상 예외(<see cref="TruncatedMessage"/>, <see cref="IsTruncated"/> = true).</summary>
+    public static CorruptArchiveException Truncated(Exception? inner = null, string? entryPath = null) =>
+        new(entryPath is null ? TruncatedMessage : $"{TruncatedMessage} (문제 위치: {entryPath})", inner, entryPath, isTruncated: true);
 }
 
 /// <summary>
@@ -147,4 +169,69 @@ public sealed class UnsupportedMethodException : ArchiveException
     }
 
     public string Method { get; }
+}
+
+// ───── W2-01(7z.dll 해제 엔진·여는 형식 확대)에서 더한 것 ─────
+
+/// <summary>
+/// 나눠진 압축(.7z.001·.zip.001·.partN.rar·.rNN·.volN.egg)의 조각이 없다. <see cref="MissingVolumeName"/> 은 경로 없는 파일 이름.
+/// 손상이 아니다 — 조각을 모두 같은 폴더에 두면 풀린다.
+/// </summary>
+public sealed class VolumeMissingException : ArchiveException
+{
+    public VolumeMissingException(string missingVolumeName, Exception? inner = null)
+        : base($"'{missingVolumeName}' 조각이 없어요. 나눠진 조각을 모두 같은 폴더에 두고 다시 해 주세요.", inner)
+    {
+        MissingVolumeName = missingVolumeName;
+    }
+
+    /// <summary>없는 조각의 파일 이름(경로 없이).</summary>
+    public string MissingVolumeName { get; }
+}
+
+/// <summary>
+/// 나눠진 압축의 조각이 덜 받아졌다(마지막 조각의 끝이 잘림). 숫자 분할은 마지막 조각만 앞 조각보다 작으므로,
+/// 모자란데 마지막 조각이 작으면 '다음 조각 없음'이 아니라 '그 조각이 덜 받아짐'이다. 잘림의 한 종류다(<see cref="CorruptArchiveException.IsTruncated"/>).
+/// </summary>
+public sealed class VolumeIncompleteException : CorruptArchiveException
+{
+    public VolumeIncompleteException(string volumeName, Exception? inner = null)
+        : base($"'{volumeName}' 조각이 덜 받아졌어요. 다시 받아 주세요.", inner, null, isTruncated: true)
+    {
+        VolumeName = volumeName;
+    }
+
+    /// <summary>덜 받아진 조각의 파일 이름(경로 없이).</summary>
+    public string VolumeName { get; }
+}
+
+/// <summary>
+/// 일집이 열 수 없는 형식이다(확장자로도 내용으로도 못 고름, 또는 zstd 처럼 알아보지만 못 푸는 것).
+/// 창 없이 풀기(--extract-to)는 이 예외면 종료 코드 2 + 영어 'Unsupported archive type: 확장자'(재사용장치 계약 — App 이 따로 씀).
+/// </summary>
+public sealed class UnsupportedFormatException : ArchiveException
+{
+    public UnsupportedFormatException(string extension, Exception? inner = null)
+        : base($"일집이 열 수 없는 형식이에요({(string.IsNullOrEmpty(extension) ? "확장자 없음" : extension)}).", inner)
+    {
+        Extension = extension;
+    }
+
+    /// <summary>확장자('.zst' 처럼 점 포함, 없으면 빈 문자열).</summary>
+    public string Extension { get; }
+}
+
+/// <summary>
+/// 7z.dll 을 불러오지 못했고 대신 쓸 엔진도 없다(zipx·iso·cab·lzh·wim·xz·txz). 7z·RAR 은 SharpCompress 로 대신하므로 이 예외가 나지 않는다.
+/// 서명 없는 네이티브 DLL 이라 다른 PC 의 보안 프로그램(AppLocker·WDAC·백신)이 막을 수 있다. 원인은 <see cref="Exception.InnerException"/>·로그.
+/// </summary>
+public sealed class EngineUnavailableException : ArchiveException
+{
+    public const string DefaultMessage =
+        "이 형식을 여는 부품(7z.dll)을 불러오지 못했어요. 보안 프로그램이 막았을 수 있어요. 일집을 다시 설치하거나 담당자에게 알려 주세요.";
+
+    public EngineUnavailableException(Exception? inner = null)
+        : base(DefaultMessage, inner)
+    {
+    }
 }

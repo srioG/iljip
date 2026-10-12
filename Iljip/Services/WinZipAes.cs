@@ -50,7 +50,7 @@ internal static class WinZipAes
     {
         if (!CanDecompress(e)) throw new UnsupportedMethodException($"AES 안쪽 방식 {e.AesMethod}", entryPath: e.Name);
 
-        var fs = new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+        var fs = ZipArchiveService.OpenRawStream(zipPath);   // .zip.001 숫자 분할은 이어 붙인 스트림(W2-01)
         try
         {
             var (dataStart, _) = ZipPasswordProbe.LocalData(fs, e);

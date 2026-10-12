@@ -80,10 +80,15 @@ public class ShellExtensionContractTests
                 Assert.Equal(ExtractToFolderClsid, toFolder);
             }
         }
-        // 지금 등록 형식(.egg·.alz 와 새 형식은 I1-2 범위)
+        // 지금 등록 형식. W2-01: 일집이 풀 수 있게 된 형식을 모두 넣음(1차 W1-B 검증 지적 — 풀 수 있는데 우클릭 메뉴에 없던 것,
+        // LocatorTests.우클릭_메뉴에_풀_수_있는_확장자가_모두_있다). 점이 둘인 '.tar.gz'·'.7z.001' 은 끝 확장자 '.gz'·'.001' 로 잡힌다.
+        // 자동 풀림 '.exe' 는 넣지 않는다(우클릭은 확장자만 봄). 메뉴 모양 정비·설치 한 번에 등록은 그대로 I1-2 범위.
         var withFolderVerb = itemTypes.Where(it => it.Elements(Desktop4 + "Verb").Any(v => (string)v.Attribute("Id")! == "IljipExtractToFolder"))
                                       .Select(it => (string)it.Attribute("Type")!).ToArray();
-        Assert.Equal(new[] { ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2" }, withFolderVerb);
+        Assert.Equal(new[] { ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2",
+                             ".xz", ".tgz", ".tbz2", ".tbz", ".txz", ".zipx", ".001", ".iso", ".cab", ".lzh", ".lha", ".wim", ".egg", ".alz" },
+                     withFolderVerb);
+        Assert.DoesNotContain(".exe", withFolderVerb);
     }
 
     [Fact]

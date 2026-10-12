@@ -1,0 +1,72 @@
+일집 (Iljip) — 함께 쓰는 공개 소프트웨어 안내
+================================================
+
+일집은 아래 공개 소프트웨어를 함께 씁니다. 각 라이선스 전문은 이 파일과 같은 폴더의 licenses 폴더에 있습니다.
+
+  구성 요소                         버전      라이선스              전문
+  -------------------------------  --------  --------------------  ------------------------------------------
+  7-Zip (7z.dll, 64비트)            26.03     GNU LGPL 2.1 이상     licenses\7-Zip-LGPL-2.1.txt
+                                             + BSD 3-clause        licenses\7-Zip-BSD-3-Clause.txt
+                                             + BSD 2-clause        licenses\7-Zip-BSD-2-Clause.txt
+                                             + unRAR 제한          (아래 7-Zip 항목 참고)
+  SharpSevenZip                     2.0.128   GNU LGPL 3.0 이상     licenses\SharpSevenZip-LGPL-3.0.txt
+                                             (GPL 3.0 조항 포함)   licenses\GPL-3.0.txt
+  SharpCompress                     0.50.5    MIT                   licenses\SharpCompress-MIT.txt
+  SharpZipLib                       1.4.2     MIT                   licenses\SharpZipLib-MIT.txt
+  EggDotNet                         0.4.0     MIT                   licenses\EggDotNet-MIT.txt
+  CommunityToolkit.Mvvm             8.2.2     MIT                   licenses\CommunityToolkit.Mvvm-MIT.txt
+  System.Text.Encoding.CodePages    8.0.0     MIT                   licenses\System.Text.Encoding.CodePages-MIT.txt
+
+LGPL 구성 요소(7z.dll, SharpSevenZip.dll)는 일집 실행 파일에 묶지 않고 따로 된 파일로 둡니다
+(x64\7z.dll, SharpSevenZip.dll). 사용자는 이 파일들을 같은 인터페이스의 다른 판(직접 고친 판 포함)으로 바꿔 쓸 수 있습니다.
+
+
+------------------------------------------------------------------------
+7-Zip 26.03 (x64\7z.dll)
+------------------------------------------------------------------------
+Copyright (C) 1999-2026 Igor Pavlov.
+Source code and license: https://www.7-zip.org/
+
+7z.dll is distributed unmodified, as shipped in the SharpSevenZip 2.0.128 NuGet package
+(file version 26.03, SHA-256 65E4C1F855F9EF6E8F0F5DF8E3F27D9EB5F07311408639DA0A1CA0B8F4871B0D).
+
+Licenses for files in 7z.dll (summary of the 7-Zip License.txt):
+
+  - Most of the code is under the GNU LGPL license (version 2.1 or later).
+  - The LZFSE decoder (CPP/7zip/Compress/LzfseDecoder.cpp, derived from Apple Inc's LZFSE library) and
+    the ZSTD decoder (C/ZstdDec.c, developed using Facebook Inc's zstd decoder as reference code) are under
+    the BSD 3-clause license — copyright notices and full text in licenses\7-Zip-BSD-3-Clause.txt.
+  - The XXH64 code (C/Xxh64.c, derived from Yann Collet's XXH64) is under the BSD 2-clause license —
+    copyright notices and full text in licenses\7-Zip-BSD-2-Clause.txt.
+  - Some files are in the public domain, where that status is stated in the source file.
+  - The RAR decompression code (Rar* files) is under the GNU LGPL license with the "unRAR license restriction".
+    The decompression engine for RAR archives was developed using source code of the unRAR program;
+    all copyrights to the original unRAR code are owned by Alexander Roshal.
+    The unRAR sources cannot be used to re-create the RAR compression algorithm, which is proprietary.
+    Distribution of modified unRAR sources in separate form or as a part of other software is permitted,
+    provided that it is clearly stated in the documentation and source comments that the code may not be
+    used to develop a RAR (WinRAR) compatible archiver.
+
+  The complete 7-Zip License.txt is included in the 7-Zip source package available at https://www.7-zip.org/.
+  The full text of the GNU LGPL version 2.1 is in licenses\7-Zip-LGPL-2.1.txt.
+
+Iljip does not use the RAR compression algorithm; RAR archives are only extracted.
+
+
+------------------------------------------------------------------------
+SharpSevenZip 2.0.128
+------------------------------------------------------------------------
+Copyright (C) Markovtsev Vadim 2009, 2010, Jérémy Ansel 2024. Authors: Joel Ahlgren, Markovtsev Vadim, Jérémy Ansel.
+License: GNU Lesser General Public License v3.0 or later — licenses\SharpSevenZip-LGPL-3.0.txt
+Source code: https://github.com/JeremyAnsel/SharpSevenZip
+Used unmodified as a separate assembly (SharpSevenZip.dll).
+The LGPL v3 incorporates the terms of the GNU General Public License v3 — full text in licenses\GPL-3.0.txt.
+
+
+------------------------------------------------------------------------
+SharpCompress 0.50.5 — Copyright (c) 2025 Adam Hathcock — MIT — https://github.com/adamhathcock/sharpcompress
+SharpZipLib 1.4.2 — Copyright © 2000-2022 SharpZipLib Contributors — MIT — https://github.com/icsharpcode/SharpZipLib
+EggDotNet 0.4.0 — Copyright (c) 2026 Andrew Kolman — MIT — https://github.com/akolman/EggDotNet
+CommunityToolkit.Mvvm 8.2.2 — Copyright © .NET Foundation and Contributors — MIT — https://github.com/CommunityToolkit/dotnet
+System.Text.Encoding.CodePages 8.0.0 — Copyright (c) .NET Foundation and Contributors — MIT — https://github.com/dotnet/runtime
+------------------------------------------------------------------------

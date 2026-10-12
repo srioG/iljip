@@ -47,7 +47,8 @@ public class ZipSlipTests
     {
         switch (format)
         {
-            case "zip": RawZip.Write(arc, items.Select(i => new RawZip.Item(Encoding.UTF8.GetBytes(i.Name), i.Data)).ToArray()); break;
+            // zipx: 같은 ZIP 바이트를 .zipx 이름으로 → 7z.dll 해제 경로(SevenZipEngine)를 시험(W2-01)
+            case "zip" or "zipx": RawZip.Write(arc, items.Select(i => new RawZip.Item(Encoding.UTF8.GetBytes(i.Name), i.Data)).ToArray()); break;
             case "tar": RawTar.Write(arc, items); break;
             case "egg": RawEgg.Write(arc, items.Select(i => new RawEgg.Item(i.Name, i.Data))); break;
             default: throw new ArgumentException(format);
@@ -188,6 +189,69 @@ public class ZipSlipTests
         await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
         AssertNothingOutside(tmp, dest, before, $"tar 링크 {type} → {target}");
         Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
+    // ───── 7z.dll 해제 경로(W2-01): 같은 공격을 .zipx 로 ─────
+
+    public static TheoryData<string, string> ZipxAttacks
+    {
+        get
+        {
+            var d = new TheoryData<string, string>();
+            foreach (var a in AttackNames) d.Add("zipx", a);
+            return d;
+        }
+    }
+
+    /// <summary>계약(7z.dll 경로): 어떤 경로 공격도 대상 폴더 밖에 아무것도 만들지 않는다. 임시 폴더도 남지 않는다.</summary>
+    [Theory]
+    [MemberData(nameof(ZipxAttacks))]
+    public async Task zipx_7z_dll_경로도_경로공격은_대상폴더_밖에_아무것도_만들지_않는다(string format, string attack)
+    {
+        var (tmp, dest, arc) = Setup(format, attack, "slipx");
+        using (tmp)
+        {
+            var before = TreeAssert.Snapshot(tmp.Root);
+            await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+            AssertNothingOutside(tmp, dest, before, $"{format} '{attack}'");
+            Assert.Empty(Directory.Exists(dest) ? Directory.EnumerateDirectories(dest, SevenZipEngine.StagingPrefix + "*") : Array.Empty<string>());
+        }
+    }
+
+    /// <summary>
+    /// 현재 동작 기록(7z.dll 경로): 쓰기 전에 모든 이름을 먼저 검사해 공격 항목이 있으면 InvalidDataException("안전하지 않은 경로: …")으로
+    /// 멈추고 아무것도 풀지 않는다(SharpCompress 경로는 앞 항목 ok.txt 를 이미 풀어 둔 뒤 멈춤 — 위 기록과 다른 점).
+    /// </summary>
+    [Theory, Trait(Kinds.Key, Kinds.Record)]
+    [MemberData(nameof(ZipxAttacks))]
+    public async Task 기록_zipx_7z_dll_경로는_공격이_있으면_아무것도_풀지_않는다(string format, string attack)
+    {
+        var (tmp, dest, arc) = Setup(format, attack, "slipxr");
+        using (tmp)
+        {
+            var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+            Assert.IsType<InvalidDataException>(ex);
+            Assert.Contains("안전하지 않은 경로", ex!.Message);
+            TreeAssert.NoFiles(dest);
+        }
+    }
+
+    /// <summary>계약(7z.dll 경로): Windows 특수 이름도 대상 폴더 밖으로 못 나간다(7z.dll 은 못 쓰는 문자를 '_' 로 바꿔 씀).</summary>
+    [Theory]
+    [InlineData("a.txt:evil")]
+    [InlineData("evil.txt.")]
+    [InlineData("evil.txt ")]
+    [InlineData("sub/./x.txt")]
+    [InlineData("./../evil.txt")]
+    public async Task zipx_7z_dll_경로도_Windows_특수이름이_밖으로_못_나간다(string name)
+    {
+        using var tmp = new TempDir("slipwx");
+        string dest = Path.Combine(tmp.Dir("a", "b"), "dest");
+        string arc = tmp.P("w.zipx");
+        Make("zipx", arc, ("a.txt", Encoding.UTF8.GetBytes("a")), (name, Evil));
+        var before = TreeAssert.Snapshot(tmp.Root);
+        await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+        AssertNothingOutside(tmp, dest, before, $"zipx '{name}'");
     }
 
     /// <summary>현재 동작 기록: 목록 보기는 공격 이름을 그대로 보여 줄 뿐 아무것도 쓰지 않는다.</summary>

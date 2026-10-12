@@ -174,6 +174,26 @@ public class FixedBugTests
         Assert.Equal(files.Count + 1, TreeAssert.Files(dest).Count);
     }
 
+    /// <summary>
+    /// [B5 — 7z 부분] 7z 의 틀린 암호: 예전엔 SharpCompress 가 DataErrorException('Data Error')을 내 화면이 암호 문제로 못 알아보고
+    /// 오류 창으로 끝났다(같은 데이터 — BugEvidenceTests 에서 옮김). 이제 7z.dll + 일집 예외(WrongPasswordException)라 화면이 다시 묻고,
+    /// 대상 폴더에 파일이 남지 않는다. 헤더 암호 7z 는 '손상일 수도 있다'는 말을 덧붙인다.
+    /// </summary>
+    [Theory]
+    [InlineData("python/7z_pw_names_visible.7z", false)]
+    [InlineData("bandizip/7z_header_encrypted.7z", true)]
+    public async Task B5_7z_틀린_암호는_화면이_암호문제로_알아본다(string rel, bool headerEncrypted)
+    {
+        string arc = FixtureCatalog.PathOf(rel);
+        using var tmp = new TempDir("b5f");
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, "wrong"));
+        var wrong = Assert.IsType<WrongPasswordException>(ex);
+        Assert.Equal(headerEncrypted, wrong.IsHeaderEncrypted);
+        Assert.True(Internals.IsPasswordRelated(wrong), wrong.Message);
+        TreeAssert.NoFiles(dest);
+    }
+
     // [B8] 손상 7z·egg·alz 열기 실패 후 파일 잠김 → FileLockTests.손상_7z_egg_alz도_열기_실패후_바로_지울_수_있다(같은 데이터)·분할 EGG 테스트.
     // [B10] ALZ CP949 한글 이름 깨짐 → EggAlzTests.ALZ_CP949_한글_이름이_바르게_보인다 + AlzNameScannerTests.
 

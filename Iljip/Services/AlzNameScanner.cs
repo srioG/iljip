@@ -41,7 +41,8 @@ internal static class AlzNameScanner
     /// ALZ 파일의 항목 머리를 파일 순서대로 읽는다. ALZ 가 아니거나(EGG 등) 구조가 기대와 다르면 null.
     /// 파일이 끊겼으면 이름까지 온전히 읽은 항목만 담고 Complete=false.
     /// </summary>
-    internal static AlzScan? TryScan(string alzPath)
+    /// <param name="start">ALZ 가 시작하는 위치(자동 풀림 exe 안이면 그 위치, 보통 0).</param>
+    internal static AlzScan? TryScan(string alzPath, long start = 0)
     {
         try
         {
@@ -54,7 +55,9 @@ internal static class AlzNameScanner
             using var fs = new FileStream(alzPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var r = new BinaryReader(fs);
             long length = fs.Length;
-            if (length < 8 || r.ReadUInt32() != AlzMagic) return null;
+            if (start < 0 || start > length) return null;
+            fs.Position = start;
+            if (length - start < 8 || r.ReadUInt32() != AlzMagic) return null;
             r.ReadUInt32();   // 버전·ID
 
             var entries = new List<AlzRawEntry>();
@@ -114,9 +117,9 @@ internal static class AlzNameScanner
     ///   - 항목마다 '같은 항목'임이 확인됨: 원본 바이트를 UTF-8 로 읽은 결과가 EggDotNet 이름과 같거나,
     ///     적어도 ASCII 부분(손실 문자 자리를 뺀 나머지)이 같음
     /// </summary>
-    internal static IReadOnlyList<AlzRawEntry>? TryMatch(string alzPath, IReadOnlyList<string> libraryNames)
+    internal static IReadOnlyList<AlzRawEntry>? TryMatch(string alzPath, IReadOnlyList<string> libraryNames, long start = 0)
     {
-        var scan = TryScan(alzPath);
+        var scan = TryScan(alzPath, start);
         if (scan is null || scan.Entries.Count != libraryNames.Count) return null;
         for (int i = 0; i < scan.Entries.Count; i++)
             if (!SameEntry(scan.Entries[i].Name, libraryNames[i])) return null;

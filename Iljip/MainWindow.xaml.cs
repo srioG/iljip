@@ -161,16 +161,9 @@ public partial class MainWindow : Window
         await vm.HandleDroppedPathsAsync(paths);
     }
 
+    /// <summary>'일집 정보' 창: 버전 + 7z.dll 상태 + 공개 소프트웨어 안내·라이선스 전문(I2-15).</summary>
     private void About_Click(object sender, RoutedEventArgs e)
     {
-        var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        // csproj <Version>이 반영된 어셈블리 버전을 동적으로 표시 (하드코딩 방지)
-        string version = asm.GetName().Version?.ToString(3) ?? "0.0.0";
-
-        MessageBox.Show(
-            $"일집 (Iljip)\n광고 없는 압축 프로그램\n\nVersion {version}",
-            "일집 정보",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        new Views.AboutWindow { Owner = this }.ShowDialog();
     }
 }

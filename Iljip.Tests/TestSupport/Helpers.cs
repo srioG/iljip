@@ -92,8 +92,12 @@ public static class Svc
 {
     public static readonly ArchiveServiceLocator Locator = new();
 
+    /// <summary>
+    /// 일집 안의 열기와 같은 규칙으로 처리기를 고른다(W2-01 — 확장자 먼저, 모르는 확장자면 앞부분 서명: 자동 풀림 .exe·이름이 바뀐 디스크 이미지 등).
+    /// 확장자로 고를 수 있는 파일은 예전(Resolve)과 같은 처리기다.
+    /// </summary>
     public static IArchiveService For(string path) =>
-        Locator.Resolve(path) ?? throw new Xunit.Sdk.XunitException($"Resolve 결과 null: {Path.GetFileName(path)}");
+        Locator.ResolveByContent(path) ?? throw new Xunit.Sdk.XunitException($"Resolve 결과 null: {Path.GetFileName(path)}");
 
     /// <summary>예외를 잡아 돌려준다(없으면 null). 비동기·동기 throw 모두.</summary>
     public static async Task<Exception?> Catch(Func<Task> action)

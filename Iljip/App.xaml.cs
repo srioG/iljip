@@ -103,10 +103,15 @@ public partial class App : Application
         string archivePath = args[1];
         string destFolder = args[2];
 
+        // ★ 재사용장치(_extract_with_iljip)가 종료 코드와 stderr 문구로 결과를 가른다(ReuseDeviceContractTests):
+        //   0 성공 / 2 지원하지 않는 형식 — stderr 는 정확히 영어 'Unsupported archive type: <확장자>' / 1 그 밖의 실패 — 쉬운 한국어 한 줄
+        //   (손상·암호·조각·7z.dll 문구에는 '압축 파일이 아닌'·'not archive' 같은 '압축 아님' 표지를 넣지 않는다). 설정은 읽지 않는다.
         try
         {
             var locator = new ArchiveServiceLocator();
-            var service = locator.Resolve(archivePath);
+            // W2-01: 확장자로 먼저, 모르는 확장자면 내용(서명)으로 — 이름이 바뀐 압축도 푼다.
+            // 단 속이 ZIP 인 문서(.xlsx·.docx·.hwpx 등)는 압축이 아니므로 늘 미지원(종료 코드 2).
+            var service = locator.ResolveForAutomation(archivePath);
             if (service is null)
             {
                 Console.Error.WriteLine($"Unsupported archive type: {Path.GetExtension(archivePath)}");
@@ -117,11 +122,17 @@ public partial class App : Application
             await service.ExtractAsync(archivePath, destFolder);
             return 0;
         }
+        catch (UnsupportedFormatException ex)
+        {
+            Logger.LogError("Headless extract failed", ex);
+            Console.Error.WriteLine($"Unsupported archive type: {ex.Extension}");
+            return ErrorMessages.HeadlessExitCode(ex);
+        }
         catch (Exception ex)
         {
             Logger.LogError("Headless extract failed", ex);
-            Console.Error.WriteLine(ex.Message);
-            return 1;
+            Console.Error.WriteLine(ErrorMessages.ToUserMessage(ex).ReplaceLineEndings(" "));
+            return ErrorMessages.HeadlessExitCode(ex);
         }
     }
 

@@ -206,7 +206,10 @@ public static class RawRar4
     /// <param name="password">null 이 아니면 모든 파일을 이 암호로 암호화(폴더는 암호 없음).</param>
     /// <param name="encryptHeaders">true 면 파일 이름까지 암호화(WinRAR -hp).</param>
     /// <param name="unicodeNames">ASCII 가 아닌 이름에 유니코드 이름 칸을 쓸지(WinRAR 3.x 이후 기본).</param>
-    public static void Write(string path, IEnumerable<RawRar5.Item> items, string? password = null, bool encryptHeaders = false, bool unicodeNames = true)
+    /// <param name="withEndArc">끝 머리(ENDARC 0x7B)를 쓸지(기본 true — WinRAR 3.x 이후 기본). false 는 '끝 머리 없는 RAR4'(-en 또는 머리 사이에서 잘림)를
+    /// 흉내 내는 시험용(W2-01 — 버전 29 파일이 있는데 끝 머리가 없으면 일집은 잘림으로 본다).</param>
+    public static void Write(string path, IEnumerable<RawRar5.Item> items, string? password = null, bool encryptHeaders = false, bool unicodeNames = true,
+                             bool withEndArc = true)
     {
         if (encryptHeaders && password is null) throw new ArgumentException("머리 암호에는 암호가 필요함");
         if (password is not null && Encoding.Unicode.GetByteCount(password) + 8 >= 64) throw new ArgumentException("암호가 너무 김(합성 작성기 한계)");
@@ -265,7 +268,7 @@ public static class RawRar4
             ms.Write(payload);
         }
 
-        WriteHeader(Head(0x7B, 0x4000, Array.Empty<byte>()));
+        if (withEndArc) WriteHeader(Head(0x7B, 0x4000, Array.Empty<byte>()));
         File.WriteAllBytes(path, ms.ToArray());
     }
 
@@ -316,5 +319,203 @@ public static class RawRar4
             for (int b = 0; b < 4; b++)
                 key[w * 4 + b] = d[w * 4 + 3 - b];
         return (key, iv);
+    }
+}
+
+/// <summary>
+/// RAR 최소 작성기(저장 방식만 — 압축하지 않음). 반디집은 RAR 를 못 만들고 이 PC 엔 WinRAR 가 없어서, rarlab 의 RAR 5.0 형식 문서와
+/// RAR 4.x 'technote' 대로 머리를 손으로 짠다(1차 W1-B 검증 때 파이썬 rarfile 로 교차 확인한 작성기 — W2-01 에서 옮김).
+/// 끝 잘림·조각 없음·머리 암호(-hp) 를 7z.dll 과 SharpCompress 로 시험하는 데 쓴다(머리 경계 위치 <see cref="Layout.BlockEnds"/> 를 같이 줌).
+/// 평문·암호 RAR 의 일반 시험은 위 <see cref="RawRar5"/>·<see cref="RawRar4"/>. 실제 WinRAR 산출물 확인은 MANUAL_CHECKLIST.
+/// </summary>
+public static class RawRar
+{
+    private static readonly byte[] Sig5 = { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00 };
+    private static readonly byte[] Sig4 = { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00 };
+    private const uint FixedUnixTime = 1760000000;
+
+    /// <param name="Data">null 이면 폴더.</param>
+    public sealed record Item(string Name, byte[]? Data)
+    {
+        public bool IsDir => Data is null;
+    }
+
+    /// <summary>파일마다 머리가 끝나는 위치(= 다음 머리가 시작하는 위치)도 돌려준다 — '머리와 머리 사이에서 잘림'을 가려 쓸 때.</summary>
+    public sealed record Layout(byte[] Bytes, IReadOnlyList<int> BlockEnds);
+
+    // ───────────── RAR5 ─────────────
+
+    public static Layout Rar5(IEnumerable<Item> items, bool volume = false, int? volumeNumber = null, bool moreVolumes = false)
+    {
+        var ms = new MemoryStream();
+        var ends = new List<int>();
+        ms.Write(Sig5);
+        ms.Write(Main5(volume, volumeNumber));
+        ends.Add((int)ms.Position);
+        foreach (var it in items)
+        {
+            ms.Write(File5(it));
+            ends.Add((int)ms.Position);
+        }
+        ms.Write(End5(moreVolumes));
+        ends.Add((int)ms.Position);
+        return new Layout(ms.ToArray(), ends);
+    }
+
+    /// <summary>
+    /// 머리 암호 RAR5(WinRAR '-hp' 처럼 머리를 AES-256 으로 감춤, 내용은 저장 방식 그대로). 암호 확인값을 넣어 틀린 암호를 가를 수 있다.
+    /// 키 만들기는 RAR5 규칙(PBKDF2-HMAC-SHA256 을 이어서 돌려 키·해시키·확인값을 얻음, 반복 2^15).
+    /// </summary>
+    public static byte[] Rar5HeaderEncrypted(IEnumerable<Item> items, string password)
+    {
+        const int lg2 = 15;
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var (key, _, check) = Pbkdf2Rar5(Encoding.UTF8.GetBytes(password), salt, 1 << lg2);
+        var psw = new byte[8];
+        for (int i = 0; i < 32; i++) psw[i % 8] ^= check[i];
+        var checkField = psw.Concat(SHA256.HashData(psw)[..4]).ToArray();
+        var encBody = Vint(0).Concat(Vint(0x0001)).Append((byte)lg2).Concat(salt).Concat(checkField).ToArray();
+
+        var ms = new MemoryStream();
+        ms.Write(Sig5);
+        ms.Write(Hdr5(4, 0, encBody));
+        ms.Write(Encrypt(key, Main5(false, null)));
+        foreach (var it in items)
+        {
+            byte[] data = it.Data ?? Array.Empty<byte>();
+            byte[] whole = File5(it);
+            byte[] header = whole[..(whole.Length - data.Length)];
+            ms.Write(Encrypt(key, header));
+            ms.Write(data);
+        }
+        ms.Write(Encrypt(key, End5(false)));
+        return ms.ToArray();
+    }
+
+    private static byte[] Encrypt(byte[] key, byte[] header)
+    {
+        var iv = RandomNumberGenerator.GetBytes(16);
+        using var aes = Aes.Create();
+        aes.Key = key;
+        int padded = (header.Length + 15) / 16 * 16;
+        var plain = new byte[padded];
+        header.CopyTo(plain, 0);
+        return iv.Concat(aes.EncryptCbc(plain, iv, PaddingMode.None)).ToArray();
+    }
+
+    private static (byte[] Key, byte[] HashKey, byte[] Check) Pbkdf2Rar5(byte[] pwd, byte[] salt, int count)
+    {
+        using var hmac = new HMACSHA256(pwd);
+        byte[] u = hmac.ComputeHash(salt.Concat(new byte[] { 0, 0, 0, 1 }).ToArray());
+        byte[] fn = (byte[])u.Clone();
+        var outs = new List<byte[]>();
+        foreach (int c in new[] { count - 1, 16, 16 })
+        {
+            for (int i = 0; i < c; i++)
+            {
+                u = hmac.ComputeHash(u);
+                for (int k = 0; k < 32; k++) fn[k] ^= u[k];
+            }
+            outs.Add((byte[])fn.Clone());
+        }
+        return (outs[0], outs[1], outs[2]);
+    }
+
+    private static byte[] Main5(bool volume, int? volumeNumber)
+    {
+        ulong flags = (volume ? 0x0001u : 0) | (volumeNumber is not null ? 0x0002u : 0);
+        var body = Vint(flags).Concat(volumeNumber is { } n ? Vint((ulong)n) : Array.Empty<byte>()).ToArray();
+        return Hdr5(1, 0, body);
+    }
+
+    private static byte[] File5(Item it)
+    {
+        byte[] name = Encoding.UTF8.GetBytes(it.Name);
+        byte[] data = it.Data ?? Array.Empty<byte>();
+        ulong fileFlags = it.IsDir ? 0x0001u | 0x0002u : 0x0002u | 0x0004u;   // 폴더 / 시각 있음 / CRC 있음
+        var body = new List<byte>();
+        body.AddRange(Vint(fileFlags));
+        body.AddRange(Vint((ulong)data.Length));
+        body.AddRange(Vint(it.IsDir ? 0x10u : 0x20u));                        // 윈도 속성
+        body.AddRange(BitConverter.GetBytes(FixedUnixTime));
+        if (!it.IsDir) body.AddRange(BitConverter.GetBytes(Crc32.Compute(data)));
+        body.AddRange(Vint(0));                                                // 압축 정보 0 = 저장
+        body.AddRange(Vint(0));                                                // 만든 OS 0 = Windows
+        body.AddRange(Vint((ulong)name.Length));
+        body.AddRange(name);
+        var header = Hdr5(2, 0, body.ToArray(), dataSize: it.IsDir ? null : (ulong)data.Length);
+        return header.Concat(data).ToArray();
+    }
+
+    private static byte[] End5(bool moreVolumes) => Hdr5(5, 0, Vint(moreVolumes ? 0x0001u : 0));
+
+    private static byte[] Hdr5(ulong type, ulong flags, byte[] body, ulong? dataSize = null)
+    {
+        if (dataSize is not null) flags |= 0x0002;
+        var fields = new List<byte>();
+        fields.AddRange(Vint(type));
+        fields.AddRange(Vint(flags));
+        if (dataSize is { } ds) fields.AddRange(Vint(ds));
+        fields.AddRange(body);
+        var sized = Vint((ulong)fields.Count).Concat(fields).ToArray();
+        return BitConverter.GetBytes(Crc32.Compute(sized)).Concat(sized).ToArray();
+    }
+
+    private static byte[] Vint(ulong n)
+    {
+        var b = new List<byte>();
+        while (true)
+        {
+            byte c = (byte)(n & 0x7F);
+            n >>= 7;
+            if (n != 0) b.Add((byte)(c | 0x80));
+            else { b.Add(c); return b.ToArray(); }
+        }
+    }
+
+    // ───────────── RAR4 ─────────────
+
+    /// <summary>
+    /// RAR4(옛 형식, 이름은 ASCII, 풀 때 필요한 판 <paramref name="unpVer"/> — 기본 29 = RAR 3.x 이후). 끝 머리(ENDARC)까지 넣는다
+    /// (<paramref name="withEndArc"/> = false 면 빼고 — 시험용). 판 20 + 끝 머리 없음 = 끝 머리를 쓰지 않던 RAR 2.x 이전 파일 흉내.
+    /// </summary>
+    public static Layout Rar4(IEnumerable<(string Name, byte[] Data)> files, bool withEndArc = true, byte unpVer = 29)
+    {
+        var ms = new MemoryStream();
+        var ends = new List<int>();
+        ms.Write(Sig4);
+        ms.Write(Block4(0x73, 0x0000, new byte[6]));
+        ends.Add((int)ms.Position);
+        foreach (var (name, data) in files)
+        {
+            byte[] nb = Encoding.ASCII.GetBytes(name);
+            var body = new MemoryStream();
+            var w = new BinaryWriter(body);
+            w.Write((uint)data.Length); w.Write((uint)data.Length); w.Write((byte)2);   // 압축 크기·원래 크기·만든 OS(Win32)
+            w.Write(Crc32.Compute(data)); w.Write(DosTime); w.Write(unpVer); w.Write((byte)0x30);   // CRC·시각·판·방식(저장)
+            w.Write((ushort)nb.Length); w.Write(0x20u); w.Write(nb);
+            w.Flush();
+            ms.Write(Block4(0x74, 0x8000, body.ToArray(), data));
+            ends.Add((int)ms.Position);
+        }
+        if (withEndArc)
+        {
+            ms.Write(Block4(0x7B, 0x4000, Array.Empty<byte>()));
+            ends.Add((int)ms.Position);
+        }
+        return new Layout(ms.ToArray(), ends);
+    }
+
+    private const uint DosTime = ((2026u - 1980u) << 25) | (1u << 21) | (2u << 16) | (3u << 11) | (4u << 5) | 3u;
+
+    private static byte[] Block4(byte type, ushort flags, byte[] body, byte[]? add = null)
+    {
+        ushort size = (ushort)(7 + body.Length);
+        var h = new List<byte> { type };
+        h.AddRange(BitConverter.GetBytes(flags));
+        h.AddRange(BitConverter.GetBytes(size));
+        h.AddRange(body);
+        ushort crc = (ushort)(Crc32.Compute(h.ToArray()) & 0xFFFF);
+        return BitConverter.GetBytes(crc).Concat(h).Concat(add ?? Array.Empty<byte>()).ToArray();
     }
 }

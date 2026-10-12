@@ -9,6 +9,7 @@ namespace Iljip.Tests.Contract;
 /// 화면(MainViewModel)은 예외를 IsPasswordRelated 로 보고 암호 창을 다시 띄우므로, 그 판정도 함께 고정한다.
 /// 예외 '타입·문구'는 기록('기록_' 테스트, Trait Kind=Record) — W1-C 부터 서비스가 엔진 예외를 일집 암호 예외
 /// (PasswordRequiredException·WrongPasswordException, 문구는 쉬운 한국어)로 바꿔 던지고 화면은 타입으로 판정한다(B5).
+/// W2-01 부터 7z·zipx 는 7z.dll(SevenZipEngine)로 풀지만 같은 일집 예외·같은 문구다.
 /// 계약 테스트의 '예외 + 파일 안 남음 + 암호 문제로 알아봄'은 엔진이 바뀌어도 지켜야 한다. 두 가지를 다른 테스트로 나눠
 /// 기록이 먼저 실패해서 계약 결과가 가려지는 일이 없게 했다.
 /// </summary>
@@ -26,6 +27,9 @@ public class PasswordTests
         { "python/7z_pw_names_visible.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
         { "bandizip/7z_header_encrypted.7z", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote },
         { "bandizip/7z_header_encrypted.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.HeaderMessage },
+        // W2-01: zipx 는 7z.dll — ZIP AES 는 암호 확인값이 있어 7z.dll 이 '틀린 암호'로 딱 잘라 알린다(덧말 없음)
+        { "bandizip/zipx_aes.zipx", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage },
+        { "bandizip/zipx_aes.zipx", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
     };
 
     /// <summary>계약: 틀린 암호·암호 없음이면 예외가 나고, 대상 폴더에 파일이 하나도 남지 않는다.</summary>
@@ -88,7 +92,7 @@ public class PasswordTests
     }
 
     /// <summary>
-    /// 화면이 '암호 다시 묻기'로 넘어가는 경우들: 암호 없음(전부), ZIP 의 틀린 암호.
+    /// 화면이 '암호 다시 묻기'로 넘어가는 경우들: 암호 없음(전부), ZIP·zipx 의 틀린 암호.
     /// (7z 틀린 암호·ZipCrypto 검사를 우연히 통과한 틀린 암호는 아래 '어떤_틀린_암호도…' — 예전 B5)
     /// </summary>
     [Theory]
@@ -97,7 +101,10 @@ public class PasswordTests
     [InlineData("bandizip/zip_aes256.zip", "wrong")]
     [InlineData("bandizip/zip_aes256.zip", null)]
     [InlineData("python/7z_pw_names_visible.7z", null)]
+    [InlineData("python/7z_pw_names_visible.7z", "wrong")]
     [InlineData("bandizip/7z_header_encrypted.7z", null)]
+    [InlineData("bandizip/7z_header_encrypted.7z", "wrong")]
+    [InlineData("bandizip/zipx_aes.zipx", "wrong")]
     public async Task 암호_실패는_화면이_암호문제로_알아본다(string rel, string? password)
     {
         string arc = FixtureCatalog.PathOf(rel);
@@ -161,7 +168,7 @@ public class PasswordTests
         Assert.True(Internals.IsPasswordRelated(wrong!), $"{wrong!.GetType().Name}('{wrong.Message}') 를 암호 문제로 못 알아봄");
     }
 
-    /// <summary>현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호) — 둘 다 '헤더 암호' 표시.</summary>
+    /// <summary>현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호) — 둘 다 '헤더 암호' 표시. W2-01 부터 7z.dll(머리 바이트로 헤더 암호 탐지).</summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public async Task 기록_헤더암호_7z_목록_예외_타입()
     {
@@ -171,7 +178,8 @@ public class PasswordTests
         Assert.True(Assert.IsType<PasswordRequiredException>(noPw).IsHeaderEncrypted);
         var wrong = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, "wrong"));
         Assert.True(Assert.IsType<WrongPasswordException>(wrong).IsHeaderEncrypted);
-        Assert.Equal("SharpCompress.Compressors.LZMA.DataErrorException", wrong!.InnerException?.GetType().FullName);
+        // W2-01: 7z.dll 이 '열기 실패'로 알린 것을 머리 바이트(ArchiveHeaderProbe)로 헤더 암호라고 알아 바꾼 것
+        Assert.StartsWith("SharpSevenZip.", wrong!.InnerException?.GetType().FullName);
     }
 
     /// <summary>일집이 만든 AES ZIP 도 틀린 암호·암호 없음에서 같은 계약(예외 + 파일 없음 + 암호 문제로 알아봄).</summary>

@@ -192,14 +192,22 @@ public class RarTests
         Assert.Equal(new[] { "readme.txt", "자료/하위/난수.bin" }, TreeAssert.Files(dest));
     }
 
-    /// <summary>현재 동작 기록: SharpCompress 는 RAR 항목 이름의 폴더 구분을 '\' 로 준다(RAR5 원본은 '/'). 화면·선택 해제는 '\'·'/' 를 같이 처리한다.</summary>
+    /// <summary>
+    /// 현재 동작 기록: W2-01 부터 RAR 은 7z.dll 로 열어 항목 이름의 폴더 구분이 '/'(다른 형식과 같음)다.
+    /// 7z.dll 을 못 쓰는 PC 의 대신 경로(SharpCompress)는 예전처럼 '\'. 화면·선택 해제는 '\'·'/' 를 같이 처리한다(위 선택 해제 계약).
+    /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
-    public async Task 기록_RAR_항목_이름은_역슬래시_구분()
+    public async Task 기록_RAR_항목_이름의_폴더_구분()
     {
         using var tmp = new TempDir("rarr");
         var b = SyntheticArchives.Build("rar5", tmp.Root);
         var list = await Svc.For(b.Path).ListEntriesAsync(b.Path);
-        Assert.Contains(list, e => e.Path == "자료\\견적서.txt");
+        Assert.Contains(list, e => e.Path == "자료/견적서.txt");
+        using (SevenZipLibrary.SimulateUnavailableForTests())
+        {
+            var fallback = await Svc.For(b.Path).ListEntriesAsync(b.Path);
+            Assert.Contains(fallback, e => e.Path == "자료\\견적서.txt");
+        }
     }
 
     private static int IndexOf(byte[] haystack, byte[] needle)

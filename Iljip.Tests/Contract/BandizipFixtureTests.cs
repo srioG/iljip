@@ -240,26 +240,37 @@ public class BandizipFixtureTests
     }
 
     /// <summary>
-    /// 현재 동작 기록: 반디집 .tar.gz 는 GZ 처리기가 안쪽 .tar 하나('이름.tar', 한 겹만 벗긴 크기)로 보여 주고 그 .tar 를 꺼낸다
-    /// (.tar.bz2 를 BZ2 처리기가 다루는 방식과 같음). 반디집은 tar 안 내용을 바로 보여 준다(KnownGapTests I2-9) —
-    /// tar 까지 한 번에 펼치게 바뀌면 이 기록은 지우거나 고칠 것.
-    /// (SharpCompress 0.38 때는 이름 빈 항목 하나 + 해제 '안전하지 않은 경로'(B2), 0.50 형식 판별로는 아예 못 열어 GZ 처리기가 gzip 으로 직접 연다)
+    /// 현재 동작 기록(W2-01): .tar.gz·.tgz·.tar.xz·.tbz2 는 압축된 tar 처리기가 tar 안 내용을 바로 보여 주고 푼다(목록·해제는 KnownGapTests I2-9).
+    /// 예전(W1-A)엔 GZ 처리기가 안쪽 .tar 하나로 보여 줬다. 항목별 압축 크기는 없다(바깥 압축이 통째라 0), 수정 시각은 tar 의 절대 시각.
     /// </summary>
-    [Fact, Trait(Kinds.Key, Kinds.Record)]
-    public async Task 기록_tar_gz는_안쪽_tar_하나로_보이고_풀린다()
+    [Theory, Trait(Kinds.Key, Kinds.Record)]
+    [InlineData("targz_default")]
+    [InlineData("tgz_default")]
+    [InlineData("txz_two_step")]
+    [InlineData("tbz2_python")]
+    public async Task 기록_압축된_tar는_tar_안_내용이_바로_보인다(string id)
     {
-        var fx = FixtureCatalog.Get("targz_default");
-        var inner = fx.InnerTar ?? throw new InvalidOperationException("targz_default 에 inner_tar 가 없음");
+        var fx = FixtureCatalog.Get(id);
         var svc = Svc.For(fx.FullPath);
-        Assert.IsType<GZipArchiveService>(svc);
-        var only = Assert.Single(await svc.ListEntriesAsync(fx.FullPath));
-        Assert.Equal(inner.Name, only.Path);
-        Assert.Equal(inner.Size, only.Size);
+        Assert.IsType<CompressedTarArchiveService>(svc);
+        var entries = await svc.ListEntriesAsync(fx.FullPath);
+        TreeAssert.ListEquals(entries, fx.Expected, context: id);
+        Assert.All(entries, e => Assert.Equal(0, e.CompressedSize));
+        var bad = entries.Where(e => !e.IsDirectory)
+            .Select(e => e.LastModified is { } t ? MtimeExpect.CheckListed(t, fx) : "시각 없음").OfType<string>().ToList();
+        Assert.True(bad.Count == 0, string.Join("\n", bad));
+    }
 
-        using var tmp = new TempDir("tgzr");
-        string dest = tmp.P("out");
-        await svc.ExtractAsync(fx.FullPath, dest);
-        Assert.Equal(new[] { inner.Name }, TreeAssert.Files(dest));
-        Assert.Equal(inner.Sha256, TreeAssert.Sha256(Path.Combine(dest, inner.Name)));
+    /// <summary>현재 동작 기록(W2-01): 단일 .xz 는 7z.dll 이 열고, 이름은 .xz 를 뗀 것, 크기는 풀기 전에도 안다(2464), 시각은 없다.</summary>
+    [Fact, Trait(Kinds.Key, Kinds.Record)]
+    public async Task 기록_xz_단일파일_목록()
+    {
+        var fx = FixtureCatalog.Get("xz_single");
+        var svc = Svc.For(fx.FullPath);
+        Assert.IsType<SevenZipFormatsArchiveService>(svc);
+        var only = Assert.Single(await svc.ListEntriesAsync(fx.FullPath));
+        Assert.Equal("견적서_2026.txt", only.Path);
+        Assert.Equal(2464, only.Size);
+        Assert.Null(only.LastModified);
     }
 }

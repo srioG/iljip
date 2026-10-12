@@ -25,16 +25,23 @@ public class CancellationTests
         return root;
     }
 
+    /// <remarks>
+    /// .7z(W2-01, 7z.dll): 7z.dll 이 읽는 입력 스트림이 취소를 확인해 큰 파일 한가운데서 멈추고, 임시 폴더에서 끝난 파일만 옮긴다.
+    /// </remarks>
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 해제_도중_취소하면_OCE_그리고_중단된_파일만_지워진다(string ext)
     {
         using var tmp = new TempDir("cx");
         string src = MakeSource(tmp);
         string arc = tmp.P("big" + ext);
         var svc = Svc.For(arc);
-        await svc.CompressAsync(new[] { src }, arc, new CompressionOptions { Level = CompressionLevelOption.Store });
+        if (ext == ".7z")
+            SevenZipTestArchives.SevenZip(src, arc, store: true);   // 일집의 7z 만들기는 W2-02 — 재료는 7z.dll 로 직접
+        else
+            await svc.CompressAsync(new[] { src }, arc, new CompressionOptions { Level = CompressionLevelOption.Store });
         string smallSha = TreeAssert.Sha256(Path.Combine(src, "a_작은.txt"));
 
         using var cts = new CancellationTokenSource();

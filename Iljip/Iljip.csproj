@@ -24,7 +24,34 @@
     <PackageReference Include="EggDotNet" Version="0.4.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+    <!-- W1-B: 7z.dll(7-Zip 26.03) 감싸개. LGPL-3.0 — SharpSevenZip.dll 은 단일 파일에 묶지 않고 따로 둔다(아래 KeepLgplLoose) -->
+    <PackageReference Include="SharpSevenZip" Version="2.0.128" GeneratePathProperty="true" />
   </ItemGroup>
+
+  <!-- 패키지 기본 동작(x86·x64 7z.dll 둘 다 복사)을 끄고 x64 만 실행 파일 옆 x64\7z.dll 로 둔다.
+       단일 파일 발행에서도 묶지 않는다(ExcludeFromSingleFile) — LGPL 상 사용자가 바꿔 끼울 수 있어야 하고, 네이티브 DLL 이라 묶어도 풀어 써야 함. -->
+  <PropertyGroup>
+    <ExcludeSevenZipAssemblies>true</ExcludeSevenZipAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(PkgSharpSevenZip)\build\x64\7z.dll" Link="x64\7z.dll" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
+
+  <!-- 공개 소프트웨어 안내(I2-15): 실행 파일 옆에 두고 '일집 정보' 창이 읽는다 -->
+  <ItemGroup>
+    <None Update="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="licenses\*.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <!-- 단일 파일로 발행하더라도 LGPL 어셈블리(SharpSevenZip.dll)는 묶지 않고 따로 둔다(사용자가 바꿔 끼울 수 있게).
+       지금 발행(packaging\Build.ps1)은 PublishSingleFile=false 라 원래 따로 놓이지만, 설정이 바뀌어도 지켜지게 해 둔다. -->
+  <Target Name="KeepLgplLoose" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'SharpSevenZip.dll'">
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <Resource Include="Resources\iljip.ico" Condition="Exists('Resources\iljip.ico')" />

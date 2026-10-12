@@ -3,13 +3,18 @@
 압축 엔진을 바꾸기 **전에** 일집의 '지금 동작'을 고정해 두는 테스트 묶음입니다(사전점검 ②).
 엔진을 바꾼 뒤 이 테스트를 돌리면 무엇이 그대로이고 무엇이 달라졌는지 바로 보입니다.
 
-- 대상: `Iljip/Services/IArchiveService.cs` 와 그 구현체(ZIP·7z·TAR·GZ·BZ2·RAR·EGG/ALZ), `ArchiveServiceLocator`,
-  `KoreanFileNameDecoder`, `ThrottledArchiveProgress`, `MainViewModel` 의 명령줄 해석 일부, `Iljip.exe --extract-to`(창 없이 풀기).
+- 대상: `Iljip/Services/IArchiveService.cs` 와 그 구현체(ZIP·7z·TAR·GZ·BZ2·RAR·EGG/ALZ, **W2-01 부터** 압축된 TAR·zipx/iso/cab/lzh/wim/xz·자동 풀림 exe),
+  7z.dll 다리(`SevenZipEngine`·`SevenZipLibrary`·구조 검사 `ArchiveCompleteness`·검증 `ExtractionVerifier`·임시 폴더 `StagingFolder`),
+  내용으로 형식 알아보기(`ArchiveSniffer`)·`ArchiveServiceLocator`, `KoreanFileNameDecoder`, `ThrottledArchiveProgress`,
+  `MainViewModel` 의 명령줄 해석 일부, `Iljip.exe --extract-to`(창 없이 풀기).
   - RAR 은 반디집·이 PC 모두 만들 수 없어 픽스처 파일이 없습니다. **통합 점검(2026-10-12)부터** 테스트 안의 최소 작성기
     (`TestSupport/RawRar.cs` 의 `RawRar5`·`RawRar4` — 저장 방식, 파일 암호·머리 암호, 유니코드·CP949 이름)로 만든 합성 RAR 로 목록·해제·암호·손상·진행률을 시험합니다
     (`Contract/RarTests.cs`). 작성기가 맞는지는 반디집 콘솔 `bz.exe t` 로 확인합니다(`합성_RAR을_반디집도_맞게_푼다`).
+    W2-01 부터 같은 파일의 `RawRar`(머리 경계 위치를 함께 주는 RAR5·RAR4, RAR5 여러 조각·머리 암호 — 1차 W1-B 때 파이썬 rarfile 로 교차 확인한 작성기)로
+    잘림·빠진 조각·RAR 자동 풀림 exe 도 시험합니다(`TruncationTests`·`SfxTests`·`SevenZipLibraryTests`).
     **진짜 WinRAR 산출물(압축된 데이터·RAR5 의 HMAC CRC·BLAKE2·여러 조각)은 확인하지 못했으니** `MANUAL_CHECKLIST.md` 6절로 사람이 확인합니다.
     rar.exe 가 있는 PC 에서 **합성 데이터**로 만든 RAR 픽스처를 받으면 `Fixtures/` 와 manifest 에 추가하세요.
+  - CAB 은 테스트 안 최소 작성기(`TestSupport/RawCab.cs`)로 시험하고(`CabTests`), WIM 은 픽스처가 없어 라우팅·막힌 PC 안내만 자동입니다(MANUAL_CHECKLIST 9절).
   - EGG/ALZ 는 테스트 안에서 최소 작성기(`TestSupport/RawArchives.cs` 의 `RawEgg`·`RawAlz`)로 만든 합성 파일로 시험합니다
     (`Contract/EggAlzTests.cs`). 진짜 알집 산출물로는 확인하지 못했으니 MANUAL_CHECKLIST 6절도 같이 보세요.
 - 처음(사전점검 ②)에는 본체 코드를 고치지 않고 버그를 'Skip 목록'에 보고만 했습니다. 이후 **W1-A(2026-10-12)** 에서 SharpCompress 를
@@ -19,14 +24,18 @@
   ALZ 한자·기호 이름·잘린 ALZ 이름, 점뿐인 .gz 이름, 서명 뒤가 쓰레기인 RAR5, 같은 폴더 동시 해제 충돌, 분할 EGG 형제 파일 전부 열기를 고쳤습니다
   (아래 '고친 버그' 표 아래쪽).
   **W1-C(같은 날)** 에서 암호·무결성 버그 B3(반디집 한글 암호)·B4(ZIP CRC 미검사)·B5(틀린 암호를 화면이 못 알아봄)와 빈틈 I2-11(ZipCrypto 선택)을
-  고쳤습니다(아래 'W1-C 에서 고친 것', 그 1차 검증 지적도 같은 절). 이제 안 고친 버그(Bn Skip)는 없습니다. ※ W1-B(7z.dll) 는 검증에서 되돌려져 이 판에 없습니다 —
-  I1-7·I2-1·I2-2·I2-9 는 그대로 Skip/수동입니다.
+  고쳤습니다(아래 'W1-C 에서 고친 것', 그 1차 검증 지적도 같은 절). 이제 안 고친 버그(Bn Skip)는 없습니다. ※ W1-B(7z.dll) 는 검증에서 되돌려졌다가
+  아래 W2-01 에서 다시 들어왔습니다.
   **W1-D(같은 날)** 에서 0등급 화면 문제 I0-1(우클릭 '여기에 풀기'·'"이름"\ 에 풀기' 분리 + 첫 실행 인자 버그)·I0-2(사용 중인 파일)·I0-4(끌어 놓기 선택 창)·
   I0-5(정렬·열 폭)를 고쳤습니다. 화면의 창 띄우기를 `IUserInteraction` 으로 빼서(W1-B 보관본과 같은 모양) 가짜 창으로 VM 흐름을 시험합니다(아래 'W1-D 에서 고친 것').
   **W1-D 1차 검증 지적(같은 날)** 으로 헤더 암호 7z 를 우클릭으로 못 풀던 회귀(I1-7 화면 쪽까지 고침), 읽는 도중 잠긴 파일, 빈 압축, 끌어 놓기 선택 창, 빈 이름 폴더,
   자연 정렬, 세 번째 암호 미시도를 고쳤습니다(아래 'W1-D 1차 검증 지적으로 고친 것').
   **통합 점검(같은 날, 세 건을 합친 뒤)** 에서 형식이 달라도 화면 흐름(암호 창·한글 이름·진행 막대)이 같은지 한 표로 보는 테스트와 재사용장치 약속 테스트,
   RAR 자동 시험을 더했고, RAR4 암호 파일을 묻지도 않고 쓰레기로 풀던 문제 등을 고쳤습니다(아래 '통합 점검에서 고친 것').
+  **W2-01(2026-10-13)** 에서 1차 W1-B 보관분(stash)을 다시 얹어 7z.dll(7-Zip 26.03 x64, SharpSevenZip 2.0.128)로 '풀기' 쪽 형식을 늘렸습니다 —
+  I2-2(숫자 분할 '열기')·I2-9(zipx·tgz·tar.gz·txz·tbz2·xz·iso·lzh·SFX)의 Skip 을 지웠고, 1차 검증에서 막힌 (a)~(f)(잘린 RAR·LZH·ZIPX 의 조용한 '완료',
+  잘린 xz 의 끝없는 대기, 손상된 압축 tar 의 반쪽 파일, UDF ISO, 잘린 .gz, 헤더 암호 7z 우클릭)를 새 계약 테스트로 지킵니다(아래 'W2-01 에서 고친 것').
+  7z 만들기(I2-1)는 W2-02 몫이라 그대로 Skip 이고, 보관분의 7z 만들기 시험은 `_보류_W2-02/` 에 `.cs.txt` 로 빼 두었습니다(새 Skip 금지).
 
 ## 실행 방법
 
@@ -36,19 +45,20 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-12 통합 점검 후): `통과!  - 실패: 0, 통과: 834, 건너뜀: 6, 전체: 840` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 6개').
-  Debug·Release(`-c Release`)·`ILJIP_TEST_TZ=UTC` 세 가지 모두 같은 결과.
+- 결과(2026-10-13 W2-01 후): `통과!  - 실패: 0, 통과: 1097, 건너뜀: 2, 전체: 1099` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 2개' — I2-1·I2-10).
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
-  → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765)
+  → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840)
   반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
-  빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…` 4개, `ReuseDeviceContractTests` 2개)가 건너뜁니다.
+  빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 2개)가 건너뜁니다.
+  (W2-01) Windows 의 IMAPI2FS(디스크 이미지 만들기)가 없는 PC 에서는 `DiscImageTests` 가 환경 조건(`DiscImageFact`)으로 건너뜁니다.
   빌드된 셸 확장 DLL(`D:\Python\일집-build\Release\x64\Iljip.ShellExtension\Iljip.ShellExtension.dll`)이 없거나 C++ 소스보다 오래되면
   `ShellExtensionContractTests.DLL_메뉴_제목이_CSharp_이름_규칙과_같다` 1개가 더 건너뜁니다(빌드 명령은 `HANDOFF.md` 'C++ 셸 확장 DLL 만 빌드').
-- 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe`·반디집 `bz.exe` 를 띄우는 테스트(각 1~10초).
+- 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe`·반디집 `bz.exe` 를 띄우는 테스트(각 1~10초),
+  (W2-01) 잘림 전수 시험(`TruncationTests`·`XzTests`·`CabTests` — 구조 검사가 7z.dll 보다 먼저 막아 각 몇 초), 24 MiB xz 를 만드는 취소 시험.
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
-- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (714개 — 통과 708·건너뜀 6, 2026-10-12 통합 점검 후) — 아래 '계약 테스트와 기록 테스트'.
+- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (944개 — 통과 942·건너뜀 2, 2026-10-13 W2-01 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
-  (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC` 다시 통과).
+  (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC`, W1-B 후 둘 다 다시 통과).
   ```powershell
   $env:ILJIP_TEST_TZ = "UTC"; dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj; Remove-Item Env:ILJIP_TEST_TZ
   ```
@@ -62,16 +72,16 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/BandizipFixtureTests.cs` | [1] 반디집 픽스처를 반디집과 같게 읽고 푸는지(목록·sha256·수정 시각·압축 크기 범위) |
 | `Contract/RoundTripTests.cs` | [2] 일집이 만든 ZIP(수준별·AES)·TAR·GZ·BZ2 왕복 + 표준 라이브러리·'한국어 탐색기 방식 이름' 교차 확인 |
 | `Contract/PasswordTests.cs` | [3] 틀린 암호·암호 없음 → 예외·파일 안 남음·화면이 '암호 문제'로 알아봄 |
-| `Contract/ZipSlipTests.cs` | [4] `../`·`..\`·절대경로·**형제 접두사(`../dest_evil.txt`)**·Windows 특수 이름·tar 링크 공격 방어(zip·tar·egg) |
-| `Contract/CancellationTests.cs` | [5] 32 MiB 해제·압축 도중 취소 → 부분 파일 정리 |
+| `Contract/ZipSlipTests.cs` | [4] `../`·`..\`·절대경로·**형제 접두사(`../dest_evil.txt`)**·Windows 특수 이름·tar 링크 공격 방어(zip·tar·egg, W1-B 부터 7z.dll 로 여는 zipx 도) |
+| `Contract/CancellationTests.cs` | [5] 32 MiB 해제·압축 도중 취소 → 부분 파일 정리(W1-B 부터 .7z 도) |
 | `Contract/CorruptArchiveTests.cs` | [6] 잘린·망가진 zip/7z/tar/bz2/rar/egg, **쓰는 도중 깨지는 zip**, **잘리거나 확인값(CRC·크기)이 틀린 .gz·.tar.gz**, 서명 뒤가 쓰레기인 rar → 예외·오염 없음(경로별 sha 비교). 여러 멤버 .gz·끝에 0 이 붙은 .gz 는 끝까지 풀림 |
 | `Contract/ExtractEntriesTests.cs` | [7] 선택 해제(파일·폴더·표기 차이) |
-| `Contract/ProgressTests.cs` | [8] 진행률 0~100%·도중 보고·완료 보고(TAR 는 큰 파일 안에서도) |
+| `Contract/ProgressTests.cs` | [8] 진행률 0~100%·도중 보고·완료 보고(TAR 는 큰 파일 안에서도, W1-B 부터 7z·zipx·iso·lzh 풀기와 7z 만들기, zip·7z 선택 해제) |
 | `Contract/ThrottledArchiveProgressTests.cs` | 진행 창으로 가는 진행률 솎아내기 규칙(첫 중간 보고 통과·간격·완료 보고) |
-| `Contract/RoutingTests.cs` | [9] 확장자 → 서비스 라우팅 |
+| `Contract/RoutingTests.cs` | [9] 확장자 → 서비스 라우팅(등록 확장자 전체 목록·저장 필터는 기록) |
 | `Contract/KoreanFileNameDecoderTests.cs` | [10] CP949·UTF-8·ASCII·CP437 이름 판별 |
-| `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(전부 Skip, 본문은 '고쳐지면 맞아야 할 기대') |
-| `Contract/CommandLineTests.cs` | [12] 명령줄 처리(60초 시간 제한) — **가짜 창으로 `--extract-here`(그 자리에)·`--extract-to-folder`(이름 폴더, 다시 하면 '이름 (2)', 암호 묻기·틀리면 다시·취소, 동시에 여러 개)** + 실제 `Iljip.exe --extract-to`. (1차 검증) 헤더 암호 7z 를 열기·우클릭 풀기에서 암호를 한 번 묻고 풀기·틀리면 다시·취소·다른 압축을 열면 잊기, 암호 창은 취소할 때까지(몇 번째 맞는 암호든 풀림), 이름 폴더 풀기를 취소·손상으로 멈추면 파일이 없을 때만 그 폴더를 지움 |
+| `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(본문은 '고쳐지면 맞아야 할 기대'). W2-01 에서 I2-2(열기)·I2-9 의 Skip 을 지워 통과, 남은 Skip 은 I2-1(7z 만들기 — W2-02). 압축된 tar 는 펼친 tar 안 파일 전부를 매니페스트 expected_entries 와 비교하고 '.tar 항목 없음'까지 봄(일집은 반디집보다 한 단계 더 펼친다 — W2-01 요구). 웹에서 받은 표시(MOTW)를 옮기지 않는 것은 기록(보고 안건) |
+| `Contract/CommandLineTests.cs` | [12] 명령줄 처리(60초 시간 제한) — **가짜 창으로 `--extract-here`(그 자리에)·`--extract-to-folder`(이름 폴더, 다시 하면 '이름 (2)', 암호 묻기·틀리면 다시·취소, 동시에 여러 개)** + 실제 `Iljip.exe --extract-to`. (1차 검증) 헤더 암호 7z 를 열기·우클릭 풀기에서 암호를 한 번 묻고 풀기·틀리면 다시·취소·다른 압축을 열면 잊기, 암호 창은 취소할 때까지(몇 번째 맞는 암호든 풀림), 이름 폴더 풀기를 취소·손상으로 멈추면 파일이 없을 때만 그 폴더를 지움. (W2-01) '"이름"\ 에 풀기'는 압축 확장자를 통째로 뗀 폴더(`자료.tar.gz`→`자료`, `견적.7z.001`→`견적`)에, .tar.gz 는 tar 안 내용까지 펼침, 헤더 암호 7z '여기에 풀기'가 7z.dll 로도 틀리면 다시·취소면 아무것도 없음, 실제 exe 로 7z·lzh·iso·tgz 풀기·ZIP 바탕 문서(.xlsx·.docx·.hwpx)는 `Unsupported archive type:`·종료 코드 2·잘린 xz·tar.xz·lzh·rar 는 30초 안에 종료 코드 1(한국어 한 줄, '압축 아님' 표지 없음) |
 | `Contract/CommandLineParserTests.cs` | (W1-D) 명령줄 해석 순수 함수 — 키워드·인자 개수·대문자는 경로·'--extract-to-folder' 와 '--extract-to' 안 섞임 |
 | `Contract/ArchiveNamingTests.cs` | (W1-D) '"이름"\ 에 풀기' 폴더 이름 표(.tar.gz·.7z.001·.part1.rar·.vol1.egg·'.zip' …)와 '이름 (2)'·'(3)' 새 폴더 |
 | `Contract/AppStartupContractTests.cs` | (W1-D) 첫 실행 인자 버그 — App.xaml 에 StartupUri 없음, OnStartup 이 창을 직접 만들고 인자를 넘김(소스 확인) |
@@ -80,6 +90,19 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/CompressSkipTests.cs` | (W1-D) 잠긴 파일·못 들어가는 하위 폴더·없어진 원본은 건너뛰고 나머지는 그대로(zip·tar), GZ·BZ2 는 `SourceUnreadableException`, 담는 차례는 예전과 같음, 화면 안내('건너뛴 파일 N개')·결과 보존·부분 파일 정리. (1차 검증) 통째로·뒤쪽만 잠긴 파일(바이트 범위 잠금)도 건너뜀(뒤쪽은 빼고 다시 씀), 하나도 못 담으면 빈 zip·tar 를 만들지 않고 `NothingToCompressException`(기존 파일 그대로, 화면은 오류 안내) |
 | `Contract/DropPolicyTests.cs` | (W1-D) 끌어 놓기 규칙 표 + 가짜 선택 창으로 [취소]·[새로 압축할 목록]·[열기]·[목록에 넣기]. (1차 검증) 기본 버튼(Enter)은 늘 [취소], `ChoiceDialog` 가 정한 버튼 하나만 IsDefault(창은 만들기만), Drop 이벤트를 끝낸 뒤(Dispatcher.Yield) 처리(소스) |
 | `Contract/SortingTests.cs` | (W1-D) 정렬 비교기(폴더 먼저·크기·날짜·같은 값은 이름), VM 정렬(두 번 누르면 내림, 폴더를 옮겨도 유지, 기본은 이름 오름차순), XAML 계약 + 열 머리 템플릿을 메모리에서 적용해 손잡이·화살표 확인. (1차 검증) 이름은 탐색기와 같은 자연 정렬(`2.txt` → `10.txt`, `1월` → `2월` → `10월`) |
+| `Contract/SevenZipLibraryTests.cs` | [W2-01] 출력에 x64\7z.dll 이 있고 실제로 불러짐, 판(26.03)·SHA-256 기록, 막힌 PC 흉내(7z·RAR 는 SharpCompress 로 대신 — 암호·잘림·여러 조각도 쉬운 말로, zipx·iso·cab·lzh·wim·xz·txz 는 한국어 안내·대상 폴더 안 생김, 저장 형식에 7Z 없음), 공개 소프트웨어 안내·라이선스 전문(BSD 2·3조항 포함) |
+| `Contract/TruncationTests.cs` | [W2-01 (a)·(e)] 끝이 잘린 RAR5·RAR4(한 바이트씩 전부 — 머리 사이 포함)·ZIPX·LZH(전부)·머리 암호 RAR5 는 '끝부분이 잘려'(목록도) + 대상에 아무것도 안 남김(새로 만든 폴더도), 끝 머리 없는 RAR4 는 판 20 이면 풀고 판 29 면 잘림, 여러 조각 RAR 의 마지막 조각 없음은 그 이름, 숫자 분할의 마지막 조각이 덜 받아졌으면 '덜 받아졌어요', 잘린 .gz 는 어디서 잘려도 반쪽 파일 없음 |
+| `Contract/XzTests.cs` | [W2-01 (b)] 잘린 xz·tar.xz·txz(끝 120바이트 전부 + 표본)는 10초 안에 '끝부분이 잘려'·아무것도 안 남김(1차 실험의 무한 루프 자리 포함), 큰 xz·tar.xz 취소는 2초 안(서비스·화면 둘 다), 잘린 xz 의 내용 판별 2초 안, 본체에 SharpCompress `XZStream` 없음(소스 확인) |
+| `Contract/CabTests.cs` | [W2-01] 합성 CAB(`RawCab`) 한글 이름 목록·풀기, 잘린 CAB 은 머리의 전체 크기로 '끝부분이 잘려'·아무것도 안 남김 |
+| `Contract/BuildOutputTests.cs` | [W2-01] 저장소 안 `Iljip\bin\Release·Debug` 에 Iljip.exe 가 없음(재사용장치가 먼저 집어 가는 자리), 테스트 출력은 저장소 밖 |
+| `Contract/EntryNameTests.cs` | [W2-01, 1차 W1-B 2차 지적] Windows 가 못 쓰는 이름(':'·'?'·'*'·CON·aux·nul·lpt1·'...')을 모든 해제 경로(tar.gz·tar·zip·egg·7z 솔리드/비솔리드·선택)가 같은 규칙으로 바꿔 씀, 숨은 스트림 안 생김, '/abs.txt' 를 골라도 조용히 빠지지 않음 |
+| `Contract/SfxTests.cs` | [W2-01] RAR5·RAR4·EGG·ALZ 자동 풀림 exe(가짜 PE 스텁 + 합성 압축) 목록·해제, 서명 글자만 든 보통 exe 는 압축으로 안 봄 |
+| `Contract/SevenZipEngineTests.cs` | [W2-01] 7z.dll 해제: 틀린 암호·손상 때 파일·임시 폴더 안 남김, 이름 (1) 비켜 쓰기, 수정 시각, 숫자 분할의 빠진 조각(가운데·끝) 이름, 7z SFX(합성)·반디집 SFX 선택 해제, 이름 바꾸기 규칙, ZIP 한글 이름 세 가지(ZIP 은 SharpCompress 로 읽는 근거) |
+| `Contract/LocatorTests.cs` | [W2-01] 내용(서명)으로 형식 알아보기(확장자가 우선, 모를 때만), 확장자가 바뀐 압축, .gz·.bz2·.xz 안이 tar 면 압축된 tar 처리기, .docx·zstd, 끌어 놓기는 확장자로만, 창 없이 풀기는 ZIP 바탕 문서를 압축으로 안 봄, 저장 형식에 7Z 없음, 오류 문구에 '압축 파일이 아닌' 없음, 한글 경로가 든 영어 문구 바꾸기, 옮기기 이름 비키기·잠금 재시도, 우클릭 메뉴(매니페스트)에 풀 수 있는 확장자 전부 |
+| `Contract/HeaderProbeTests.cs` | [W2-01] 헤더 암호 7z·RAR4/RAR5 머리(합성), 여러 조각 RAR 빠진 조각 이름, 숫자 분할 이어 붙이기 |
+| `Contract/CompressedTarTests.cs` | [W2-01 (c)] tgz·tar.gz·tbz2·txz 한 번에 펼치기: 선택 해제, gzip 확인값이 틀리면 아무것도 안 남김, 잘린 것(여러 자리)·데이터가 깨진 것은 '잘림'·손상 + 아무것도 안 남김(원래 있던 파일은 그대로), 취소는 끝난 파일만, 대상 폴더 쪽 오류는 손상이 아니고 옮긴 것을 되돌림, 진행률(기록), 만들기 미지원(기록) |
+| `Contract/DiscImageTests.cs` | [W2-01 (d)] ISO 의 UDF 우선(UDF 만·Joliet 없는 다리·Joliet+UDF·Joliet 만, .img 확장자, 대신 형식으로 다시 열기), 잘린 디스크 이미지는 내용 구역 안이면 반드시 '잘림'·그 밖에 오류 없이 끝나면 내용이 다 맞음, 반디집 iso 는 끝 1바이트만 잘라도 '잘림' — 이미지는 Windows IMAPI2FS 로 그때그때 만듦 |
+| `Contract/MainViewModelPasswordTests.cs` | [W2-01, I1-7·B-067] 가짜 창으로 화면 흐름: 헤더 암호 7z 열기→암호→목록, 틀리면 다시, 취소, 열 때 받은 암호로 풀기, 풀 때 암호 무제한 재시도, 명령줄 풀기는 한 번만 묻기, 손상 안내, .docx 드롭, 손상된 헤더 암호 7z 는 맞는 암호를 한 번만 묻고 손상으로(화면에서 7z 만들기는 W2-02 로 보류) |
 | `Contract/EggAlzTests.cs` | [13] EGG/ALZ 성공 경로(목록·해제·충돌·선택·취소·진행률·크기 0 항목·ALZ 한글·한자·기호 이름·끝 구분자 없는 폴더 항목) + **잘림·CRC 불일치 → 예외·짧은 파일 안 남김**, 분할 조각 후보 — 합성 EGG/ALZ |
 | `Contract/AlzNameScannerTests.cs` | ALZ 머리 원본 바이트 스캐너(B10 우회·폴더 속성): 맞게 읽기, 잘리면 온전한 항목까지만, 서명 깨짐·항목 수 불일치·분할이면 예외 없이 포기, 이름 바이트 풀기(UTF-8→CP949→CP437) |
 | `Contract/CollisionTests.cs` | 같은 이름이 있으면 덮지 않고 `이름 (1).txt` 로 비켜 쓰기, **같은 폴더에 동시에 여러 번 풀어도** 모두 다른 이름으로(gz·zip·egg) |
@@ -94,7 +117,8 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀 |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives` |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 일집의 7z 만들기는 W2-02), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀) |
+| `_보류_W2-02/` | (W2-01) 보관분의 7z 만들기 시험(`SevenZipCreateTests.cs.txt`·`MainViewModel7zCreateTests.cs.txt`) — 컴파일에서 뺀 것. W2-02 가 `.cs` 로 되살린다 |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -106,7 +130,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 - **계약 테스트**(이름에 `기록_` 없음, Trait 없음): 엔진과 무관하게 지켜야 할 것 — 해제 내용 sha256, 한글 이름, zip-slip 방어(대상 폴더 밖 무사),
   예외가 나면 대상 폴더 오염 없음, 취소 시 부분 파일 정리, 동명 파일 비켜 쓰기, 진행률 끝 '완료', `IsPasswordRelated` 판정.
   목록은 '파일 항목은 정확히, 폴더 항목은 있어도 없어도(있다면 기대 목록 안의 것)' 만 봅니다(`TreeAssert.ListFilesEqual`).
-- **기록 테스트**(이름이 `기록_` 으로 시작하거나 근거 테스트, `[Trait("Kind","Record")]`, 126개): 지금 엔진의 예외 타입·문구,
+- **기록 테스트**(이름이 `기록_` 으로 시작하거나 근거 테스트, `[Trait("Kind","Record")]`, W2-01 후 155개): 지금 엔진의 예외 타입·문구,
   목록 모양(일집 ZIP·TAR 모두 빈 폴더만 폴더 항목), ZIP 방식 번호(Store 도 8), EFS 플래그, 라우팅 표, 버그 근거.
   엔진이 바뀌면 **달라지는 게 당연**하니 새 값으로 고치면 됩니다. 단, 고치기 전에 같은 동작의 계약 테스트가 통과하는지 먼저 보세요.
 
@@ -149,24 +173,41 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 
 | 사유 | 무엇 | 지금 실제 동작(관찰) |
 |---|---|---|
-| I1-7 | 헤더(파일명) 암호 7z/RAR 를 열 때 암호를 안 물음 | **7z 는 W1-D 1차 검증에서 고침(Skip 아님)** — `MainViewModel.OpenArchiveAsync` 가 암호 예외면 암호를 묻고 다시 열며, 받은 암호로 이어서 풂(`CommandLineTests.헤더암호_7z…`). 서비스 쪽(암호 주면 목록 OK, 없으면 암호 예외)은 PasswordTests 가 고정. **RAR 머리 암호도 통합 점검에서 확인·고침(Skip 아님)** — 합성 RAR4·RAR5 로 `RarTests.머리암호_RAR_…`·`FormatFlowTests.암호_압축은_…`(문구도 7z 와 같게). ★ `헤더암호_7z_전체_해제가_반디집과_같다` 는 B1 테스트이지 I1-7 이 아님 |
-| I2-1 | 7z 만들기 | `NotSupportedException` |
-| I2-2 | `.7z.001`·`.zip.001` | 확장자 미등록(Resolve=null). SharpCompress 로 억지로 열면 둘 다 정상 — 등록만 하면 될 가능성 큼. `.zip`+`.z01` 분할은 **이미 됨** |
-| I2-9 | zipx·tgz·tar.gz·txz·xz·tbz2·iso·lzh·SFX exe | 미등록(.tar.gz 만 마지막 확장자 .gz 로 GZ 처리기). 기대값은 '반디집 7.46 과 같게': zipx·tgz·tar.gz·iso·lzh 는 안 내용을 바로, **.tar.xz·.tbz2 는 안쪽 `.tar` 하나만**(반디집 실측, 7z.dll 기본도 같음). tar 까지 한 번에 펼치는 건 '반디집보다 나은' 선택 목표라 시험하지 않음. 지금(SharpCompress 0.50.5): **.tar.gz 는 GZ 처리기가 안쪽 `이름.tar` 하나로 보여 주고 꺼냄**(기록 테스트 `기록_tar_gz는_안쪽_tar_하나로_보이고_풀린다`). 억지로 `ArchiveFactory.OpenArchive` 하면 zipx(일반)·SFX 는 정상, zipx(AES+XZ)는 목록은 되지만 해제가 'Specified method is not supported', tgz·tar.gz·xz·txz·tbz2·lzh 는 'Cannot determine compressed stream type'(tgz·tar.gz 는 `GZipArchive.OpenArchive` 로 직접 열면 이름 빈 항목 하나), iso 는 **항목 0개로 조용히 성공** |
+| I1-7 | 헤더(파일명) 암호 7z/RAR 를 열 때 암호를 안 물음 | **Skip 아님** — 7z 는 W1-D 1차 검증, RAR 머리 암호는 통합 점검에서 고침(`CommandLineTests.헤더암호_7z…`·`RarTests.머리암호_RAR_…`). W2-01 에서 7z.dll 로 바뀐 뒤에도 같은 흐름(`CommandLineTests.헤더암호_7z_여기에_풀기는_7z_dll로도_…`) |
+| I2-1 | 7z 만들기 | `NotSupportedException`(W2-02 몫 — 저장 형식에도 7Z 없음) |
 | I2-10 | 맥 NFD 이름 | 목록·풀린 이름이 자모 분리 그대로(내용은 정확) |
 
-### 남은 Skip 6개(2026-10-12 통합 점검 후) — 모두 알려진 빈틈, 안 고친 버그(Bn)는 없음
+### 남은 Skip 2개(2026-10-13 W2-01 후) — 모두 알려진 빈틈, 안 고친 버그(Bn)는 없음
 
 | 테스트 | 사유 | 언제 풀리나 |
 |---|---|---|
-| `KnownGapTests.압축_7z_왕복이_원본과_같다` | I2-1 7z 만들기 | W1-B(7z.dll) |
-| `KnownGapTests.숫자분할_첫조각으로_열고_풀린다`(`.7z.001`·`.zip.001` 두 행이 한 Skip) | I2-2 숫자 분할 확장자 미등록 | W1-B(등록·라우팅) |
-| `KnownGapTests.미지원_형식이_반디집처럼_열리고_풀린다`(zipx·tgz·tar.gz·txz·tbz2·iso·lzh) | I2-9 | W1-B(7z.dll) |
-| `KnownGapTests.xz_단일파일이_풀린다` | I2-9 | W1-B |
-| `KnownGapTests.자동풀림_exe가_열리고_풀린다` | I2-9(SFX — 로컬 픽스처가 없으면 사유가 '픽스처 없음'으로 바뀜) | W1-B |
+| `KnownGapTests.압축_7z_왕복이_원본과_같다` | I2-1 7z 만들기 | W2-02 |
 | `BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` | I2-10 맥 NFD 이름 | 이름 NFC 정규화 작업(따로) |
 
-(xUnit 은 Skip 걸린 Theory 를 행마다 나누지 않고 1개로 셉니다 — 그래서 '건너뜀 6'.)
+`Known.I2_2` 문구는 '분할 만들기 미지원'으로 바꿨습니다(풀기는 W2-01 에서 됨 — 쓰는 곳이 없으면 W2-03 이 지움). `Known.I2_9` 는 지웠습니다.
+
+### W2-01 에서 고친 것(2026-10-13) — Skip 해제·1차 W1-B 검증에서 막힌 것
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| I2-2 숫자 분할 열기(`.7z.001`·`.zip.001`) | 미등록 | 7z 는 7z.dll 이 경로로 조각을 찾고, ZIP 은 `SplitVolumeStream` 으로 이어 main ZIP 처리기(한글 이름·암호 판정 유지)로. 빠진 조각(가운데·끝)은 그 이름, 덜 받은 마지막 조각은 '덜 받아졌어요' | `KnownGapTests.숫자분할_…`, `SevenZipEngineTests.숫자분할_조각이_빠지면_…`, `TruncationTests.숫자분할_…` |
+| I2-9 zipx·tgz·tar.gz·txz·tbz2·xz·iso·lzh·SFX (+cab·wim) | 미등록, .tar.gz 는 안쪽 `.tar` 하나 | zipx·iso·lzh·xz·cab·wim 은 7z.dll, 압축된 tar 는 tar 안 내용까지 한 번에(**반디집 7.46 은 .tar.xz·.tbz2 를 안쪽 `.tar` 하나로만 보여 줌 — 일집은 한 단계 더 펼친다, W2-01 요구**), SFX exe 는 안쪽 zip·7z·rar·egg·alz 를 찾아 엶(실행 안 함) | `KnownGapTests` 세 개, `CompressedTarTests`, `SfxTests`, `CabTests` |
+| (a) 잘린 RAR·LZH·ZIPX 가 '완료' | 7z.dll 이 읽은 데까지만 열어 뒤 파일이 조용히 빠짐(RAR4·LZH 머리 사이 잘림은 1차 W1-B 의 '남은 한계') | 열 때 구조 검사(`ArchiveCompleteness` — RAR5 끝 머리, RAR4 판 29 이상이면 ENDARC 필수, LZH 끝 표시 0 필수) + 풀린 항목마다 크기·확인값 검증. 잘리면 아무것도 옮기지 않음 | `TruncationTests` |
+| (b) 잘린 xz 에서 CPU 100%·끝없는 대기(창 없이 풀기가 안 끝남) | SharpCompress `XZStream` 이 블록 채움·검사값 구간이 잘린 xz 에서 Read 안에서 끝없이 돎(취소도 안 먹음) | `XZStream` 을 어디서도 안 씀 — xz 는 7z.dll 로만(열 때 꼬리 검사, 스니퍼는 512바이트만), 취소는 출력 스트림에서 | `XzTests`, `CommandLineTests.실행파일_extract_to_잘린_압축은_30초_안에_1로_끝난다` |
+| (c) 손상된 .tgz·.tar.gz·.tar.xz 가 '손상' 오류와 함께 틀린·절반 파일을 남김 | 앞으로만 읽으며 대상에 바로 씀 | 대상 안 숨김 임시 폴더에 `.inner.tar` → main TAR 처리기로 펴고 모두 맞을 때만 옮김(전부 아니면 전무, 남은 공간 미리 확인) | `CompressedTarTests`, `XzTests` |
+| (d) UDF ISO 가 '손상', Joliet 없는 ISO9660+UDF 이름이 8.3 | 늘 'Iso' 로 엶 | UDF 먼저·안 되면 ISO9660, 잘림은 PVD 볼륨 크기·UDF 끝 기준점으로(7z.dll 의 '끝 잘림' 표시는 정상 이미지에도 떠서 안 믿음). Joliet 없는 순수 ISO9660 은 원래 8.3 대문자(반디집·7-Zip 도 같음) | `DiscImageTests` |
+| (e) 잘린 .gz 가 '완료'·반쪽 파일 | W1-A 에서 이미 고침(확인값 검사) | 모든 자리 절단 시험을 더해 확인 | `TruncationTests.끝이_잘린_gz는_…`, `CorruptArchiveTests` |
+| (f) 헤더 암호 7z 우클릭 회귀 | — | 7z.dll 경로에서도 '여기에 풀기'·'"이름"\ 에 풀기'가 암호를 한 번 묻고, 틀리면 다시, 취소면 아무것도 없음 | `CommandLineTests.헤더암호_7z…`, `MainViewModelPasswordTests` |
+| 7z.dll 을 못 불러오는 PC | — | 7z·RAR 는 main 의 SharpCompress 로, 나머지는 `EngineUnavailableException`(한국어). 앞서 목록을 봐 안쪽 tar 가 캐시에 있는 .tar.xz 도 목록부터 같은 안내(목록만 보이고 풀기는 안 되는 어긋남·테스트 순서에 따라 흔들리던 것 고침) | `SevenZipLibraryTests.막힌_PC에서도_…`, `SevenZipLibraryTests.캐시된_tar_xz도_…` |
+
+7z.dll 로 바꾸며 '기록' 테스트를 새 값으로 고친 것: 라우팅 표(`RoutingTests` — 새 확장자), 예외 타입·문구(`CorruptArchiveTests`·`PasswordTests` — 7z·RAR·.tar.gz 손상은 일집 `CorruptArchiveException`,
+잘림이면 '끝부분이 잘려'), 반디집 픽스처 목록 모양(`BandizipFixtureTests.기록_압축된_tar는_tar_안_내용이_바로_보인다`·`기록_xz_단일파일_목록`), RAR 항목 이름의 폴더 구분
+(`RarTests.기록_RAR_항목_이름의_폴더_구분` — 7z.dll 은 '/', 대신 경로는 '\'), 압축된 tar 진행률(`CompressedTarTests.기록_진행률은_…` — 앞 절반 바깥 풀기·뒤 절반 tar).
+보관분(1차 W1-B) 시험 중 '앞 파일은 남긴다'였던 잘림·취소·대상 쪽 오류 시험은 설계(전부 아니면 전무)대로 '아무것도 남기지 않는다'로 바꿨고,
+한 파일의 CRC 오류만은 main 계약(`RarTests.손상된_RAR은_CRC_오류로_알리고_앞_파일은_남긴다`)대로 그 앞에서 맞게 풀린 파일을 남깁니다.
+
+웹에서 받은 파일 표시(MOTW)는 **고치지 않고 기록만** 했습니다 — 켜면 Office 보호된 보기가 살아나지만 재사용장치(엑셀 COM 자동 처리)에
+영향이 있을 수 있어 사용자 결정 사항입니다(`KnownGapTests.기록_웹에서_받은_표시를_풀린_파일에_옮기지_않는다`).
 
 ### 고친 버그(W1-A, 2026-10-12) — Skip 해제·근거 테스트는 `FixedBugTests` 로
 
@@ -327,6 +368,27 @@ ZIP·7z·EGG·RAR 암호 창 길(없음 → 틀림 → 맞음 — 반디집 한�
   알집이 FILETIME 을 UTC 로 쓰는지 현지 시각으로 쓰는지 몰라 테스트로 고정하지 않았다(MANUAL_CHECKLIST 6절).
 - ZIP64(4 GB 초과·항목 65,535개 초과), 260자 넘는 긴 경로, 루트 상대(`/evil.txt`)·드라이브 상대(`C:evil.txt`) 경로 공격은 시험하지 않음
   (뒤의 둘은 방어가 깨지면 드라이브 루트나 알 수 없는 폴더에 쓰게 되어 넣지 않았다).
+- **W1-B(7z.dll)에서 확인 못 한 것**:
+  - 진짜 RAR(RAR4·RAR5·여러 조각 `.partN.rar`/`.rNN`·헤더 암호) — 픽스처가 없어 머리 바이트 읽기와 빠진 조각 이름 추정은 규격대로 만든 합성 바이트로만.
+    여러 조각 RAR 은 경로로 열어(7z.dll 이 다음 조각을 직접 찾음) 취소가 파일 단위로만 먹는다.
+  - CAB·WIM 실물, 7-Zip 이 만든 진짜 7z SFX(테스트는 7z 앞에 가짜 스텁을 붙인 합성 exe), 4 GB 넘는 7z.
+  - 7z.dll 이 서명 없는 네이티브 DLL 이라 다른 PC 의 AppLocker·WDAC·백신이 막을 때 — 테스트는 '못 불러온 것'을 흉내만 냄
+    (`SevenZipLibraryTests.막힌_PC에서도_…`: 7z 는 SharpCompress 로 대신, 나머지는 쉬운 안내).
+  - 7z.dll 해제는 대상 폴더 안 숨김 임시 폴더(`.일집-임시-xxxxxxxx`)에 먼저 푼 뒤 옮긴다 — 비정상 종료 때 남은 것은 다음 해제 때 하루 지난 것만 지운다.
+    옮길 때 공유 위반은 다시 해 보지만(최대 1.5초), **진짜 DLP(PCFILTER)가 감시하는 바탕 화면·OneDrive 대상에서는 시험하지 못했다**
+    (테스트는 파일을 직접 잡아 흉내만 냄).
+  - 7z 만들기 '최대'의 취소 지연: 느린 글자 데이터 300 MB 에서 7~15초(하네스 실측) — 큰 원본 계약 테스트는 '보통'만 둠(최대는 블록이 두 배라 병렬 테스트에서 흔들릴 수 있어).
+  - 7z 만들기 메모리는 계약 테스트로 재지 않는다(같이 도는 테스트 때문에 흔들림) — 위 표의 숫자는 하네스 실측.
+- **W1-B 2차 검증 지적에서 확인 못 한 것**:
+  - 진짜 WinRAR·알집 자동 풀림 exe — 가짜 PE 스텁 + 합성(저장만) RAR/EGG/ALZ 로만. 실제 SFX 모듈이 압축 뒤에 다른 자료를 붙이거나
+    덧붙은 영역 앞쪽에 다른 자료를 두면 못 찾을 수 있다(그때도 앞 64KB 훑기로 한 번 더 찾음).
+  - 진짜(압축된) RAR 의 잘림·여러 조각 빠짐 — 합성 '저장' RAR 과 반디집 zipx·lzh 로만. 7z.dll 이 압축된 RAR 데이터 중간 잘림에도 같은 표시를 주는지는 실물 미확인.
+  - RAR4·LZH 를 **머리 사이에서 정확히** 자른 것은 7z.dll 도 모른다(규격상 끝 표시가 선택 — 위 기록 테스트). 7z.dll 이 막힌 PC 의 끝 머리 확인은
+    머리 암호 없는 RAR5 만(RAR4·머리 암호 RAR5 는 SharpCompress 가 알리는 것만).
+  - 목록 열기는 너그러운 그대로 — 잘린 압축도 읽히는 데까지 목록이 보이고, 풀 때 알린다.
+  - 7z.dll 경로의 '따로 꺼내기'(장치 이름·점만 있는 폴더)와 7z 만들기의 빈 폴더 '덧붙이기'를 진짜 DLP(PCFILTER) 대상 폴더에서 해 보지 못했다.
+  - BSD 전문의 저작권 줄은 7-Zip `License.txt` 원문을 내려받지 못해 기억으로 적었다(Igor Pavlov 연도 생략) — 재배포 전에 원문과 대조(HANDOFF 보류).
+  - 창 없이 풀기의 'ZIP 바탕 문서' 확장자 목록은 판단으로 정했다(docx·xlsx·pptx·hwpx·odt·epub·xps·vsdx 등) — 빠진 문서 형식은 예전처럼 풀린다.
 
 ### '근거' 테스트 (고쳐지면 실패하는 게 정상)
 
@@ -357,6 +419,7 @@ ZIP·7z·EGG·RAR 암호 창 길(없음 → 틀림 → 맞음 — 반디집 한�
 - `--extract`(폴더 고르는 창)·`--compress` 의 실제 창, 셸 메뉴, 첫 실행은 MANUAL_CHECKLIST 로 사람이 확인한다.
 - `--extract-to` 는 `App.OnStartup` 의 창 없이 풀기 경로를 실제 `Iljip.exe` 로 실행해 확인한다(종료 코드 0/1/2).
 - 남은 제안: `App.IsHeadlessExtractCommand`·`RunHeadlessExtractAsync` 를 `internal static` 으로 두고 직접 시험(지금은 exe 를 띄워 확인).
+- (W2-01) 화면에서 7z 만들기 흐름 시험은 W2-02 로 보류(`_보류_W2-02/MainViewModel7zCreateTests.cs.txt`).
 
 ## 그 밖에 고정해 둔 '현재 동작' (버그는 아니지만 엔진 교체 때 달라질 수 있는 것 — 대부분 기록 테스트)
 
@@ -364,7 +427,9 @@ ZIP·7z·EGG·RAR 암호 창 길(없음 → 틀림 → 맞음 — 반디집 한�
 - 일집 ZIP·TAR 목록에는 빈 폴더만 폴더 항목이 있음(반디집 ZIP 은 모든 폴더 항목). (TAR 는 W1-A 전엔 폴더 항목이 하나도 없었음)
 - ZIP '저장(Store)' 수준도 방식 번호는 8(Deflate, 압축 안 한 블록) — 반디집 `-l:0` 은 방식 0.
 - 암호 없는 일집 ZIP 도 한글 이름에 EFS(UTF-8) 플래그를 켬(계약은 '한국어 탐색기 방식으로 읽어도 이름이 맞음').
-- 7z 항목의 압축 크기는 모두 0(SharpCompress) — 화면 압축률이 의미 없음. zip·tar 는 항목별 값.
+- 7z 항목의 압축 크기는 모두 0(SharpCompress 도, W1-B 의 7z.dll 도 항목별 값을 주지 않음) — 화면 압축률이 의미 없음. zip·tar 는 항목별 값.
+- 7z.dll 로 여는 형식은 시각이 없는 항목(xz·ISO 폴더)의 수정 시각을 '모름'(null)으로 둔다. ZIP 은 7z.dll 이 플래그 없는 UTF-8 이름을 깨뜨려
+  계속 SharpCompress 로 읽는다(`SevenZipEngineTests.기록_7z_dll은_플래그없는_UTF8_ZIP_이름을_깨뜨린다`).
 - 순수 .bz2 목록의 크기는 0(풀기 전엔 모름), 이름은 파일명에서 `.bz2` 를 뗀 것. FNAME 없는 .gz 도 같은 규칙(`.gz` 를 뗀 것, 크기는 gzip 끝의 원래 크기). 뗀 이름이 비거나 점·공백뿐이면 '압축풀림'.
 - 해제 실패 시 '파일'은 안 남지만 먼저 만든 '폴더'는 남을 수 있음(암호 오류만은 W1-C 부터 이번에 만든 폴더까지 지움). 단 화면의 '"이름"\ 에 풀기'는
   W1-D 1차 검증부터 취소·실패로 그 이름 폴더에 파일이 하나도 안 남았으면 그 폴더(빈 하위 폴더 포함)를 지운다(`ArchiveNaming.RemoveFolderIfNoFiles`).
@@ -373,7 +438,8 @@ ZIP·7z·EGG·RAR 암호 창 길(없음 → 틀림 → 맞음 — 반디집 한�
 - TAR 압축 도중 원본 파일이 줄어들면(머리에 적은 크기와 실제 읽은 양이 다름) `IOException`('…파일이 압축하는 도중에 바뀌었어요') — 조용히 깨진 tar 를 만들지 않음.
 - 이미 취소된 토큰이면 대상 폴더도 만들지 않음.
 - 선택 해제는 대소문자·`\`·앞뒤 `/` 차이를 무시하고, 이름 앞부분만 같은 것(`하위` vs `하위폴더`)은 고르지 않음.
-- 경로 공격은 `InvalidDataException("안전하지 않은 경로: …")` 로 멈춤(앞 항목은 풀려 있음). Windows 특수 이름(`a.txt:evil`, 끝 점·공백, `con.txt`)은 예외 없이 대상 폴더 안에 풀림. tar 링크 항목은 빈 일반 파일로 풀리고 그 아래 항목은 `IOException`.
+- 경로 공격은 `InvalidDataException("안전하지 않은 경로: …")` 로 멈춤(앞 항목은 풀려 있음). Windows 특수 이름은 예외 없이 대상 폴더 안에 바꾼 이름으로 풀림
+  (W1-B 2차부터 `a.txt:evil` → `a.txt_evil`, `con.txt` → `_con.txt`, `...` → `.._` — `EntryPaths`, 끝 점·공백은 Windows 가 떼는 대로). tar 링크 항목은 빈 일반 파일로 풀리고 그 아래 항목은 `IOException`.
 - 명령줄 키워드는 대소문자를 가림(`--OPEN` 은 경로로 취급되는데 결과적으로 열림). 창 없이 풀기의 `--extract-to` 는 대소문자 무시.
 - (W1-D) 키워드 명령의 인자가 모자라면 아무것도 안 함(예전엔 `--extract-to <있는 압축>` 처럼 폴더가 빠지면 경로 목록으로 처리돼 열렸음).
 - (W1-D) 목록 정렬은 압축할 목록(모으는 중)에도 적용된다(보이는 순서만 — 압축 대기 원본 목록 `Entries` 는 넣은 차례 그대로).

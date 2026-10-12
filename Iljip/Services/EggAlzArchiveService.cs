@@ -127,7 +127,6 @@ public sealed class EggAlzArchiveService : IArchiveService
 
                 long bytesProcessed = 0;
                 int filesProcessed = 0;
-                string fullDestRoot = Path.GetFullPath(destinationFolder + Path.DirectorySeparatorChar);
 
                 foreach (var (entry, decodedPath, isDirectory) in named)
                 {
@@ -138,12 +137,9 @@ public sealed class EggAlzArchiveService : IArchiveService
                     current = entry;
                     currentPath = decodedPath;
 
-                    string outputPath = Path.Combine(destinationFolder, decodedPath);
-                    string fullOutputPath = Path.GetFullPath(outputPath);
-
-                    // Zip Slip 방어: 해제 경로가 대상 폴더 밖으로 나가면 거부.
-                    if (!fullOutputPath.StartsWith(fullDestRoot, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException($"안전하지 않은 경로: {decodedPath}");
+                    // Zip Slip 방어(대상 폴더 밖이면 '안전하지 않은 경로: …') + Windows 에서 그 이름 그대로는 못 쓰는 조각(':'·'?'·장치 이름)을
+                    // 바꾼 출력 경로(EntryPaths — 모든 해제 경로가 같은 규칙, W2-01)
+                    string fullOutputPath = EntryPaths.ResolveOutput(destinationFolder, decodedPath);
 
                     if (isDirectory)
                     {
@@ -296,8 +292,11 @@ public sealed class EggAlzArchiveService : IArchiveService
     private static EggArchive OpenArchive(string archivePath, string? password)
     {
         var opened = new List<Stream>();
-        var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        opened.Add(stream);
+        var file = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        opened.Add(file);
+        // 알집 자동 풀림 exe(SfxArchiveService 가 넘김, W2-01): EGG/ALZ 서명 위치부터 보이는 스트림으로(분할 조각은 찾지 않음)
+        long offset = EmbeddedOffset(archivePath);
+        Stream stream = offset > 0 ? new OffsetStream(file, offset) : file;
         try
         {
             Callbacks.SplitFileReceiverCallback splitCallback = st =>
@@ -324,14 +323,60 @@ public sealed class EggAlzArchiveService : IArchiveService
                 (_, opts) => { opts.Password = password ?? string.Empty; opts.Retry = false; };
             return new EggArchive(stream, ownStream: true, splitCallback, passwordCallback);
         }
-        catch
+        catch (Exception ex)
         {
             foreach (var s in opened)
             {
                 try { s.Dispose(); } catch { /* 닫기 실패는 무시 */ }
             }
+            // W2-01: 형식을 못 알아봄(깨진 머리)·분할 조각 없음은 일집 예외로(화면·창 없이 풀기 문구가 형식과 무관하게 같은 쉬운 한국어).
+            // 그 밖의 예외(암호 등)는 그대로 — 호출자가 번역한다.
+            if (ex is EggDotNet.Exceptions.UnknownEggException) throw new CorruptArchiveException(ex);
+            if (ex is EggDotNet.Exceptions.MissingVolumeException) throw new VolumeMissingException(MissingVolumeName(archivePath), ex);
             throw;
         }
+    }
+
+    /// <summary>
+    /// 자동 풀림 exe('MZ' 로 시작)이면 안쪽 EGG/ALZ 의 시작 위치, 아니면 0(W2-01). 보통 .egg/.alz 는 첫 두 바이트만 읽고 끝난다.
+    /// </summary>
+    internal static long EmbeddedOffset(string archivePath)
+    {
+        try
+        {
+            using (var fs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (fs.ReadByte() != 'M' || fs.ReadByte() != 'Z') return 0;
+            }
+            var kind = ArchiveSniffer.Detect(archivePath, out long offset);
+            return kind is ArchiveKind.EggSfx or ArchiveKind.AlzSfx ? offset : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex VolName =
+        new(@"^(?<base>.*)\.vol(?<n>\d+)\.egg$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// 분할 EGG 의 빠진 조각 이름 추정(알집 규칙 '이름.volN.egg'): vol1 부터 처음으로 없는 번호. 이름이 규칙과 다르면 '이름.vol2.egg'.
+    /// (EggDotNet 은 조각을 머리 ID 로 찾아 어느 이름이 빠졌는지 알려 주지 않는다)
+    /// </summary>
+    internal static string MissingVolumeName(string archivePath)
+    {
+        string dir = Path.GetDirectoryName(archivePath) ?? string.Empty;
+        string name = Path.GetFileName(archivePath);
+        var m = VolName.Match(name);
+        if (!m.Success) return Path.GetFileNameWithoutExtension(name) + ".vol2.egg";
+        string b = m.Groups["base"].Value;
+        for (int k = 1; k < 10000; k++)
+        {
+            string cand = $"{b}.vol{k}.egg";
+            if (!File.Exists(Path.Combine(dir, cand))) return cand;
+        }
+        return name;
     }
 
     /// <summary>
@@ -367,7 +412,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         IReadOnlyList<string> names = entries.Select(e => e.FullName ?? e.Name ?? string.Empty).ToList();
 
         // ALZ 이면(EGG 는 바로 null) 원본 머리와 짝지어 깨진 이름·폴더 속성을 보완한다.
-        var alz = AlzNameScanner.TryMatch(archivePath, names);
+        var alz = AlzNameScanner.TryMatch(archivePath, names, EmbeddedOffset(archivePath));
         if (alz is not null && names.Any(n => n.Contains('�')))
             names = alz.Select(r => AlzNameScanner.DecodeName(r.Name)).ToList();
 

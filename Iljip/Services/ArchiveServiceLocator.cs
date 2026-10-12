@@ -1,12 +1,48 @@
+using System.IO;
+
 namespace Iljip.Services;
 
 /// <summary>
-/// 확장자별 IArchiveService 라우터.
+/// 압축 형식 → IArchiveService 라우터(W2-01 에서 형식 라우팅 표대로 다시 짬 — HANDOFF 'W2-01').
+/// 찾는 순서:
+/// <list type="number">
+/// <item><see cref="Resolve"/>: 확장자로 — 등록된 확장자 중 가장 긴 것부터('.tar.gz' &gt; '.gz', '.7z.001' &gt; '.001').
+///   단 단일 스트림 압축(.gz·.bz2·.xz)이고 파일이 있으면 안쪽이 tar 인지 보고 tar 면 압축된 tar 처리기로(라우팅 표의 '내용 판별' 행).</item>
+/// <item><see cref="ResolveByContent"/>: 일집 안(열기 창·파일 연결 --open·창에 놓은 뒤의 열기)에서 1 이 null 일 때만 앞부분 서명을 본다
+///   (이름이 '.bin' 으로 바뀐 7z, 자동 풀림 .exe 등 — B-086).</item>
+/// <item><see cref="ResolveForAutomation"/>: 창 없이 풀기(--extract-to). 1 → 2. 단 속이 ZIP 인 문서(.docx·.xlsx·.hwpx…)는 늘 null.</item>
+/// </list>
+/// <see cref="ResolveByExtension"/> 은 파일을 읽지 않는다 — 끌어 놓기 분류(DropPolicy)·저장 대상·셸 확장과 같은 '확장자만' 규칙.
+/// .z01·.z02 는 처리기가 없다(분할 ZIP 은 마지막 .zip 으로 연다 — SharpCompress 가 형제 조각을 찾음).
 /// </summary>
 public sealed class ArchiveServiceLocator
 {
     private readonly Dictionary<string, IArchiveService> _byExtension =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // 내용으로 알아본 종류 → 그 종류의 대표 처리기를 고를 확장자(ResolveByContent 가 확장자로 못 고른 파일에만 씀).
+    private static readonly Dictionary<ArchiveKind, string> CanonicalExtension = new()
+    {
+        [ArchiveKind.Zip] = ".zip",
+        [ArchiveKind.SevenZip] = ".7z",
+        [ArchiveKind.Rar] = ".rar",
+        [ArchiveKind.Tar] = ".tar",
+        [ArchiveKind.TarGz] = ".tar.gz",
+        [ArchiveKind.TarBz2] = ".tar.bz2",
+        [ArchiveKind.TarXz] = ".tar.xz",
+        [ArchiveKind.GZip] = ".gz",
+        [ArchiveKind.BZip2] = ".bz2",
+        [ArchiveKind.Xz] = ".xz",
+        [ArchiveKind.Iso] = ".iso",
+        [ArchiveKind.Udf] = ".iso",
+        [ArchiveKind.Cab] = ".cab",
+        [ArchiveKind.Lzh] = ".lzh",
+        [ArchiveKind.Wim] = ".wim",
+        [ArchiveKind.Egg] = ".egg",
+        [ArchiveKind.Alz] = ".alz",
+    };
+
+    private readonly SfxArchiveService _sfx = new();
 
     public ArchiveServiceLocator()
     {
@@ -17,6 +53,9 @@ public sealed class ArchiveServiceLocator
         Register(new BZip2ArchiveService());
         Register(new RarArchiveService());
         Register(new EggAlzArchiveService());   // EGG/ALZ 해제(EggDotNet) — 반디집 의존 제거용
+        Register(new CompressedTarArchiveService());    // .tgz·.tar.gz·.tbz2·.tbz·.tar.bz2·.txz·.tar.xz → tar 안 내용을 바로(W2-01)
+        Register(new SevenZipFormatsArchiveService());  // 7z.dll 전용 형식(zipx·iso·cab·lzh·lha·wim·xz — W2-01)
+        // 자동 풀림 exe(SfxArchiveService)는 확장자로 등록하지 않는다 — 내용(MZ + 안쪽 zip/7z/rar/egg/alz)으로만 고른다.
     }
 
     public void Register(IArchiveService service)
@@ -29,29 +68,115 @@ public sealed class ArchiveServiceLocator
         _byExtension.Keys.ToList();
 
     /// <summary>
-    /// 열기·풀기 직전에 쓰는 라우팅. 미지원이면 null. 지금은 <see cref="ResolveByExtension"/> 와 같다
-    /// (내용(서명)을 먼저 보는 판별은 W1-B(7z.dll·ArchiveSniffer)와 같이 들어온다 — 그때 이 메서드만 바뀐다).
+    /// 열기·풀기 직전에 쓰는 라우팅(확장자 기준). 미지원이면 null.
+    /// 확장자가 단일 스트림 압축(.gz·.bz2·.xz)이고 파일이 있으면 안쪽 512바이트가 tar 머리인지 보고(<see cref="ArchiveSniffer.SingleStreamInnerIsTar"/>)
+    /// tar 면 압축된 tar 처리기(안의 내용을 바로 펼침), 아니면 단일 파일 처리기.
     /// </summary>
-    public IArchiveService? Resolve(string archivePath) => ResolveByExtension(archivePath);
+    public IArchiveService? Resolve(string archivePath)
+    {
+        string? ext = MatchExtension(archivePath);
+        if (ext is null || !_byExtension.TryGetValue(ext, out var svc)) return null;
+        if (IsSingleStreamExtension(ext) && File.Exists(archivePath)
+            && ArchiveSniffer.SingleStreamInnerIsTar(archivePath, ext)
+            && _byExtension.TryGetValue(".tar" + ext, out var compressedTar))
+            return compressedTar;
+        return svc;
+    }
 
     /// <summary>
-    /// 파일을 읽지 않고 확장자만 보는 라우팅. 미지원이면 null.
-    /// 끌어 놓기·명령줄 경로 분류(압축인지 압축할 파일인지), 저장할 형식 고르기, 열기 창 필터처럼 '내용을 보면 안 되는' 곳에서 쓴다
-    /// (속이 ZIP 인 .docx·.xlsx 를 압축하려고 끌어 놓았는데 '열기'가 돼 버리지 않게).
+    /// 일집 안의 열기(열기 창·파일 연결 --open·창에 놓은 뒤)용: <see cref="Resolve"/> 가 null 일 때만 앞부분 서명으로 고른다(B-086).
+    /// 자동 풀림 exe 는 여기서만 고른다. zstd 처럼 알아보지만 못 푸는 것과 서명을 모르는 파일은 null.
     /// </summary>
+    public IArchiveService? ResolveByContent(string archivePath)
+    {
+        var byExt = Resolve(archivePath);
+        if (byExt is not null) return byExt;
+        if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath)) return null;
+
+        var kind = ArchiveSniffer.Detect(archivePath);
+        switch (kind)
+        {
+            case ArchiveKind.ZipSfx:
+            case ArchiveKind.SevenZipSfx:
+            case ArchiveKind.RarSfx:
+            case ArchiveKind.EggSfx:
+            case ArchiveKind.AlzSfx:
+                return _sfx;
+        }
+        return CanonicalExtension.TryGetValue(kind, out var canonical) && _byExtension.TryGetValue(canonical, out var svc) ? svc : null;
+    }
+
+    /// <summary>
+    /// 속이 ZIP 인 문서 형식(오피스·한글·ODF·전자책 등). 내용 판별로는 ZIP 이지만 사용자에게는 문서다.
+    /// </summary>
+    private static readonly HashSet<string> ZipBasedDocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".docx", ".docm", ".dotx", ".dotm", ".xlsx", ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlam",
+        ".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm", ".ppam", ".vsdx", ".vsdm",
+        ".hwpx", ".odt", ".ods", ".odp", ".odg", ".odf", ".ott", ".ots", ".otp", ".epub", ".xps", ".oxps",
+        ".jar", ".apk",
+    };
+
+    /// <summary>속이 ZIP 인 문서 확장자인지(.xlsx·.docx·.hwpx·.jar·.apk 등).</summary>
+    public static bool IsZipBasedDocument(string path) => ZipBasedDocumentExtensions.Contains(Path.GetExtension(path ?? string.Empty));
+
+    /// <summary>
+    /// 창 없이 풀기(--extract-to, 재사용장치 같은 자동화)용: <see cref="ResolveByContent"/> 와 같지만 속이 ZIP 인 문서(.xlsx 등)는 늘 null(미지원).
+    /// 자동화 계약('압축이 아니면 영어 문구 + 종료 코드 2')을 지킨다 — 문서 속 XML 을 풀어 '성공'으로 끝나지 않게.
+    /// </summary>
+    public IArchiveService? ResolveForAutomation(string archivePath) =>
+        IsZipBasedDocument(archivePath) ? null : ResolveByContent(archivePath);
+
+    /// <summary>확장자만 보고 고른다(파일을 읽지 않음 — 끌어 놓기 분류·저장 대상·셸 확장과 같은 규칙). 미지원이면 null.</summary>
     public IArchiveService? ResolveByExtension(string path)
     {
-        string ext = System.IO.Path.GetExtension(path ?? string.Empty);
-        return _byExtension.TryGetValue(ext, out var svc) ? svc : null;
+        string? ext = MatchExtension(path);
+        return ext is not null && _byExtension.TryGetValue(ext, out var svc) ? svc : null;
+    }
+
+    /// <summary>
+    /// 등록된 확장자 중 파일 이름 끝과 맞는 가장 긴 것('a.tar.gz' → '.tar.gz', 'a.7z.001' → '.7z.001', '보고서.v2.tar.gz' → '.tar.gz'). 없으면 null.
+    /// 폴더 이름의 점은 보지 않는다('C:\폴더.zip\안\b.7z' → '.7z'). 숫자 조각은 첫 조각 '.001' 만 등록돼 있다(.002 등은 null).
+    /// </summary>
+    private string? MatchExtension(string? archivePath)
+    {
+        if (string.IsNullOrEmpty(archivePath)) return null;
+        string name = Path.GetFileName(archivePath);
+        for (int i = name.IndexOf('.'); i >= 0; i = name.IndexOf('.', i + 1))
+        {
+            string cand = name[i..];
+            if (_byExtension.ContainsKey(cand)) return cand;
+        }
+        return null;
+    }
+
+    private static bool IsSingleStreamExtension(string ext) =>
+        ext.Equals(".gz", StringComparison.OrdinalIgnoreCase)
+        || ext.Equals(".bz2", StringComparison.OrdinalIgnoreCase)
+        || ext.Equals(".xz", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 압축 파일 이름에서 압축 확장자를 뗀 이름. 등록된 가장 긴 확장자를 뗀다
+    /// ('견적.7z.001' → '견적', '자료.tar.gz' → '자료'). 모르는 확장자(자동 풀림 .exe 등)는 마지막 확장자만 뗀다. 파일을 읽지 않는다.
+    /// (우클릭 '"이름"\ 에 풀기' 의 폴더 이름은 <see cref="ArchiveNaming.FolderNameFor"/> — C++ 셸 확장과 같은 규칙)
+    /// </summary>
+    public string NameWithoutArchiveExtension(string archivePath)
+    {
+        string name = Path.GetFileName(archivePath);
+        string? ext = MatchExtension(archivePath);
+        string stem = ext is not null && name.Length > ext.Length ? name[..^ext.Length] : string.Empty;
+        return string.IsNullOrWhiteSpace(stem) ? Path.GetFileNameWithoutExtension(name) : stem;
     }
 
     /// <summary>새 압축 파일을 만들 때 기본 서비스 (ZIP).</summary>
     public IArchiveService GetDefaultForCompression() => _byExtension[".zip"];
 
-    /// <summary>SaveFileDialog용 필터 문자열 (압축 가능 포맷만).</summary>
+    /// <summary>
+    /// SaveFileDialog용 필터 문자열 (압축 가능 포맷만). RAR·EGG/ALZ·zipx·iso 등은 해제만 가능하므로 제외.
+    /// 7Z 만들기는 W2-02 몫이라 아직 넣지 않는다(7z.dll 을 쓸 수 있을 때만 넣을 것 — 못 쓰는 PC 에서 옵션 창까지 지난 뒤에야 오류가 나지 않게).
+    /// </summary>
     public string BuildSaveFilter()
     {
-        // 7Z, RAR은 해제만 가능하므로 저장 필터에서 제외
         return string.Join("|",
             "ZIP 압축 파일 (*.zip)|*.zip",
             "TAR 묶음 파일 (*.tar)|*.tar",

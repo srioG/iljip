@@ -7,67 +7,56 @@ namespace Iljip.Tests.Contract;
 
 /// <summary>
 /// [범위 11] 알려진 빈틈 — 남은 것은 Skip. 본문은 '고쳐지면 반디집처럼 돼야 할 올바른 기대'다.
-/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C)은 Skip 을 지운 채 여기 둔다.
-/// (지금 관찰된 실제 동작은 RoutingTests 의 '미등록 확장자' 테스트와 README 의 Skip 목록에 적어 둠)
+/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C, I2-2 의 풀기·I2-9 W2-01)은 Skip 을 지운 채 여기 둔다.
+/// 남은 Skip: I2-1(7z 만들기 — W2-02 몫), I2-10(NFD). 목록은 README 의 Skip 목록.
 /// </summary>
 public class KnownGapTests
 {
     public static TheoryData<string> NumberedSplit => FixtureSets.Data(FixtureSets.NumberedSplit);
     public static TheoryData<string> UnsupportedMulti => FixtureSets.Data(FixtureSets.UnsupportedMulti);
 
-    /// <summary>[I2-2] .7z.001 / .zip.001 숫자 분할을 첫 조각으로 열고 풀 수 있어야 한다.</summary>
-    [Theory(Skip = Known.I2_2)]
+    /// <summary>[I2-2 의 풀기 — W2-01 고침] .7z.001 / .zip.001 숫자 분할을 첫 조각으로 열고 풀 수 있어야 한다.</summary>
+    [Theory]
     [MemberData(nameof(NumberedSplit))]
     public async Task 숫자분할_첫조각으로_열고_풀린다(string id) => await OpensLikeBandizip(id);
 
     /// <summary>
-    /// [I2-9] zipx·tgz·tar.gz·txz·tbz2·iso·lzh 를 '반디집 7.46 과 같게' 열고 풀어야 한다. 반디집 동작이 형식마다 다르다(매니페스트 실측):
-    /// <list type="bullet">
-    /// <item>zipx·tgz·tar.gz·iso·lzh: 안의 내용(tar 는 tar 안 파일들)을 바로 보여 주고 푼다 → 기대값은 expected_entries.</item>
-    /// <item>.tar.xz(txz_two_step)·.tbz2(tbz2_python): 안쪽 '.tar 하나'만 보여 주고 그 .tar 를 꺼낸다(bandizip_view.shows_inner_tar_only)
-    ///   → 기대값은 항목 1개 '&lt;이름&gt;.tar'(inner_tar 의 크기·sha256). 7z.dll 기본 동작도 같은 방식이다.</item>
-    /// </list>
-    /// tar 까지 한 번에 펼치는 것은 '반디집보다 나은' 선택 목표라 여기서 시험하지 않는다(README 참고).
+    /// [I2-9 — W2-01 고침] zipx·tgz·tar.gz·txz·tbz2·iso·lzh 를 열고 풀면 안의 내용(tar 는 tar 안 파일들)이 바로 보이고 풀린다 → 기대값은 expected_entries
+    /// (펼친 tar 안 파일 전부의 크기·sha256).
+    /// ★ 일집은 반디집보다 한 단계 더 펼친다(W2-01 요구 — 약화가 아니라 강화): 반디집 7.46 은 .tar.xz(txz_two_step)·.tbz2(tbz2_python)를
+    /// 안쪽 '.tar 하나'로만 보여 주지만(매니페스트 bandizip_view.shows_inner_tar_only — 반디집 실측 기록이라 고치지 않음), 일집은 .tar.gz 처럼
+    /// 한 번에 펼친다(CompressedTarArchiveService). 예전 기대(.tar 하나와 비교)는 항목 1개만 봤고, 지금은 안의 파일 전부와 비교한다.
     /// </summary>
-    [Theory(Skip = Known.I2_9)]
+    [Theory]
     [MemberData(nameof(UnsupportedMulti))]
     public async Task 미지원_형식이_반디집처럼_열리고_풀린다(string id) => await OpensLikeBandizip(id);
 
-    /// <summary>[I2-9] .xz 단일 파일을 열고 풀어야 한다.</summary>
-    [Fact(Skip = Known.I2_9)]
+    /// <summary>[I2-9 — W2-01 고침] .xz 단일 파일을 열고 풀어야 한다(이름은 .xz 를 뗀 것 — 7z.dll).</summary>
+    [Fact]
     public async Task xz_단일파일이_풀린다() => await OpensLikeBandizip("xz_single");
 
-    /// <summary>[I2-9] 자동 풀림 exe(SFX, 안쪽은 zip)를 열고 풀어야 한다. 픽스처는 로컬 전용(git 제외).</summary>
-    [FixtureFact("local/sfx_default.exe", Skip = Known.I2_9)]
+    /// <summary>[I2-9 — W2-01 고침] 자동 풀림 exe(SFX, 안쪽은 zip)를 열고 풀어야 한다. 내용으로만 고르므로(확장자 .exe 는 미등록) 내용 판별로 연다. 픽스처는 로컬 전용(git 제외).</summary>
+    [FixtureFact("local/sfx_default.exe")]
     public async Task 자동풀림_exe가_열리고_풀린다() => await OpensLikeBandizip("sfx_default");
 
     private static async Task OpensLikeBandizip(string id)
     {
         var fx = FixtureCatalog.Get(id);
-        var svc = Svc.Locator.Resolve(fx.FullPath);
-        Assert.True(svc is not null, $"{id}: 확장자 '{Path.GetExtension(fx.FullPath)}' 가 등록되지 않음");
+        var svc = Svc.Locator.ResolveByContent(fx.FullPath);
+        Assert.True(svc is not null, $"{id}: '{Path.GetFileName(fx.FullPath)}' 를 열 처리기가 없음");
         IReadOnlyList<ExpectedEntry> expected = fx.Expected;
         var entries = await svc!.ListEntriesAsync(fx.FullPath, fx.Password);
-        if (fx.BandizipShowsInnerTarOnly)
-        {
-            var inner = fx.InnerTar ?? throw new InvalidOperationException($"{id}: shows_inner_tar_only 인데 inner_tar 가 없음");
-            expected = new[] { new ExpectedEntry(inner.Name, inner.Size, inner.Sha256, false) };
-            // 목록: '.tar' 항목 하나. 크기는 단일 스트림이라 풀기 전엔 모를 수 있어(bz2 처럼 0) 0 도 허용
-            var only = Assert.Single(entries);
-            Assert.Equal(inner.Name, TreeAssert.NormalizeEntryPath(only.Path));
-            Assert.Contains(only.Size, new[] { inner.Size, 0L });
-        }
-        else
-        {
-            TreeAssert.ListEquals(entries, expected, context: id);
-        }
+        TreeAssert.ListEquals(entries, expected, context: id);
+        // 압축된 tar 는 안쪽 tar 를 바로 펼친다 — '.tar' 항목 하나로 보이면 안 된다(W2-01)
+        if (svc is CompressedTarArchiveService)
+            Assert.DoesNotContain(entries, e => !e.IsDirectory && e.Path.EndsWith(".tar", StringComparison.OrdinalIgnoreCase));
         using var tmp = new TempDir("gap");
         string dest = tmp.P("out");
         await svc.ExtractAsync(fx.FullPath, dest, fx.Password);
         TreeAssert.ExtractedTreeEquals(dest, expected, context: id);
     }
 
-    /// <summary>[I2-1] 7z 로 압축한 뒤 다시 풀면 원본과 같아야 한다(한글·빈 파일·빈 폴더 포함).</summary>
+    /// <summary>[I2-1] 7z 로 압축한 뒤 다시 풀면 원본과 같아야 한다(한글·빈 파일·빈 폴더 포함). 7z 만들기는 W2-02 몫.</summary>
     [Fact(Skip = Known.I2_1)]
     public async Task 압축_7z_왕복이_원본과_같다()
     {
@@ -126,6 +115,44 @@ public class KnownGapTests
         string dest = tmp.P("out");
         await new ZipArchiveService().ExtractAsync(arc, dest, FixtureCatalog.DefaultPassword);
         TreeAssert.ExtractedTreeEquals(dest, SampleTree.ExpectedOf(src));
+    }
+
+    /// <summary>
+    /// 현재 동작 기록(보안 결정 보류 — 보고 안건): 인터넷에서 받은 압축(Zone.Identifier = 웹에서 받은 파일 표시, MOTW)을 풀어도
+    /// 풀린 파일에는 그 표시를 옮기지 않는다 — 7z.dll(PropagateMarkOfTheWeb=false)·SharpCompress(ZIP) 모두.
+    /// 그래서 풀린 Office 문서는 '보호된 보기'·매크로 차단 없이 열린다(Windows 탐색기의 기본 ZIP 풀기는 옮긴다).
+    /// 켜면 재사용장치(엑셀 COM 으로 여는 자동 처리)에 영향이 있을 수 있어 사용자 결정 전까지 그대로 둔다 — 바꾸면 이 기록도 고칠 것.
+    /// </summary>
+    [Theory, Trait(Kinds.Key, Kinds.Record)]
+    [InlineData("7z_default")]
+    [InlineData("zip_default")]
+    public async Task 기록_웹에서_받은_표시를_풀린_파일에_옮기지_않는다(string id)
+    {
+        var fx = FixtureCatalog.Get(id);
+        using var tmp = new TempDir("motw");
+        string arc = tmp.P("받은 파일" + Path.GetExtension(fx.FullPath));
+        File.Copy(fx.FullPath, arc);
+        File.WriteAllText(arc + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\n");
+        Assert.True(HasZoneIdentifier(arc), "시험 준비 실패: 압축 파일에 웹 표시를 달지 못함");
+
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractAsync(arc, dest);
+        var files = Directory.EnumerateFiles(dest, "*", SearchOption.AllDirectories).ToList();
+        Assert.NotEmpty(files);
+        Assert.All(files, f => Assert.False(HasZoneIdentifier(f), "풀린 파일에 웹 표시가 붙음: " + f));
+    }
+
+    private static bool HasZoneIdentifier(string path)
+    {
+        try
+        {
+            using var s = new FileStream(path + ":Zone.Identifier", FileMode.Open, FileAccess.Read);
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
     }
 }
 

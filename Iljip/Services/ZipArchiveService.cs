@@ -19,7 +19,45 @@ namespace Iljip.Services;
 /// </summary>
 public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 {
-    public override IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".zip" };
+    /// <summary>'.zip.001' = 숫자 분할 ZIP 의 첫 조각(W2-01, I2-2 해제 — 조각을 이어 붙여 보통 ZIP 처럼 연다).</summary>
+    public override IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".zip", ".zip.001" };
+
+    /// <summary>
+    /// ZIP 을 바이트로 읽는 스트림(암호 판정·WinZip AES 해제용): 숫자 분할 첫 조각('.zip.001')이면 조각을 이어 붙인 스트림
+    /// (뒤 조각이 빠졌거나 덜 받아졌으면 그 이름으로 알림 — <see cref="SplitVolumeStream"/>), 아니면 파일 그대로.
+    /// </summary>
+    internal static Stream OpenRawStream(string zipPath)
+    {
+        if (!SplitVolumeStream.IsNumberedFirstVolume(zipPath))
+            return new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+        var s = SplitVolumeStream.Open(zipPath);
+        try
+        {
+            s.ThrowIfZipIncomplete();
+            return s;
+        }
+        catch
+        {
+            s.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>숫자 분할 첫 조각이면 이어 붙인 스트림으로 연다(한글 이름 판별·암호 판정은 보통 ZIP 과 같음). 아니면 베이스 그대로.</summary>
+    protected override IArchive OpenForRead(string archivePath, SharpCompress.Readers.ReaderOptions options)
+    {
+        if (!SplitVolumeStream.IsNumberedFirstVolume(archivePath)) return base.OpenForRead(archivePath, options);
+        var s = OpenRawStream(archivePath);
+        try
+        {
+            return SharpCompress.Archives.Zip.ZipArchive.OpenArchive(s, options with { LeaveStreamOpen = false });
+        }
+        catch
+        {
+            s.Dispose();
+            throw;
+        }
+    }
 
     protected override ExtractPlan PrepareExtract(string archivePath, string? password, Func<string, bool> shouldExtract)
     {

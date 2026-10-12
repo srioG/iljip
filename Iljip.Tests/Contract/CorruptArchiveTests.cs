@@ -12,33 +12,39 @@ namespace Iljip.Tests.Contract;
 /// </summary>
 public class CorruptArchiveTests
 {
+    private const string Corrupt = "Iljip.Services.CorruptArchiveException";
+    private const string CorruptArchiveExceptionTruncated = "끝부분이 잘려 있어요";
+
     /// <summary>
-    /// (이름(확장자로 서비스 결정), 원본 픽스처, 망가뜨리는 방법, 지금 예외 타입 전체 이름, 문구 핵심(없으면 null))
-    /// 예외 타입·문구는 SharpCompress 0.50.5 / EggDotNet 0.4.0 실측 값(W1-B 에서 일집 자체 예외로 한 번 더 바뀜).
+    /// (이름(서비스 결정 — 내용으로 모르면 확장자), 원본 픽스처, 망가뜨리는 방법, 지금 예외 타입 전체 이름, 문구 핵심(없으면 null))
+    /// 예외 타입·문구 실측: ZIP·TAR·GZ·BZ2 는 SharpCompress 0.50.5 그대로(main 처리기),
+    /// 7z·RAR·.tar.gz·EGG·ALZ 의 손상은 W2-01 부터 일집 예외(<see cref="Iljip.Services.CorruptArchiveException"/>, '압축 파일이 손상됐어요' — 잘림이면 '끝부분이 잘려 있어요').
     /// </summary>
     public static TheoryData<string, string, string, string, string?> Cases => new()
     {
         { "trunc_half.zip", "bandizip/zip_default.zip", "half", "SharpCompress.Common.ArchiveException", "Failed to locate the Zip Header" },
         { "trunc_tail.zip", "bandizip/zip_default.zip", "tail30", "SharpCompress.Common.ArchiveException", "Failed to locate the Zip Header" },
         { "deflate_broken.zip", "bandizip/zip_default.zip", "xor200", "SharpCompress.Compressors.Deflate.ZlibException", "Bad state (invalid block type)" },
-        { "trunc_half.7z", "bandizip/7z_default.7z", "half", "SharpCompress.Common.ArchiveOperationException", "nextHeaderOffset is invalid" },
-        { "data_broken.7z", "bandizip/7z_default.7z", "xor100", "SharpCompress.Compressors.LZMA.DataErrorException", "Data Error" },
+        { "trunc_half.7z", "bandizip/7z_default.7z", "half", Corrupt, "압축 파일이 손상됐어요" },
+        // 데이터 손상은 문제가 난 항목을 알려 준다(7z.dll 이 그 항목을 끝내지 못함)
+        { "data_broken.7z", "bandizip/7z_default.7z", "xor100", Corrupt, "(문제 위치: " },
         { "trunc_half.tar", "bandizip/tar_default.tar", "half", "SharpCompress.Common.IncompleteArchiveException", "Failed to read TAR header" },
+        // ZIP 은 main 의 SharpCompress 처리기 그대로(W2-01 은 ZIP 처리기를 바꾸지 않음)
         { "garbage.zip", "bandizip/zip_default.zip", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
         { "empty.zip", "bandizip/zip_default.zip", "empty", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
-        { "garbage.7z", "bandizip/7z_default.7z", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
+        { "garbage.7z", "bandizip/7z_default.7z", "garbage", Corrupt, "압축 파일이 손상됐어요" },
         { "garbage.bz2", "python/견적서_2026.txt.bz2", "garbage", "System.IO.InvalidDataException", "올바른 BZIP2(.bz2) 형식이 아니거나 손상" },
         // .gz 는 W1-A 1차 검증 지적으로 추가: 잘린 .gz 가 '완료'로 끝나며 절반짜리를 남기던 문제(GZipArchiveService 가 확인값을 봄)
         { "trunc_half.gz", "bandizip/견적서_2026.txt.gz", "half", "System.IO.InvalidDataException", "끝부분이 잘려 있어요" },
-        { "trunc_half.tar.gz", "bandizip/targz_default.tar.gz", "half", "System.IO.InvalidDataException", "끝부분이 잘려 있어요" },
+        // .tar.gz 는 W2-01 부터 tar 안 내용을 바로 펼치는 처리기(CompressedTarArchiveService) — 바깥 gzip 이 잘렸다고 알린다(대상에는 아무것도 안 남김)
+        { "trunc_half.tar.gz", "bandizip/targz_default.tar.gz", "half", Corrupt, CorruptArchiveExceptionTruncated },
         // RAR·EGG·ALZ 는 반디집이 만들 수 없어 픽스처가 없다 — 여기선 '깨진 파일 거절'만(EGG/ALZ 성공 경로는 EggAlzTests)
-        { "garbage.rar", "bandizip/zip_default.zip", "garbage", "SharpCompress.Common.ArchiveOperationException", "Cannot determine compressed stream type" },
-        // RAR 서명 + 쓰레기: SharpCompress 0.50 은 RAR5 를 '항목 0개'로 조용히 열었다 → RarArchiveService 가 손상으로 알림.
-        // RAR4 는 엔진이 이미 머리 오류를 낸다(대조용).
-        { "rar5_sig_garbage.rar", "bandizip/zip_default.zip", "rar5sig", "System.IO.InvalidDataException", "손상되었거나 들어 있는 파일이 없어요" },
-        { "rar4_sig_garbage.rar", "bandizip/zip_default.zip", "rar4sig", "SharpCompress.Common.InvalidFormatException", "Unknown Rar Header" },
-        { "garbage.egg", "bandizip/zip_default.zip", "garbage", "EggDotNet.Exceptions.UnknownEggException", "EGG format is unknown or unsupported" },
-        { "garbage.alz", "bandizip/zip_default.zip", "garbage", "EggDotNet.Exceptions.UnknownEggException", "EGG format is unknown or unsupported" },
+        { "garbage.rar", "bandizip/zip_default.zip", "garbage", Corrupt, "압축 파일이 손상됐어요" },
+        // RAR 서명 + 쓰레기(RAR5·RAR4): 7z.dll 이 열지 못함 → 손상(예전 SharpCompress 는 RAR5 를 '항목 0개'로 조용히 열었음)
+        { "rar5_sig_garbage.rar", "bandizip/zip_default.zip", "rar5sig", Corrupt, "압축 파일이 손상됐어요" },
+        { "rar4_sig_garbage.rar", "bandizip/zip_default.zip", "rar4sig", Corrupt, "압축 파일이 손상됐어요" },
+        { "garbage.egg", "bandizip/zip_default.zip", "garbage", Corrupt, "압축 파일이 손상됐어요" },
+        { "garbage.alz", "bandizip/zip_default.zip", "garbage", Corrupt, "압축 파일이 손상됐어요" },
     };
 
     private static async Task<(Exception? Ex, string Dest)> Run(TempDir tmp, string name, string sourceRel, string how)
@@ -49,7 +55,10 @@ public class CorruptArchiveTests
         return (await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest)), dest);
     }
 
-    /// <summary>계약: 손상 파일은 예외로 알리고, 대상 폴더에 틀린 내용·절반짜리 파일이 남지 않는다.</summary>
+    /// <summary>
+    /// 계약: 손상 파일은 예외로 알리고, 대상 폴더에 틀린 내용·절반짜리 파일이 남지 않는다. 화면이 암호 문제로 오해하지 않고,
+    /// 보이는 문구에 '압축 파일이 아닌'이 없다(재사용장치가 '압축 아님'으로 잘못 가르지 않게 — 재사용장치_processor.py 491행).
+    /// </summary>
     [Theory]
     [MemberData(nameof(Cases))]
     public async Task 손상파일은_예외_그리고_대상폴더_오염_없음(string name, string sourceRel, string how, string _, string? _1)
@@ -58,6 +67,8 @@ public class CorruptArchiveTests
         var (ex, dest) = await Run(tmp, name, sourceRel, how);
         Assert.True(ex is not null, $"{name}: 손상 파일인데 예외 없이 끝남");
         AssertNoWrongContent(dest, sourceRel);
+        Assert.False(Internals.IsPasswordRelated(ex!), $"{name}: 손상을 암호 문제로 오해함: {ex!.Message}");
+        Assert.DoesNotContain("압축 파일이 아닌", Iljip.Services.ErrorMessages.ToUserMessage(ex));
     }
 
     /// <summary>현재 동작 기록: 지금 엔진이 내는 예외 타입·문구.</summary>

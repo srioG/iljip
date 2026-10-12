@@ -6,7 +6,8 @@ namespace Iljip.Tests.Contract;
 
 /// <summary>
 /// [범위 9] ArchiveServiceLocator: 등록 확장자(대소문자 무관) → 정해진 서비스, 미등록 → null.
-/// 엔진을 바꿔 확장자가 늘면 '미등록' 쪽 InlineData 를 옮기고 KnownGapTests 의 Skip 을 지울 것.
+/// 여기 경로들은 '없는 파일'이라 확장자로만 고른다(내용 판별은 LocatorTests).
+/// W2-01 에서 확장자가 늘었다(.tgz·.tar.gz 등 압축된 tar, .zipx·.iso·.lzh 등 7z.dll 형식, .7z.001·.zip.001 숫자 분할).
 /// </summary>
 public class RoutingTests
 {
@@ -24,45 +25,64 @@ public class RoutingTests
     [InlineData("f.rar", typeof(RarArchiveService))]
     [InlineData("g.egg", typeof(EggAlzArchiveService))]
     [InlineData("h.ALZ", typeof(EggAlzArchiveService))]
-    // 현재 동작: 합성 확장자는 마지막 확장자로만 판단 → .tar.gz 는 GZ 처리기(I2-9), .tar.bz2 는 BZ2 처리기
-    [InlineData("i.tar.gz", typeof(GZipArchiveService))]
-    [InlineData("j.tar.bz2", typeof(BZip2ArchiveService))]
+    // 합성 확장자는 가장 긴 것부터 본다 → 압축된 tar 는 tar 안 내용을 바로 펼치는 처리기(I2-9 고침, W2-01)
+    [InlineData("i.tar.gz", typeof(CompressedTarArchiveService))]
+    [InlineData("j.tar.bz2", typeof(CompressedTarArchiveService))]
+    [InlineData("j.TAR.XZ", typeof(CompressedTarArchiveService))]
+    [InlineData("a.tgz", typeof(CompressedTarArchiveService))]
+    [InlineData("a.tbz2", typeof(CompressedTarArchiveService))]
+    [InlineData("a.tbz", typeof(CompressedTarArchiveService))]
+    [InlineData("a.txz", typeof(CompressedTarArchiveService))]
+    // 이름에 점이 더 있어도 등록된 끝부분으로(보고서.v2.tar.gz → .tar.gz, 견적서.txt.gz → .gz)
+    [InlineData("보고서.v2.tar.gz", typeof(CompressedTarArchiveService))]
+    [InlineData("견적서.txt.gz", typeof(GZipArchiveService))]
+    // 7z.dll 로만 여는 형식
+    [InlineData("a.xz", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.zipx", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.iso", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.lzh", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.LHA", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.cab", typeof(SevenZipFormatsArchiveService))]
+    [InlineData("a.wim", typeof(SevenZipFormatsArchiveService))]
+    // 숫자 분할 첫 조각(I2-2 고침)
+    [InlineData("a.7z.001", typeof(SevenZipArchiveService))]
+    [InlineData("a.zip.001", typeof(ZipArchiveService))]
     // 분할 ZIP 의 마지막 조각(.zip)은 ZIP 처리기 — .z01 형제를 SharpCompress 가 알아서 찾는다(zip_split 통과)
     [InlineData("k.zip", typeof(ZipArchiveService))]
     public void 등록된_확장자는_정해진_서비스로_간다(string path, Type expected)
     {
         Assert.IsType(expected, Locator.Resolve(path));
+        Assert.IsType(expected, Locator.ResolveByExtension(path));
     }
 
+    /// <summary>
+    /// 미등록: 자동 풀림 exe 는 확장자로 고르지 않는다(내용으로만 — LocatorTests). '.002' 같은 숫자 분할 뒷조각, '.z01', jar 등도 null.
+    /// </summary>
     [Theory, Trait(Kinds.Key, Kinds.Record)]
-    [InlineData("a.tgz")]
-    [InlineData("a.tbz2")]
-    [InlineData("a.tbz")]
-    [InlineData("a.txz")]
-    [InlineData("a.tar.xz")]
-    [InlineData("a.xz")]
-    [InlineData("a.zipx")]
-    [InlineData("a.iso")]
-    [InlineData("a.lzh")]
-    [InlineData("a.cab")]
     [InlineData("a.jar")]
-    [InlineData("a.7z.001")]
-    [InlineData("a.zip.001")]
+    [InlineData("a.7z.002")]
+    [InlineData("a.001")]
     [InlineData("a.z01")]
     [InlineData("a.exe")]
+    [InlineData("a.zst")]
     [InlineData("a.txt")]
     [InlineData("확장자없음")]
     [InlineData("")]
     public void 미등록_확장자는_null(string path)
     {
         Assert.Null(Locator.Resolve(path));
+        Assert.Null(Locator.ResolveByExtension(path));
     }
 
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public void 등록_확장자_전체_목록이_고정되어_있다()
     {
         Assert.Equal(
-            new[] { ".7z", ".alz", ".bz2", ".egg", ".gz", ".rar", ".tar", ".zip" },
+            new[]
+            {
+                ".7z", ".7z.001", ".alz", ".bz2", ".cab", ".egg", ".gz", ".iso", ".lha", ".lzh", ".rar", ".tar", ".tar.bz2", ".tar.gz",
+                ".tar.xz", ".tbz", ".tbz2", ".tgz", ".txz", ".wim", ".xz", ".zip", ".zip.001", ".zipx",
+            },
             Locator.AllSupportedExtensions.OrderBy(x => x, StringComparer.Ordinal).ToArray());
     }
 
@@ -72,7 +92,10 @@ public class RoutingTests
         Assert.IsType<ZipArchiveService>(Locator.GetDefaultForCompression());
     }
 
-    /// <summary>저장 창 필터: 만들 수 있는 형식(ZIP·TAR·GZ·BZ2)만, 이 순서. 7z 생성이 생기면(I2-1) 여기에 추가돼야 함.</summary>
+    /// <summary>
+    /// 저장 창 필터: 만들 수 있는 형식(ZIP·TAR·GZ·BZ2)만, 이 순서. W2-01 에서 풀 수 있는 형식이 늘었지만(zipx·iso·압축된 tar 등) 만들기는 아니라 넣지 않는다.
+    /// 7z 생성이 생기면(I2-1, W2-02 — 7z.dll 을 쓸 수 있을 때만) 여기에 추가돼야 함.
+    /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public void 저장_필터는_만들_수_있는_형식만()
     {
@@ -120,7 +143,7 @@ public class RoutingTests
         Assert.Equal(name, new ArchiveEntry { Path = path }.Name);
     }
 
-    private sealed class FakeService(params string[] exts) : IArchiveService
+    internal sealed class FakeService(params string[] exts) : IArchiveService
     {
         public IReadOnlyList<string> SupportedExtensions { get; } = exts;
         public Task<IReadOnlyList<ArchiveEntry>> ListEntriesAsync(string a, string? p = null, CancellationToken c = default) => throw new NotImplementedException();

@@ -13,9 +13,10 @@ public static class Known
     // 고쳐 Skip 사유가 없다 — 가짜 암호 창으로 CommandLineTests.헤더암호_7z…(열기·우클릭 풀기·틀린 암호·다른 압축을 열면 잊기)가 지킨다.
     // 서비스 쪽(암호 주면 목록 OK, 안 주면 암호 예외)은 PasswordTests 가 고정. RAR 머리 암호는 통합 점검(2026-10-12)에서 합성 RAR4·RAR5
     // (TestSupport/RawRar.cs, 반디집 bz.exe 로 작성기 확인)로 서비스·화면 모두 확인 — RarTests·FormatFlowTests. 진짜 WinRAR 산출물은 MANUAL_CHECKLIST 6절.
+    // W2-01(7z.dll 해제 엔진)에서 I2-9(zipx·tgz·tar.gz·txz·tbz2·xz·iso·lzh·자동 풀림 exe)와 I2-2 의 '열기·풀기'(.7z.001·.zip.001)를 메워
+    // 그 Skip 을 풀었다(I2_9 사유 삭제). I2-2 는 '분할 만들기' 쪽만 남았다(W2-03 몫 — 쓰는 곳이 없으면 W2-03 이 지움).
     public const string I2_1 = "known gap I2-1: 7z 압축 생성 불가 — SevenZipArchiveService.CompressAsync 가 NotSupportedException";
-    public const string I2_2 = "known gap I2-2: .7z.001/.zip.001 숫자 분할 확장자 미등록 — Resolve 가 null (SharpCompress 로 강제로 열면 열리긴 함)";
-    public const string I2_9 = "known gap I2-9: 미등록 형식(.zipx/.tgz/.tar.gz/.txz/.xz/.tbz2/.iso/.lzh/.exe SFX) — Resolve 가 null 이거나 .tar.gz 는 GZ 처리기가 이름 빈 항목 하나만 봄";
+    public const string I2_2 = "known gap I2-2: 분할 만들기 미지원 — 숫자 분할(.7z.001·.zip.001)·.z01 조각으로 나눠 압축하지 못함(풀기는 W2-01 에서 됨)";
     public const string I2_10 = "known gap I2-10: 맥 ZIP 의 NFD(자모 분리) 한글 이름을 NFC 로 바꾸지 않음 — 목록·풀린 파일 이름이 자모 분리 그대로";
 
     // ── 이번에 발견한 버그 ─────────────────────────
@@ -67,10 +68,10 @@ public static class FixtureSets
     /// <summary>NFD 이름 ZIP — 내용은 맞게 풀리지만 이름이 NFD 그대로(I2-10).</summary>
     public static readonly string[] Nfd = { "nfd_bandizip_default", "nfd_bandizip_utf8", "nfd_python_efs", "nfd_python_noflag" };
 
-    /// <summary>숫자 분할(I2-2).</summary>
+    /// <summary>숫자 분할(I2-2 의 풀기, W2-01 에서 고침).</summary>
     public static readonly string[] NumberedSplit = { "7z_split", "zip_numbered_split" };
 
-    /// <summary>미등록·미지원 형식(I2-9). 여러 파일이 든 묶음 형식만.</summary>
+    /// <summary>예전 미등록·미지원 형식(I2-9, W2-01 에서 고침). 여러 파일이 든 묶음 형식만.</summary>
     public static readonly string[] UnsupportedMulti =
     {
         "zipx_default", "zipx_aes", "tgz_default", "targz_default", "txz_two_step", "tbz2_python", "iso_default", "lzh_default",

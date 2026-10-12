@@ -89,7 +89,7 @@ public static class ZipPasswordProbe
     {
         try
         {
-            using var fs = new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var fs = ZipArchiveService.OpenRawStream(zipPath);   // .zip.001 숫자 분할은 이어 붙인 스트림(W2-01)
             var entries = ReadCentralDirectory(fs);
             return entries is null ? ZipPasswordProbeResult.Unknown() : Decide(fs, entries, password, include);
         }
@@ -107,7 +107,7 @@ public static class ZipPasswordProbe
         catch (EncoderFallbackException) { return null; }
     }
 
-    private static ZipPasswordProbeResult Decide(FileStream fs, List<ZipCentralEntry> entries, string? password, Func<string, bool>? include)
+    private static ZipPasswordProbeResult Decide(Stream fs, List<ZipCentralEntry> entries, string? password, Func<string, bool>? include)
     {
         // 폴더 항목은 풀 내용이 없어(암호 비트가 켜져 있어도) 판정에 넣지 않는다.
         var targets = entries.Where(e => e.IsEncrypted && !IsDirectoryName(e.Name) && (include is null || include(e.Name))).ToList();
@@ -184,7 +184,7 @@ public static class ZipPasswordProbe
             : e.CompressedSize >= 12);
 
     /// <summary>ZipCrypto 항목은 최대 64개, AES 항목은 최대 3개까지 검사를 만든다(로컬 머리에서 암호 머리·salt 를 읽음).</summary>
-    private static List<PasswordCheck> BuildChecks(FileStream fs, IEnumerable<ZipCentralEntry> list)
+    private static List<PasswordCheck> BuildChecks(Stream fs, IEnumerable<ZipCentralEntry> list)
     {
         var items = list.ToList();
         var checks = new List<PasswordCheck>();
@@ -215,7 +215,7 @@ public static class ZipPasswordProbe
     }
 
     /// <summary>고르지 않은 항목의 검사(덤 근거). 그 항목의 머리가 깨져 읽을 수 없으면 덤 없이 판정한다.</summary>
-    private static List<PasswordCheck> TryBuildChecks(FileStream fs, IEnumerable<ZipCentralEntry> list)
+    private static List<PasswordCheck> TryBuildChecks(Stream fs, IEnumerable<ZipCentralEntry> list)
     {
         try { return BuildChecks(fs, list); }
         catch (Exception) { return new List<PasswordCheck>(); }
@@ -226,7 +226,7 @@ public static class ZipPasswordProbe
     // ───── 중앙 디렉터리 읽기 ─────
 
     /// <summary>중앙 디렉터리 전체. 판정할 수 없는 모양이면 null.</summary>
-    private static List<ZipCentralEntry>? ReadCentralDirectory(FileStream fs)
+    private static List<ZipCentralEntry>? ReadCentralDirectory(Stream fs)
     {
         long len = fs.Length;
         if (len < 22) return null;

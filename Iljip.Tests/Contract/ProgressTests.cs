@@ -45,6 +45,11 @@ public class ProgressTests
     [InlineData("tar_default", 81824, 9)]
     [InlineData("py7z_pw_names_visible", 81824, 9)]
     [InlineData("zip_aes256", 81824, 9)]
+    // W2-01: 7z.dll 경로(7z·zipx·iso·lzh)도 같은 계약
+    [InlineData("7z_default", 81824, 9)]
+    [InlineData("zipx_default", 81824, 9)]
+    [InlineData("iso_default", 81824, 9)]
+    [InlineData("lzh_default", 81824, 9)]
     public async Task 해제_진행률이_0에서_100으로_끝난다(string id, long totalBytes, int totalFiles)
     {
         var fx = FixtureCatalog.Get(id);
@@ -57,10 +62,12 @@ public class ProgressTests
         Assert.Equal(100.0, rec.Reports[^1].Percentage);
     }
 
-    [Fact]
-    public async Task 선택해제_진행률은_고른_것만_센다()
+    [Theory]
+    [InlineData("zip_default")]
+    [InlineData("7z_default")]
+    public async Task 선택해제_진행률은_고른_것만_센다(string id)
     {
-        var fx = FixtureCatalog.Get("zip_default");
+        var fx = FixtureCatalog.Get(id);
         using var tmp = new TempDir("pgs");
         var rec = new ProgressRecorder();
         await Svc.For(fx.FullPath).ExtractEntriesAsync(fx.FullPath, tmp.P("out"), new[] { "일집_샘플/하위폴더" }, null, rec);

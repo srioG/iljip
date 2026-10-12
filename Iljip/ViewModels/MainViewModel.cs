@@ -130,7 +130,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task<bool> OpenArchiveAsync(string archivePath)
     {
-        var service = _locator.Resolve(archivePath);
+        // W2-01: 확장자로 먼저, 모르는 확장자면 내용(서명)으로 — 이름이 바뀐 압축(.bin 이 된 7z 등)·자동 풀림 exe 도 연다(B-086)
+        var service = _locator.ResolveByContent(archivePath);
         if (service is null)
         {
             _ui.ShowWarning($"지원하지 않는 형식이에요:\n{Path.GetExtension(archivePath)}");
@@ -170,7 +171,7 @@ public partial class MainViewModel : ObservableObject
             catch (Exception ex)
             {
                 Logger.LogError($"열기 실패: {archivePath}", ex);
-                _ui.ShowError($"파일을 열 수 없어요:\n\n{ex.Message}");
+                _ui.ShowError($"파일을 열 수 없어요:\n\n{ErrorMessages.ToUserMessage(ex)}");
                 StatusText = "오류 발생";
                 return false;
             }
@@ -355,7 +356,7 @@ public partial class MainViewModel : ObservableObject
             DeletePartialOutput(savePath, before);
             session.Close();
             Logger.LogError($"압축 실패: {savePath}", ex);
-            _ui.ShowError($"압축 실패:\n\n{ex.Message}");
+            _ui.ShowError($"압축 실패:\n\n{ErrorMessages.ToUserMessage(ex)}");
             StatusText = "오류 발생";
             return;
         }
@@ -482,7 +483,7 @@ public partial class MainViewModel : ObservableObject
     /// <returns>다 풀었으면 true. 취소·실패(오류 창을 이미 보임)·암호 창 취소면 false.</returns>
     public async Task<bool> ExtractToFolderAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths = null)
     {
-        var service = _locator.Resolve(archivePath);
+        var service = _locator.ResolveByContent(archivePath);
         if (service is null) return false;
 
         bool sameArchive = string.Equals(archivePath, CurrentArchivePath, StringComparison.OrdinalIgnoreCase);
@@ -535,7 +536,7 @@ public partial class MainViewModel : ObservableObject
             {
                 session.Close();
                 Logger.LogError($"압축 해제 실패: {archivePath}", ex);
-                _ui.ShowError($"압축 해제 실패:\n\n{ex.Message}");
+                _ui.ShowError($"압축 해제 실패:\n\n{ErrorMessages.ToUserMessage(ex)}");
                 StatusText = "오류 발생";
                 return false;
             }
@@ -862,7 +863,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             Logger.LogError("명령 처리 중 오류", ex);
-            _ui.ShowError($"명령 처리 중 오류:\n\n{ex.Message}");
+            _ui.ShowError($"명령 처리 중 오류:\n\n{ErrorMessages.ToUserMessage(ex)}");
         }
         finally
         {
@@ -896,10 +897,13 @@ public partial class MainViewModel : ObservableObject
             || msg.Contains("암호", StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 열기 창 필터. 자동 풀림 exe(W2-01)는 확장자로 고르지 않아(보통 실행 파일과 구분은 내용으로) '지원되는 압축 파일' 에 넣지 않고 따로 한 줄.
+    /// </summary>
     private string BuildOpenFilter()
     {
         var exts = _locator.AllSupportedExtensions.Select(e => $"*{e}").ToList();
         string allPattern = string.Join(";", exts);
-        return $"지원되는 압축 파일 ({allPattern})|{allPattern}|모든 파일 (*.*)|*.*";
+        return $"지원되는 압축 파일 ({allPattern})|{allPattern}|자동 풀림 압축 파일 (*.exe)|*.exe|모든 파일 (*.*)|*.*";
     }
 }

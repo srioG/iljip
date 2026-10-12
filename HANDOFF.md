@@ -14,6 +14,9 @@
   - SharpCompress 0.50.5 (다중 포맷 해제 + ZIP 외 압축) — 2026-10-12 0.38.0(보안 권고 GHSA-6c8g-7p36-r338)에서 올림
   - SharpZipLib 1.4.2 (ZIP AES-256·ZipCrypto 암호 압축, CRC-32 계산)
   - EggDotNet 0.4.0 (EGG/ALZ 해제)
+  - SharpSevenZip 2.0.128 (LGPL-3.0) + 그 안의 7z.dll 7-Zip 26.03 x64 (풀기 전용: 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·자동 풀림 exe —
+    2026-10-13 W2-01, 7Z 만들기는 W2-02). `x64\7z.dll` 은 단일 파일 발행에서도 따로 두는 파일(LGPL), 못 불러오면 7Z·RAR 는 SharpCompress 로 대신
+    (나머지 형식은 쉬운 안내)
   - System.Text.Encoding.CodePages (CP949 한글 자동 디코딩)
 - **셸 확장 (Iljip.ShellExtension)**: C++/WRL, IExplorerCommand DLL
 - **packaging**: MSIX Sparse Package, 자체 서명 인증서
@@ -38,6 +41,8 @@
 ## 완료된 기능
 
 - ZIP/7Z/TAR/GZ/BZ2/RAR(RAR4·RAR5)/EGG/ALZ 해제, ZIP/TAR/GZ/BZ2 압축 (7Z/RAR은 SharpCompress 미지원)
+  → W2-01(2026-10-13, 7z.dll): RAR(여러 조각)·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할(`.7z.001`·`.zip.001`)·압축된 TAR(`.tgz` 등 — tar 안 내용까지 바로)·
+  자동 풀림 exe 해제 추가. 7Z 만들기는 W2-02(아래 변경 이력)
 - 암호: ZIP(ZipCrypto·AES)·7z(이름 보임·파일 이름까지 암호)·RAR4·RAR5(파일 암호·머리 암호)·EGG 모두 같은 암호 창 길
   (없으면 '암호가 걸린…', 머리 암호면 '파일 이름까지…', 틀리면 '암호가 맞지 않아요…', [취소]할 때까지 다시 물음)
 - 한글 파일명 CP949/UTF-8 자동 판별
@@ -50,7 +55,10 @@
 - CLI 인자: `--open`, `--extract`, `--extract-here`(그 자리에), `--extract-to-folder`(이름 폴더에, 있으면 '이름 (2)'), `--extract-to`, `--compress` — 해석은 `Services/CommandLineParser.cs`
 - C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
 
-## 현재 진행 단계 (2026-10-12 통합 점검 후)
+## 현재 진행 단계 (2026-10-13 W2-01 후)
+
+**W2-01(7z.dll 해제 쪽 — 1차 W1-B 재작업) 작업 끝, 커밋 전**(커밋·`git stash` 정리는 오케스트레이터 몫 — stash 는 drop 하지 않았고 인덱스에 UU 표시가 남아 있음).
+계약 테스트 실패 0(전체 1099 — 통과 1097·건너뜀 2: I2-1·I2-10, 계약만 `Kind!=Record` 944 — 통과 942·건너뜀 2, 기록 155. 통합 점검 후 840 — 통과 834·건너뜀 6 에서). 7z 만들기는 W2-02(아래 '향후 작업'). 아래는 그 전 상태 기록.
 
 **Wave 1(W1-A·W1-C·W1-D) 커밋·푸시 완료 + 통합 점검 끝**. W1-B(7z.dll — SharpSevenZip)는 검증에서 되돌려 `git stash`(`iljip-wave1-W1-B-failed`)에 있다.
 계약 테스트 실패 0(통과 834·건너뜀 6·전체 840 — Debug·Release·`ILJIP_TEST_TZ=UTC` 모두). **`D:\Python\일집-dist`(재사용장치가 매일 egg 를 푸는 배포본)는 아직 예전 판**
@@ -59,7 +67,8 @@
 **다음 단계**:
 1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
 2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
-3. W1-B(7z.dll) 다시 시도 — 7z 만들기(I2-1)·숫자 분할(I2-2)·tar.gz 등 한 번에 펼치기(I2-9)
+3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함). 남은 것: W2-02 7z 만들기(I2-1)·W2-03 분할 만들기(I2-2)
+   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)도 볼 것
 
 ### MSIX 셸 확장(예전 진행 상황 — 그대로)
 
@@ -150,9 +159,15 @@ dotnet run --project Iljip
 
 - [ ] **일집-dist 재배포** (위 '일집-dist 재배포' 절 — MANUAL_CHECKLIST 확인 뒤)
 - [ ] **폴더 우클릭 메뉴 복원** (desktop6 namespace 적용)
-- [ ] W1-B 다시: 7z.dll(SharpSevenZip — `D:\Python\_엔진결정.md`)로 7z 만들기·숫자 분할·tar.gz 한 번에 펼치기 (stash `iljip-wave1-W1-B-failed`)
+- [x] W1-B 다시 → **W2-01(해제 쪽) 끝**: 7z.dll 로 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할·압축된 TAR·자동 풀림 exe 풀기(아래 변경 이력)
+- [ ] **W2-02(다음 묶음)**: 7z 만들기(I2-1)·헤더 암호 7z 만들기·솔리드 — 보류해 둔 시험 `Iljip.Tests/_보류_W2-02/SevenZipCreateTests.cs.txt`·
+      `MainViewModel7zCreateTests.cs.txt` 를 `.cs` 로 되살려 W2-02 기준까지 통과시킬 것(잊지 말 것 — 지금은 컴파일에서 빠져 있음).
+      `CompressionOptions.Solid·EncryptFileNames`·옵션 창 7Z 칸, 저장 형식의 7Z(`ArchiveServiceLocator.BuildSaveFilter`)도 그때
+- [ ] **재배포 전 필수(보류)**: 7-Zip `License.txt` 원문을 받아 `Iljip/licenses/7-Zip-*.txt`·`THIRD-PARTY-NOTICES.txt` 와 대조(내려받기는 사용자 확인 필요).
+      GPL-3·LGPL-2.1 전문은 이 PC 의 Git for Windows 사본(FSF 원문)으로 넣음, BSD 3·2조항 전문의 저작권 줄(연도 등)은 원문 없이 적음
 - [x] ALZ / EGG 지원 (EggDotNet 0.4.0, W1-A 에서 빈 항목·ALZ 한글 이름·잠김·내용 확인까지)
-- [ ] .egg/.alz 우클릭 메뉴(매니페스트에 확장자 없음)
+- [ ] 새 형식·.egg/.alz 우클릭 메뉴: 매니페스트에는 넣음(W2-01 — 1차 W1-B 검증 지적) — `Rebuild.ps1` 재설치 때 반영(재배포 범위, 메뉴 정비는 I1-2)
+- [ ] 보고 안건: 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(지금은 안 옮김 — 재사용장치 엑셀 COM 영향 확인 필요)
 - [ ] 분할 압축
 - [ ] 다크 모드
 - [ ] 미리보기 (압축 내부 텍스트/이미지)
@@ -232,6 +247,38 @@ dotnet run --project Iljip
   'Unknown Rar Header' 영어 오류 창(다시 묻지 않음), RAR 머리 암호 문구가 7z 와 다름 → `RarArchiveService.TranslateError` 가 7z 와 같은 머리 암호 예외(공용 `NeedsPasswordToList`).
   ③ 암호 없는 RAR 의 CRC 오류가 엔진 영어 문구 → `ChecksumMismatchException`. ④ RAR5 유닉스 시각·gzip 머리 시각이 목록에 UTC 로(9시간 이르게) 보임 → 베이스 `AsLocalTime`.
   계약 테스트 통과 834·건너뜀 6·전체 840, 실패 0(Debug·Release·UTC 시간대). 예전 일집-dist 와 새 판을 합성 egg/alz/rar 로 나란히 돌려 본 비교는 위 '일집-dist 재배포' 절.
+- **2026-10-13 W2-01 — 7z.dll 해제 엔진·여는 형식 확대(1차 W1-B 재작업, 커밋 전, 배포 안 함)**: 보관분 `iljip-wave1-W1-B-failed` 를 `git stash apply` 로 얹고
+  (drop 안 함 — `git stash list` 에 그대로 있고, `git add` 금지라 인덱스의 UU 표시도 그대로 → 커밋·정리는 오케스트레이터 몫) 충돌은 main 의도로 풀었다
+  (W1-C CRC·한글 암호·`ExtractionLedger`·PasswordConfirmed·Alternate, W1-D, 통합 점검의 RAR 암호 흐름 유지 — 보관분의 1차 W1-B 이력 문단은 사실만 이 문단으로 옮김).
+  SharpSevenZip 2.0.128 + 7z.dll 7-Zip 26.03 x64(빌드 출력 `x64\7z.dll`, SHA-256 65E4C1F8…4871B0D, 1,906,688바이트, 서명 없음 — 기록 테스트로 고정).
+  해제는 `Services/SevenZipEngine.cs` 한 길: 열 때 형식별 구조 검사(`Services/ArchiveCompleteness.cs` — RAR4 ENDARC 규칙·RAR5 끝 머리·LZH 끝 표시 0·ISO
+  PVD 볼륨 크기·UDF 끝 기준점·CAB cbCabinet·XZ 꼬리)로 목록에서도 잘림을 알리고, 대상 안 숨김 임시 폴더(`Services/StagingFolder.cs`, `.일집-임시-<8글자>`)에
+  푼 뒤 항목마다 검증(`Services/ExtractionVerifier.cs` — 있음·크기, LZH 는 늘 CRC-16, 7z.dll 이 실패로 알린 항목은 CRC32 재계산으로 거짓 오류 가림)해
+  다 맞을 때만 옮김(이름 겹치면 `(1)`, 잠김은 200ms×3 재시도, 옮기다 막히면 장부로 되돌림). 잘림·손상·암호 오류면 아무것도 옮기지 않고 이번에 만든 빈 대상
+  폴더도 지움(단 한 파일의 CRC 오류는 main 의 ZIP·RAR 계약대로 그 앞에서 맞게 풀린 파일만 남기고 `ChecksumMismatchException`). 1차 검증에서 막힌 것:
+  (a) 잘린 RAR·LZH·ZIPX 의 조용한 '완료'(RAR4 머리 사이 잘림 포함 — 판 29 이상 파일이 있는데 ENDARC 가 없으면 잘림), (b) 잘린 xz 의 CPU 100%·무한 대기 —
+  SharpCompress `XZStream` 을 코드 어디서도 안 쓰고 xz 는 7z.dll 로만(스니퍼도 7z.dll 로 512바이트만, 취소는 출력 스트림에서 1초 안), (c) 압축된 tar(.tgz·.tar.gz·
+  .tbz2·.tbz·.tar.bz2·.txz·.tar.xz, 안이 tar 인 .gz·.bz2·.xz 도 — `Services/CompressedTarArchiveService.cs` 새로 씀)는 임시 폴더에 `.inner.tar` → main TAR 처리기로
+  펴고 모두 맞을 때만 옮김(전부 아니면 전무, 남은 공간 미리 확인, 목록·선택 풀기는 `%LOCALAPPDATA%\Iljip\temp\list` 캐시), (d) ISO 는 UDF 먼저·안 되면 ISO9660
+  (UDF 만 이미지가 '손상'·Joliet 없는 다리 이미지의 8.3 이름이던 것. Joliet 없는 순수 ISO9660 은 원래 8.3 대문자 — 반디집·7-Zip 도 같음), (e) 잘린 .gz 는
+  main 이 이미 고쳐 있었음(W1-A) — 모든 자리 절단 시험만 더함, (f) 헤더 암호 7z 의 우클릭 '여기에 풀기'·'"이름"\ 에 풀기' 회귀 없음. 그 밖에 새로 되는 것:
+  RAR 여러 조각(빠진·덜 받은 조각 이름으로 알림), `.7z.001`·`.zip.001`, 자동 풀림 exe(열기 창 '자동 풀림 압축 파일 (*.exe)' 칸 — exe 는 절대 실행 안 함),
+  ZIPX·RAR4 이름은 SharpCompress 날 바이트 + 한글 판별로 덮어씀. 형식 판별: 확장자 먼저, 내용(서명)은 일집 안(열기 창·파일 연결)에서만 —
+  우클릭·끌어 놓기는 확장자만, 창 없이 풀기는 `ResolveForAutomation`(ZIP 기반 문서는 종료 코드 2). 7z.dll 을 못 불러오면 7z·RAR 는 main 의 SharpCompress 로,
+  그 밖(zipx·iso·cab·lzh·wim·xz·txz)은 `EngineUnavailableException`(쉬운 한국어 — 앞서 캐시된 .tar.xz 목록도 캐시보다 부품을 먼저 봄). 매니페스트 우클릭 확장자 추가(.xz .tgz .tbz2 .tbz .txz .zipx .001 .iso .cab
+  .lzh .lha .wim .egg .alz — 설치는 재배포 때). LGPL 고지 `Iljip/THIRD-PARTY-NOTICES.txt`·`Iljip/licenses/`·'일집 정보' 창(ⓘ 단추 — 일집 판, 7z.dll 판 또는 못
+  불러온 까닭, SharpSevenZip 판, 라이선스 전문·라이선스 폴더 열기). 7z 만들기는 W2-02: `SevenZipArchiveService.CompressAsync` 는 main 대로 NotSupported,
+  저장 형식에 7Z 없음, 보관분의 `SevenZipCreateTests` 와 화면 7z 만들기 시험은 `Iljip.Tests/_보류_W2-02/*.cs.txt` 로 옮김(새 Skip 금지라 컴파일에서 뺌 —
+  W2-02 가 되살릴 것). KnownGap 의 txz·tbz2 기대 변경(반디집이 안쪽 .tar 하나만 보여 주던 갈래를 지움)은 약화가 아니라 강화: 과제의 명시 요구이고, 비교 대상이
+  안쪽 tar 1개에서 펼친 tar 안 파일 전부(크기·SHA-256)로 늘었으며 '.tar 항목 없음' 단언을 더함(일집은 반디집보다 한 단계 더 펼침). 보관분 시험 중 '앞 파일은
+  남긴다'(1차 W1-B)였던 잘림·취소·대상 쪽 오류 시험은 '전부 아니면 전무' 계약으로 바꿈, `--extract-here` 이름 폴더 시험은 main 의 I0-1 뜻대로
+  `--extract-to-folder` 로. 엄격해진 곳(위험): LZH 끝 표시 0x00 을 요구해 옛 도구가 빠뜨린 정상 LZH 도 '잘림'(문구에 '다른 프로그램으로 확인해 보세요'),
+  CAB·WIM·XZ 는 7z.dll 의 실패 보고를 그대로 믿음(확인값 재계산 없음 — 예전 보관분보다 엄격), RAR4 판 29 이상 + ENDARC 없음(-en)도 잘림, 7z.dll 은 LZH 등의
+  이름을 OEM 코드 페이지로 읽어 시스템 지역이 한국어가 아니면 깨질 수 있음, 압축된 tar 는 임시 폴더에 inner.tar 와 풀린 내용이 함께 있어 디스크를 두 배 씀,
+  대상이 OneDrive 폴더면 숨김 임시 폴더가 동기화·잠길 수 있음, 7z.dll 은 서명이 없어 다른 PC 의 AppLocker·WDAC·백신이 막을 수 있음(대신 경로로 7z·RAR 는 됨) —
+  모두 MANUAL_CHECKLIST 9절. 7-Zip 26.04 의 미공개 수정은 26.03 에 없다(XZ 원격 실행 취약점 CVE-2026-14266 은 26.02 에서 고쳐져 26.03 에는 들어 있음 —
+  26.04 패키지가 나오면 판 올림 검토). 7-Zip `License.txt` 원문 대조는 보류(위 '향후 작업'). 계약 테스트 실패 0(전체 1099 — 통과 1097·건너뜀 2: I2-1·I2-10, 계약만 `Kind!=Record` 944 — 통과 942·건너뜀 2, 기록 155. 통합 점검 후 840 — 통과 834·건너뜀 6 에서).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
 
 ## 사용자 선호
 

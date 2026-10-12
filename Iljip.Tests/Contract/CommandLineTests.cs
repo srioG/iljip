@@ -25,6 +25,31 @@ public class CommandLineTests
         return fx.FullPath;
     }
 
+    /// <summary>
+    /// 계약: 우클릭 '"이름"\ 에 풀기'(--extract-to-folder)는 압축 확장자를 통째로 뗀 이름의 폴더에 푼다
+    /// ('자료.tar.gz' → '자료', '견적.7z.001' → '견적' — 예전엔 '자료.tar'·'견적.7z' 폴더). W2-01: .tar.gz 는 안쪽 tar 내용까지 펼친다.
+    /// ('--extract-here' 는 main 계약대로 압축 파일이 있는 폴더에 바로 푼다 — 아래 extract_here는_압축파일이_있는_폴더에_바로_푼다)
+    /// </summary>
+    [Theory]
+    [InlineData("targz_default", "자료.tar.gz", "자료")]
+    [InlineData("7z_split", "견적.7z.001", "견적")]
+    public async Task extract_to_folder는_압축_확장자를_뗀_폴더에_푼다(string id, string name, string folder)
+    {
+        var fx = FixtureCatalog.Get(id);
+        using var tmp = new TempDir("here");
+        string ap = tmp.P(name);
+        if (fx.SplitVolumes.Count == 0)
+            File.Copy(fx.FullPath, ap);
+        else
+            foreach (var v in fx.SplitVolumes)   // 조각마다 같은 새 이름으로('견적.7z.001'·'.002'·'.003')
+                File.Copy(Path.Combine(FixtureCatalog.Root, v.Replace('/', Path.DirectorySeparatorChar)), tmp.P(name[..^".001".Length] + v[^4..]));
+        var ui = new FakeUserInteraction();
+        var vm = new MainViewModel(ui);
+        await RunVm(vm, new[] { "--extract-to-folder", ap });
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(tmp.P(folder), fx.Expected, context: name);
+    }
+
     [Fact]
     public async Task 인자가_없으면_아무것도_안_한다()
     {
@@ -251,12 +276,14 @@ public class CommandLineTests
         catch (Xunit.Sdk.XunitException) { return false; }
     }
 
-    /// <summary>'x.tar.gz' 는 'x' 폴더(예전 '--extract-here' 는 'x.tar' 폴더). 안에는 지금 GZ 처리기가 꺼내는 안쪽 tar 하나.</summary>
+    /// <summary>
+    /// 'x.tar.gz' 는 'x' 폴더(예전 '--extract-here' 는 'x.tar' 폴더). W2-01 부터 안에는 안쪽 tar 의 내용이 바로 펼쳐진다
+    /// (예전엔 GZ 처리기가 꺼낸 안쪽 tar 하나 — '.tar' 를 또 풀어야 했다). '.tar' 파일은 남지 않는다.
+    /// </summary>
     [Fact]
     public async Task extract_to_folder는_tar_gz를_x_폴더에_푼다()
     {
         var fx = FixtureCatalog.Get("targz_default");
-        var inner = fx.InnerTar ?? throw new InvalidOperationException("targz_default 에 inner_tar 가 없음");
         using var tmp = new TempDir("xfg");
         string arc = CopyFixture(tmp, "targz_default", "x.tar.gz");
         string work = Path.GetDirectoryName(arc)!;
@@ -266,8 +293,8 @@ public class CommandLineTests
 
         Assert.Empty(ui.Errors);
         Assert.False(Directory.Exists(Path.Combine(work, "x.tar")), "예전 규칙('x.tar' 폴더)으로 풀림");
-        string only = Assert.Single(TreeAssert.Files(Path.Combine(work, "x")));
-        Assert.Equal(inner.Sha256, TreeAssert.Sha256(Path.Combine(work, "x", only)));
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "x"), fx.Expected, context: "x.tar.gz");
+        Assert.DoesNotContain(TreeAssert.Files(Path.Combine(work, "x")), f => f.EndsWith(".tar", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -387,6 +414,37 @@ public class CommandLineTests
         Assert.Equal("열기를 취소했어요", vm.StatusText);
         Assert.True(vm.IsEmptyState);
         Assert.Equal(new[] { Path.GetFileName(arc) }, Directory.EnumerateFileSystemEntries(work).Select(Path.GetFileName).ToArray());
+    }
+
+    /// <summary>
+    /// [W2-01 (f)] 7z.dll 로 바뀐 뒤에도 I0-1 흐름 그대로 — '여기에 풀기'(--extract-here)로 헤더 암호 7z 를 풀면 암호를 한 번 묻고,
+    /// 틀리면 '암호가 맞지 않아요(손상일 수도)'로 다시 묻고, 맞으면 더 묻지 않고 그 자리에 풀린다. 틀린 뒤 취소하면 오류 창 없이 아무것도 남지 않는다.
+    /// </summary>
+    [Fact]
+    public async Task 헤더암호_7z_여기에_풀기는_7z_dll로도_틀리면_다시_묻고_취소하면_아무것도_없다()
+    {
+        Assert.True(Iljip.Services.SevenZipLibrary.IsAvailable, "7z.dll 경로를 시험해야 함");
+        var fx = FixtureCatalog.Get("7z_header_encrypted");
+        var expectedReasons = new[] { Iljip.Services.PasswordPromptReason.Required, Iljip.Services.PasswordPromptReason.Wrong };
+
+        using var tmp = new TempDir("xh7w");
+        string arc = CopyFixture(tmp, "7z_header_encrypted");
+        string work = Path.GetDirectoryName(arc)!;
+        var ui = new FakeUserInteraction("틀린암호", fx.Password);
+        await RunVm(new MainViewModel(ui), new[] { "--extract-here", arc });
+        Assert.Equal(expectedReasons, ui.PasswordPrompts.Select(p => p.Reason).ToArray());
+        Assert.Equal(Iljip.Services.WrongPasswordException.DefaultMessage + Iljip.Services.WrongPasswordException.HeaderNote, ui.PasswordPrompts[1].Message);
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(work, fx.Expected.Append(FileEntry(work, arc)));
+
+        using var tmp2 = new TempDir("xh7x");
+        string arc2 = CopyFixture(tmp2, "7z_header_encrypted");
+        string work2 = Path.GetDirectoryName(arc2)!;
+        var ui2 = new FakeUserInteraction("틀린암호");   // 두 번째 창은 취소
+        await RunVm(new MainViewModel(ui2), new[] { "--extract-here", arc2 });
+        Assert.Equal(expectedReasons, ui2.PasswordPrompts.Select(p => p.Reason).ToArray());
+        Assert.Empty(ui2.Errors);
+        Assert.Equal(new[] { Path.GetFileName(arc2) }, Directory.EnumerateFileSystemEntries(work2).Select(Path.GetFileName).ToArray());
     }
 
     /// <summary>
@@ -587,15 +645,123 @@ public class CommandLineTests
         TreeAssert.ExtractedTreeEquals(dest, fx.Expected);
     }
 
-    /// <summary>지원하지 않는 형식이면 종료 코드 2(파일은 있음).</summary>
+    /// <summary>
+    /// 지원하지 않는 형식이면 종료 코드 2(파일은 있음) + stderr 영어 'Unsupported archive type: 확장자' — 재사용장치가 이 문구로 '압축 아님'을 가른다.
+    /// (예전 픽스처 lzh_default 는 W2-01 에서 풀리게 돼 내용도 확장자도 모르는 파일로 바꿈)
+    /// </summary>
     [IljipExeFact]
     public async Task 실행파일_extract_to_미지원형식은_2()
     {
-        var fx = FixtureCatalog.Get("lzh_default");
         using var tmp = new TempDir("exe2");
+        string junk = tmp.P("x.unknownext");
+        File.WriteAllBytes(junk, Enumerable.Range(0, 3000).Select(i => (byte)(i * 7 + 3)).ToArray());
         string dest = tmp.P("out");
-        int code = await RunIljip(new[] { "--extract-to", fx.FullPath, dest });
+        var (code, err) = await RunIljipCapture(new[] { "--extract-to", junk, dest });
         Assert.Equal(2, code);
+        Assert.Contains("Unsupported archive type: .unknownext", err);
+        TreeAssert.NoFiles(dest);
+    }
+
+    /// <summary>
+    /// [1차 W1-B 검증 지적] 속이 ZIP 인 문서(.xlsx·.docx·.hwpx)는 내용 판별로는 ZIP 이지만 압축이 아니다 — 창 없이 풀기는 예전처럼
+    /// 종료 코드 2 + 'Unsupported archive type: .xlsx' 로 끝나고 아무것도 풀지 않는다(내용 판별을 넣은 뒤 0 으로 문서 속 XML 을 풀던 것).
+    /// 이름만 바꾼 진짜 압축(.dat 인 ZIP 등)은 계속 내용대로 푼다.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_ZIP기반_문서는_미지원_2()
+    {
+        using var tmp = new TempDir("exedoc");
+        foreach (var name in new[] { "보고서.xlsx", "계약서.docx", "공문.hwpx" })
+        {
+            string doc = tmp.P(name);
+            RawZip.Write(doc, RawZip.Utf8("[Content_Types].xml", "<Types/>"), RawZip.Utf8("docProps/app.xml", "<Properties/>"));
+            string dest = tmp.P("out_" + name);
+            var (code, err) = await RunIljipCapture(new[] { "--extract-to", doc, dest });
+            Assert.Equal(2, code);
+            Assert.Contains("Unsupported archive type: " + Path.GetExtension(name), err);
+            TreeAssert.NoFiles(dest);
+        }
+
+        string renamed = tmp.P("자료.dat");
+        RawZip.Write(renamed, RawZip.Utf8("a.txt", "zip inside"));
+        string dest2 = tmp.P("out_dat");
+        var (code2, err2) = await RunIljipCapture(new[] { "--extract-to", renamed, dest2 });
+        Assert.True(code2 == 0, err2);
+        Assert.Equal(new[] { "a.txt" }, TreeAssert.Files(dest2));
+    }
+
+    /// <summary>[W2-01] 창 없이 풀기도 새 형식(7z.dll·압축된 tar)을 푼다 — 재사용장치가 쓰는 길.</summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to는_7z_lzh_iso_tgz도_푼다()
+    {
+        foreach (var id in new[] { "7z_default", "lzh_default", "iso_default", "tgz_default" })
+        {
+            var fx = FixtureCatalog.Get(id);
+            using var tmp = new TempDir("exe7");
+            string dest = tmp.P("out");
+            var (code, err) = await RunIljipCapture(new[] { "--extract-to", fx.FullPath, dest });
+            Assert.True(code == 0, $"{id}: 종료 코드 {code} — {err}");
+            TreeAssert.ExtractedTreeEquals(dest, fx.Expected, context: id);
+        }
+    }
+
+    /// <summary>
+    /// [W2-01, 1차 W1-B 검증 지적 (b)] 끝이 잘린 xz·tar.xz·LZH·RAR 를 창 없이 풀면 30초 안에 끝나고(예전 xz 는 CPU 100% 로 영영 안 끝남)
+    /// 종료 코드 1 + 쉬운 한국어 한 줄('잘려'). 재사용장치가 '압축 아님'으로 가르는 말은 들어 있지 않고 대상에 아무것도 남지 않는다.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_잘린_압축은_30초_안에_1로_끝난다()
+    {
+        using var tmp = new TempDir("exetr");
+        string src = Path.Combine(tmp.Dir("src"), "자료.bin");
+        var data = new byte[300_000];
+        new Random(3).NextBytes(data.AsSpan(0, 150_000));
+        File.WriteAllBytes(src, data);
+        string tar = tmp.P("묶음.tar");
+        await new Iljip.Services.TarArchiveService().CompressAsync(new[] { src }, tar);
+        var cases = new List<(string Name, byte[] Bytes)>();
+        var xz = File.ReadAllBytes(SevenZipTestArchives.Xz(src, tmp.P("full.bin.xz")));
+        cases.Add(("자료.bin.xz", xz[..(xz.Length - 35)]));
+        var txz = File.ReadAllBytes(SevenZipTestArchives.Xz(tar, tmp.P("full.tar.xz")));
+        cases.Add(("묶음.tar.xz", txz[..(txz.Length - 33)]));
+        var lzh = File.ReadAllBytes(FixtureCatalog.Get("lzh_default").FullPath);
+        cases.Add(("자료.lzh", lzh[..(lzh.Length - 1)]));
+        var rar = RawRar.Rar4(new[] { ("a.txt", System.Text.Encoding.ASCII.GetBytes("aaaa")), ("b.txt", System.Text.Encoding.ASCII.GetBytes("bbbb")) });
+        cases.Add(("자료.rar", rar.Bytes[..rar.BlockEnds[1]]));   // 머리 사이(1차 W1-B 의 '남은 한계')
+
+        foreach (var (name, bytes) in cases)
+        {
+            string arc = tmp.P(name);
+            File.WriteAllBytes(arc, bytes);
+            string dest = tmp.P("out_" + name);
+            var sw = Stopwatch.StartNew();
+            var (code, err) = await RunIljipCapture(new[] { "--extract-to", arc, dest });
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(30), $"{name}: {sw.Elapsed.TotalSeconds:F0}초 걸림");
+            Assert.True(code == 1, $"{name}: 종료 코드 {code} — {err}");
+            string line = err.Trim();
+            Assert.DoesNotContain('\n', line);
+            Assert.Contains("잘려", line);
+            foreach (var bad in new[] { "압축 파일이 아닌", "압축파일이 아닌", "not archive", "not an archive", "unsupported archive" })
+                Assert.DoesNotContain(bad, line, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(dest) && Directory.EnumerateFileSystemEntries(dest).Any(), $"{name}: 대상에 무언가 남음");
+        }
+    }
+
+    /// <summary>
+    /// 암호가 필요한 파일(헤더 암호 7z)은 종료 코드 1 + 쉬운 한국어 문구. 재사용장치가 '압축 아님'으로 가르는 말
+    /// ('압축 파일이 아닌'·'unsupported archive')은 들어 있지 않다. 파일은 남지 않는다.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_암호필요는_1이고_압축아님으로_분류되지_않는다()
+    {
+        var fx = FixtureCatalog.Get("7z_header_encrypted");
+        using var tmp = new TempDir("exe1");
+        string dest = tmp.P("out");
+        var (code, err) = await RunIljipCapture(new[] { "--extract-to", fx.FullPath, dest });
+        Assert.Equal(1, code);
+        Assert.Contains("암호", err);
+        Assert.DoesNotContain("압축 파일이 아닌", err);
+        Assert.DoesNotContain("unsupported archive", err, StringComparison.OrdinalIgnoreCase);
         TreeAssert.NoFiles(dest);
     }
 
@@ -623,24 +789,42 @@ public class CommandLineTests
         TreeAssert.ExtractedTreeEquals(dest, fx.Expected);
     }
 
-    private static async Task<int> RunIljip(string[] args)
+    private static async Task<int> RunIljip(string[] args) => (await RunIljipCapture(args)).Code;
+
+    /// <summary>Iljip.exe 를 창 없이 실행하고 (종료 코드, stderr) 를 돌려준다. stderr 는 재사용장치처럼 UTF-8 → CP949 순으로 읽는다.</summary>
+    private static async Task<(int Code, string StdErr)> RunIljipCapture(string[] args)
     {
         // 안전장치: --extract-to 의 압축 파일이 없으면 Iljip 이 창(GUI)으로 뜨므로 절대 그렇게 부르지 않는다.
         Assert.True(args.Length == 3 && File.Exists(args[1]), "창 없이 풀기 조건이 아님 — 창이 뜰 수 있어 실행하지 않음");
-        var psi = new ProcessStartInfo(IljipExe.Path!) { UseShellExecute = false, CreateNoWindow = true };
+        var psi = new ProcessStartInfo(IljipExe.Path!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi)!;
+        using var errBytes = new MemoryStream();
+        var readErr = p.StandardError.BaseStream.CopyToAsync(errBytes);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         try
         {
             await p.WaitForExitAsync(cts.Token);
+            await readErr;
         }
         catch (OperationCanceledException)
         {
             try { p.Kill(entireProcessTree: true); } catch { /* 이미 끝남 */ }
             Assert.Fail("Iljip.exe 가 60초 안에 끝나지 않음(창이 떴을 수 있음)");
         }
-        return p.ExitCode;
+        return (p.ExitCode, DecodeToolOutput(errBytes.ToArray()));
+    }
+
+    private static string DecodeToolOutput(byte[] raw)
+    {
+        try
+        {
+            return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(raw);
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return System.Text.Encoding.GetEncoding(949).GetString(raw);
+        }
     }
 }
 

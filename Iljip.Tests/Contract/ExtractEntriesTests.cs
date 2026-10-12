@@ -101,11 +101,17 @@ public class ExtractEntriesTests
         Assert.Equal(new[] { "일집_샘플/data/sample.csv", "일집_샘플/readme.txt" }, files);
     }
 
-    /// <summary>TAR·7z(이름 보이는 암호)도 같은 규칙.</summary>
+    /// <summary>TAR·7z(이름 보이는 암호)도 같은 규칙. W2-01: 7z.dll 경로(솔리드 7z 일부 풀기·zipx·iso·lzh)와 압축된 tar 도.</summary>
     [Theory]
     [InlineData("tar_default")]
     [InlineData("py7z_pw_names_visible")]
     [InlineData("zip_aes256")]
+    [InlineData("7z_default")]
+    [InlineData("7z_header_encrypted")]
+    [InlineData("zipx_default")]
+    [InlineData("iso_default")]
+    [InlineData("lzh_default")]
+    [InlineData("tgz_default")]
     public async Task 다른_형식도_폴더_선택이_같다(string id)
     {
         var fx = FixtureCatalog.Get(id);

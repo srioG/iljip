@@ -379,7 +379,7 @@ public class RoundTripTests
 
     /// <summary>
     /// 현재 동작 기록: 단일 파일 형식·해제 전용 형식의 '못 하는 압축'은 정해진 예외로 거절되고 압축 파일이 생기지 않는다.
-    /// (7z 생성이 생기면(I2-1) '.7z' 행은 지울 것)
+    /// (7z 생성이 생기면(I2-1, W2-02) '.7z' 행은 지울 것. W2-01 에서 해제 전용 형식 zipx·iso·압축된 tar 행을 더했다)
     /// </summary>
     [Theory, Trait(Kinds.Key, Kinds.Record)]
     [InlineData(".gz", "folder", typeof(InvalidOperationException), "단일 파일만")]
@@ -394,6 +394,9 @@ public class RoundTripTests
     [InlineData(".rar", "one", typeof(NotSupportedException), "RAR 압축은")]
     [InlineData(".egg", "one", typeof(NotSupportedException), "EGG/ALZ 압축")]
     [InlineData(".alz", "one", typeof(NotSupportedException), "EGG/ALZ 압축")]
+    [InlineData(".zipx", "one", typeof(NotSupportedException), "압축(생성)은 지원하지 않아요")]
+    [InlineData(".iso", "one", typeof(NotSupportedException), "압축(생성)은 지원하지 않아요")]
+    [InlineData(".tar.gz", "one", typeof(NotSupportedException), "압축된 TAR")]
     public async Task 못하는_압축은_정해진_예외로_거절된다(string ext, string kind, Type exType, string msgPart)
     {
         using var tmp = new TempDir("rej");
