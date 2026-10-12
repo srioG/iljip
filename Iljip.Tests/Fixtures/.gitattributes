@@ -1,0 +1,3 @@
+# 픽스처는 바이트 그대로 보존한다 — 줄바꿈 변환(core.autocrlf=true) 금지.
+# src/ 의 LF 텍스트(readme.txt 등)가 체크아웃 때 CRLF 로 바뀌면 manifest.json 의 크기·sha256 과 어긋난다.
+* -text

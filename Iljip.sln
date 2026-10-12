@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Iljip", "Iljip\Iljip.csproj
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Iljip.ShellExtension", "Iljip.ShellExtension\Iljip.ShellExtension.vcxproj", "{B6E1F4A2-7C39-4D8A-B1C5-9E2A8D6F4C72}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Iljip.Tests", "Iljip.Tests\Iljip.Tests.csproj", "{3D169E05-7845-41CB-BF4B-85483829490D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,5 +30,13 @@ Global
 		{B6E1F4A2-7C39-4D8A-B1C5-9E2A8D6F4C72}.Release|Any CPU.ActiveCfg = Release|x64
 		{B6E1F4A2-7C39-4D8A-B1C5-9E2A8D6F4C72}.Release|x64.ActiveCfg = Release|x64
 		{B6E1F4A2-7C39-4D8A-B1C5-9E2A8D6F4C72}.Release|x64.Build.0 = Release|x64
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Debug|x64.Build.0 = Debug|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Release|x64.ActiveCfg = Release|Any CPU
+		{3D169E05-7845-41CB-BF4B-85483829490D}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,14 @@
+## 로컬 전용 픽스처 — 반디집 SFX 스텁(bdzsfx)이 든 자동 풀림 exe 등 재배포 불가 산출물. git 제외.
+## (Fixtures/make_fixtures.py 가 다시 만든다. 파일이 없으면 테스트는 건너뛸 것)
+Fixtures/local/
+
+## 참고: 저장소 루트 .gitignore 는 *.zip/*.7z/*.tar/*.gz/*.xz/*.iso 등을 무시하지 않으므로
+## Fixtures/bandizip/, Fixtures/python/, Fixtures/src/ 는 '!' 예외 없이 그대로 git 에 잡힌다
+## (2026-10-12 git check-ignore -v 로 확인). 루트에 그런 규칙이 생기면 여기에 '!' 예외를 추가할 것.
+
+## 픽스처 재생성기를 모듈로 불러올 때 생기는 캐시
+__pycache__/
+
+## 픽스처 재생성기의 작업 폴더(검증 통과 전 결과물·바꿔 넣는 동안의 백업) — 정상 종료하면 지워진다
+Fixtures/_staging/
+Fixtures/_backup/

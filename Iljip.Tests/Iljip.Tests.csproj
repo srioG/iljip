@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    일집 계약(회귀) 테스트 — 압축 엔진 교체 전에 '지금 동작'을 고정한다.
+    실행: dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
+    (솔루션 전체 빌드는 C++ 셸 확장 때문에 dotnet CLI로 실패하므로 이 csproj를 직접 지정할 것)
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- 본체(Iljip)가 WPF라 MainViewModel 등을 불러오려면 WindowsDesktop 프레임워크가 필요 -->
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Iljip.Tests</RootNamespace>
+    <!-- SharpCompress 0.38.0 의 알려진 취약성 경고(NU1902)는 본체 쪽 사안이라 테스트 빌드에서는 숨긴다 -->
+    <NoWarn>$(NoWarn);NU1902;xUnit1004</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Iljip\Iljip.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- 픽스처(반디집·파이썬 산출물 + 매니페스트)를 출력 폴더로 복사. local/ 은 git 제외라 없을 수도 있음 -->
+  <ItemGroup>
+    <None Update="Fixtures\manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\bandizip\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\python\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\local\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

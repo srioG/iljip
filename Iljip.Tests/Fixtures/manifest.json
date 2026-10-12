@@ -1,0 +1,3475 @@
+{
+ "schema": 1,
+ "generator": "Iljip.Tests/Fixtures/make_fixtures.py (python -I make_fixtures.py)",
+ "generated_at": "2026-10-12T10:11:36+09:00",
+ "bandizip": {
+  "bz_exe": "C:\\Program Files\\Bandizip\\bz.exe",
+  "banner": "bz 7.46(Beta,x64) - Bandizip console tool. Copyright (C) 2026 Bandisoft",
+  "version": "7.46"
+ },
+ "passwords": {
+  "default": "Iljip-Test-1234",
+  "korean": "테스트암호"
+ },
+ "fixed_mtime_local": "2026-01-02T03:04:06+09:00",
+ "conventions": {
+  "file": "Fixtures 폴더 기준 상대경로('/' 구분). 분할이면 여는 파일(첫 .001 또는 마지막 .zip).",
+  "expected_entries.path": "'/' 구분, NFC, 폴더는 끝 '/' 없음, 압축 안 최상위 폴더(root_folder) 포함.",
+  "expected_entries.sha256": "파일 내용 sha256(소문자 16진). 폴더는 null.",
+  "header_encrypted": "true 면 암호 없이는 목록도 못 읽음(bz.exe 로 실측).",
+  "commit_ok": "false 면 git 제외(local/) — 파일이 없으면 테스트는 건너뛸 것.",
+  "single_file_stream": "gz/xz/bz2 단일 파일. expected_entries 한 개(원본 이름).",
+  "inner_tar": "tar.gz/tar.xz/tar.bz2 의 압축 한 겹만 벗긴 .tar 자체(크기·sha256).",
+  "bandizip_made": "false 면 Python 산출물(반디집 아님).",
+  "iljip_known_gaps": "iljip_known_gaps 는 D:\\Python\\_기능대조_알PDF_반디집.md 의 ID (2026-10-08 기준 일집의 알려진 빈틈)",
+  "verified": "만든 직후 bz.exe 목록·해제 결과가 expected_entries 와 일치했는지."
+ },
+ "fixtures": [
+  {
+   "id": "zip_default",
+   "file": "bandizip/zip_default.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip \"bandizip\\zip_default.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "bz.exe 기본값. 한국어 Windows 에서 원시 이름=CP949(EFS 플래그 없음) + 0x7075 UTF-8 이름 추가필드. Deflate, 레벨 5.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_cp949",
+   "file": "bandizip/zip_cp949.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -cp:949 \"bandizip\\zip_cp949.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "코드페이지 명시(-cp:949). 원시 이름 CP949 + 0x7075 추가필드.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_utf8",
+   "file": "bandizip/zip_utf8.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -cp:65001 \"bandizip\\zip_utf8.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(플래그 없음)"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "-cp:65001: 원시 이름이 UTF-8 이지만 EFS 플래그(bit 11)는 꺼져 있음 + 0x7075. 플래그만 보고 CP437/CP949 로 풀면 깨짐.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_store_l0",
+   "file": "bandizip/zip_store_l0.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -l:0 \"bandizip\\zip_store_l0.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "레벨 0 = 저장(Store).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_storeroot_no",
+   "file": "bandizip/zip_storeroot_no.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": null,
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -storeroot:no \"bandizip\\zip_storeroot_no.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "-storeroot:no: 최상위 폴더 없이 내용물이 압축 루트에 바로 들어감(여러 파일 선택 압축과 같은 모양).",
+   "expected_entries": [
+    {
+     "path": "Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_zipcrypto",
+   "file": "bandizip/zip_zipcrypto.zip",
+   "format": "zip",
+   "password": "Iljip-Test-1234",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -p:Iljip-Test-1234 \"bandizip\\zip_zipcrypto.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-11"
+   ],
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "zipcrypto"
+    ]
+   },
+   "notes": "bz.exe 의 -fmt:zip -p: 는 ZipCrypto 고정(AES 선택 스위치 없음). 파일명은 노출. 일집은 이 방식으로 '만들기'를 못 함(I2-11) — 열기는 되어야 함.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_zipcrypto_korean_pw",
+   "file": "bandizip/zip_zipcrypto_korean_pw.zip",
+   "format": "zip",
+   "password": "테스트암호",
+   "password_encoding": "cp949",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -p:테스트암호 \"bandizip\\zip_zipcrypto_korean_pw.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-11"
+   ],
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "zipcrypto"
+    ]
+   },
+   "notes": "한글 암호 ZipCrypto. 암호 바이트 인코딩은 password_encoding 참고(반디집=CP949).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_aes256",
+   "file": "bandizip/zip_aes256.zip",
+   "format": "zip",
+   "password": "Iljip-Test-1234",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zipx -l:0 -p:Iljip-Test-1234 \"bandizip\\zip_aes256.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(EFS 플래그)"
+    ],
+    "efs_flag_on_non_ascii": true,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "store",
+     "winzip-aes"
+    ],
+    "encryption": [
+     "winzip-aes-256 (AE-2)"
+    ],
+    "aes_inner_methods": [
+     "store"
+    ]
+   },
+   "notes": "WinZip AES-256(AE-2) + 내부 방식 Store. bz.exe 는 -fmt:zip 으로 AES 를 못 만들어 -fmt:zipx -l:0 으로 만듦 → 결과는 일반 AES ZIP(EFS 플래그 켜짐).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_aes256_korean_pw",
+   "file": "bandizip/zip_aes256_korean_pw.zip",
+   "format": "zip",
+   "password": "테스트암호",
+   "password_encoding": "cp949",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zipx -l:0 -p:테스트암호 \"bandizip\\zip_aes256_korean_pw.zip\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(EFS 플래그)"
+    ],
+    "efs_flag_on_non_ascii": true,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "store",
+     "winzip-aes"
+    ],
+    "encryption": [
+     "winzip-aes-256 (AE-2)"
+    ],
+    "aes_inner_methods": [
+     "store"
+    ]
+   },
+   "notes": "한글 암호 AES-256(내부 Store). 암호 바이트 인코딩은 password_encoding(PBKDF2 검증값으로 판정).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_split",
+   "file": "bandizip/zip_split.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [
+    "bandizip/zip_split.z01",
+    "bandizip/zip_split.z02",
+    "bandizip/zip_split.zip"
+   ],
+   "root_folder": "분할_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -v:64k \"bandizip\\zip_split.zip\" \"src\\분할_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-2(확인 대상: .zip+.z01)"
+   ],
+   "notes": "PKZIP 방식 분할(-v:64k): .z01, .z02 … 마지막이 .zip. 여는 파일은 .zip.",
+   "expected_entries": [
+    {
+     "path": "분할_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "분할_샘플/난수_160KiB.bin",
+     "size": 163840,
+     "sha256": "055920351a818139bff4638df2448b9e84f38215449183c64f5e6c07aaa7ac24",
+     "is_dir": false
+    },
+    {
+     "path": "분할_샘플/설명.txt",
+     "size": 94,
+     "sha256": "dcbd56a66e0302babd9940d0edce005209ebf74556ccdbc7633c4efe1b6d97de",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zipx_default",
+   "file": "bandizip/zipx_default.zipx",
+   "format": "zipx",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zipx \"bandizip\\zipx_default.zipx\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9"
+   ],
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(EFS 플래그)"
+    ],
+    "efs_flag_on_non_ascii": true,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "store",
+     "xz"
+    ],
+    "encryption": [
+     "none"
+    ]
+   },
+   "notes": "ZIPX: 항목 압축 방식 XZ(95), EFS 플래그 켜짐.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zipx_aes",
+   "file": "bandizip/zipx_aes.zipx",
+   "format": "zipx",
+   "password": "Iljip-Test-1234",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zipx -p:Iljip-Test-1234 \"bandizip\\zipx_aes.zipx\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9"
+   ],
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(EFS 플래그)"
+    ],
+    "efs_flag_on_non_ascii": true,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "store",
+     "winzip-aes"
+    ],
+    "encryption": [
+     "winzip-aes-256 (AE-2)"
+    ],
+    "aes_inner_methods": [
+     "xz"
+    ]
+   },
+   "notes": "ZIPX + AES-256(내부 방식 XZ).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "7z_default",
+   "file": "bandizip/7z_default.7z",
+   "format": "7z",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:7z \"bandizip\\7z_default.7z\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "methods": [
+     "LZMA2"
+    ],
+    "solid": true
+   },
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "7z_header_encrypted",
+   "file": "bandizip/7z_header_encrypted.7z",
+   "format": "7z",
+   "password": "Iljip-Test-1234",
+   "header_encrypted": true,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:7z -p:Iljip-Test-1234 \"bandizip\\7z_header_encrypted.7z\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I1-7"
+   ],
+   "details": {
+    "methods": [
+     "LZMA2",
+     "7zAES"
+    ],
+    "solid": true,
+    "password_encoding": "utf-16le (7z 규격; py7zr 로 해제 확인)"
+   },
+   "notes": "bz.exe 의 -fmt:7z -p: 는 항상 헤더(파일명) 암호화 — 암호 없이는 목록도 안 나옴.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "7z_header_encrypted_korean_pw",
+   "file": "bandizip/7z_header_encrypted_korean_pw.7z",
+   "format": "7z",
+   "password": "테스트암호",
+   "password_encoding": "utf-16le",
+   "header_encrypted": true,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:7z -p:테스트암호 \"bandizip\\7z_header_encrypted_korean_pw.7z\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I1-7"
+   ],
+   "details": {
+    "methods": [
+     "LZMA2",
+     "7zAES"
+    ],
+    "solid": true,
+    "password_encoding": "utf-16le (7z 규격; py7zr 로 해제 확인)"
+   },
+   "notes": "한글 암호. 7z 규격상 암호는 UTF-16LE.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "7z_split",
+   "file": "bandizip/7z_split.7z.001",
+   "format": "7z",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [
+    "bandizip/7z_split.7z.001",
+    "bandizip/7z_split.7z.002",
+    "bandizip/7z_split.7z.003"
+   ],
+   "root_folder": "분할_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:7z -v:64k \"bandizip\\7z_split.7z\" \"src\\분할_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-2"
+   ],
+   "notes": "숫자 분할(-v:64k): .7z.001, .002, .003. 여는 파일은 .001.",
+   "expected_entries": [
+    {
+     "path": "분할_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "분할_샘플/난수_160KiB.bin",
+     "size": 163840,
+     "sha256": "055920351a818139bff4638df2448b9e84f38215449183c64f5e6c07aaa7ac24",
+     "is_dir": false
+    },
+    {
+     "path": "분할_샘플/설명.txt",
+     "size": 94,
+     "sha256": "dcbd56a66e0302babd9940d0edce005209ebf74556ccdbc7633c4efe1b6d97de",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "tar_default",
+   "file": "bandizip/tar_default.tar",
+   "format": "tar",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:tar \"bandizip\\tar_default.tar\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "pax_headers": false,
+    "magic": "ustar(POSIX)"
+   },
+   "notes": "bz.exe 기본 tar: 이름이 CP949 원시 바이트(PAX/UTF-8 아님).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "tar_utf8",
+   "file": "bandizip/tar_utf8.tar",
+   "format": "tar",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:tar -cp:65001 \"bandizip\\tar_utf8.tar\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "raw_name_encoding": [
+     "utf-8"
+    ],
+    "pax_headers": false,
+    "magic": "ustar(POSIX)"
+   },
+   "notes": "-cp:65001: tar 이름이 UTF-8 원시 바이트.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "tgz_default",
+   "file": "bandizip/tgz_default.tgz",
+   "format": "tar.gz",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:tgz \"bandizip\\tgz_default.tgz\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9(.tgz 미등록)"
+   ],
+   "inner_tar": {
+    "size": 93184,
+    "sha256": "08cdc98d9234dc7f90b990b454a972ae15ca18f323c22cba987cbcd471d1a45c",
+    "magic": "ustar(POSIX)",
+    "name": "tgz_default.tar"
+   },
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "pax_headers": false,
+    "gzip_fname": null
+   },
+   "notes": "expected_entries 는 안쪽 tar 의 내용. inner_tar 는 gzip 을 한 겹만 벗긴 .tar 자체(현재 GZ 처리기 동작 비교용).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "targz_default",
+   "file": "bandizip/targz_default.tar.gz",
+   "format": "tar.gz",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:tgz \"bandizip\\targz_default.tar.gz\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9(.tar.gz 를 GZ 처리기가 받아 .tar 하나만 꺼냄)"
+   ],
+   "inner_tar": {
+    "size": 93184,
+    "sha256": "08cdc98d9234dc7f90b990b454a972ae15ca18f323c22cba987cbcd471d1a45c",
+    "magic": "ustar(POSIX)",
+    "name": "targz_default.tar"
+   },
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "pax_headers": false,
+    "gzip_fname": null
+   },
+   "notes": "expected_entries 는 안쪽 tar 의 내용. inner_tar 는 gzip 을 한 겹만 벗긴 .tar 자체(현재 GZ 처리기 동작 비교용).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "txz_two_step",
+   "file": "bandizip/txz_two_step.tar.xz",
+   "format": "tar.xz",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:tar \"<임시>\\txz_two_step.tar\" \"src\\일집_샘플\" → bz.exe c -y -fmt:xz \"bandizip\\txz_two_step.tar.xz\" \"<임시>\\txz_two_step.tar\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9"
+   ],
+   "inner_tar": {
+    "size": 93184,
+    "sha256": "08cdc98d9234dc7f90b990b454a972ae15ca18f323c22cba987cbcd471d1a45c",
+    "magic": "ustar(POSIX)",
+    "name": "txz_two_step.tar"
+   },
+   "bandizip_view": {
+    "listed_names": [
+     "txz_two_step.tar"
+    ],
+    "shows_inner_tar_only": true
+   },
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "pax_headers": false
+   },
+   "notes": "bz.exe 는 폴더를 바로 xz 로 못 묶어 tar → xz 두 단계. expected_entries 는 안쪽 tar 내용(이름 CP949 원시), inner_tar 는 .tar 자체. 반디집 7.46 콘솔은 .tar.xz 를 안쪽 .tar 하나로 보여 주고 꺼냄(bandizip_view).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "gz_single",
+   "file": "bandizip/견적서_2026.txt.gz",
+   "format": "gz",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": null,
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:gz \"bandizip\\견적서_2026.txt.gz\" \"src\\일집_샘플\\견적서_2026.txt\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "single_file_stream": true,
+   "bandizip_view": {
+    "listed_names": [
+     "견적서_2026.txt"
+    ],
+    "extracted_name": "견적서_2026.txt"
+   },
+   "details": {
+    "gzip_fname": null
+   },
+   "notes": "단일 파일 gzip. -fmt:gz 는 폴더를 못 받음. 반디집은 gzip 헤더에 원본 이름(FNAME)을 넣지 않음 → 이름은 압축 파일 이름에서 .gz 를 뗀 것.",
+   "expected_entries": [
+    {
+     "path": "견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "xz_single",
+   "file": "bandizip/견적서_2026.txt.xz",
+   "format": "xz",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": null,
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:xz \"bandizip\\견적서_2026.txt.xz\" \"src\\일집_샘플\\견적서_2026.txt\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9"
+   ],
+   "single_file_stream": true,
+   "bandizip_view": {
+    "listed_names": [
+     "견적서_2026.txt"
+    ],
+    "extracted_name": "견적서_2026.txt"
+   },
+   "notes": "단일 파일 xz. -fmt:xz 는 폴더를 못 받음(0xa0000411).",
+   "expected_entries": [
+    {
+     "path": "견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "iso_default",
+   "file": "bandizip/iso_default.iso",
+   "format": "iso",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:iso \"bandizip\\iso_default.iso\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9"
+   ],
+   "notes": "반디집이 만드는 ISO. 크기 대부분이 0 채움.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "lzh_default",
+   "file": "bandizip/lzh_default.lzh",
+   "format": "lzh",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:lzh \"bandizip\\lzh_default.lzh\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9(대조표에 .lzh 명시 없음)"
+   ],
+   "notes": "LZH(LHA). 일집 미지원 형식 — '못 연다' 오류 처리 확인용.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "nfd_bandizip_default",
+   "file": "bandizip/nfd_bandizip_default.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "맥_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip \"bandizip\\nfd_bandizip_default.zip\" \"<임시>\\맥_샘플(NFD 이름)\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-10"
+   ],
+   "nfd_names": true,
+   "bandizip_view": {
+    "list_names_nfd": false,
+    "extracted_names_nfd": false
+   },
+   "details": {
+    "raw_name_encoding": [
+     "cp949"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ],
+    "names_stored_as_nfd": true
+   },
+   "notes": "Windows 에 NFD 이름 파일을 만들어 bz.exe 기본값으로 압축. 원시 CP949 이름은 호환 자모(ㅁㅐㄱ…)로 풀어진 형태, 0x7075 는 NFD UTF-8. expected_entries 경로는 NFC.",
+   "expected_entries": [
+    {
+     "path": "맥_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/english.txt",
+     "size": 27,
+     "sha256": "dd5c8e3658ada8352196ea87c4d319cf390e8e53eb72b8bd33e46979646b20db",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/결재 폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/결재 폴더/결재_완료(최종).txt",
+     "size": 49,
+     "sha256": "19a09da94dce1d8acb2cdd20f3758c193fba98b65a109fb9399db6e488705659",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/맥에서_만든_문서.txt",
+     "size": 53,
+     "sha256": "c3a425290b76b5ba746bdcd89890f0e855e8f810a14e521be2f419c831cbbf07",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "nfd_bandizip_utf8",
+   "file": "bandizip/nfd_bandizip_utf8.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "맥_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:zip -cp:65001 \"bandizip\\nfd_bandizip_utf8.zip\" \"<임시>\\맥_샘플(NFD 이름)\"",
+   "bandizip_made": true,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-10"
+   ],
+   "nfd_names": true,
+   "bandizip_view": {
+    "list_names_nfd": false,
+    "extracted_names_nfd": false
+   },
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(플래그 없음)"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": true,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ],
+    "names_stored_as_nfd": true
+   },
+   "notes": "맥 압축과 가장 비슷한 반디집 산출물: 원시 이름 UTF-8 NFD, EFS 플래그 없음(+0x7075 NFD). expected_entries 경로는 NFC.",
+   "expected_entries": [
+    {
+     "path": "맥_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/english.txt",
+     "size": 27,
+     "sha256": "dd5c8e3658ada8352196ea87c4d319cf390e8e53eb72b8bd33e46979646b20db",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/결재 폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/결재 폴더/결재_완료(최종).txt",
+     "size": 49,
+     "sha256": "19a09da94dce1d8acb2cdd20f3758c193fba98b65a109fb9399db6e488705659",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/맥에서_만든_문서.txt",
+     "size": 53,
+     "sha256": "c3a425290b76b5ba746bdcd89890f0e855e8f810a14e521be2f419c831cbbf07",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "sfx_default",
+   "file": "local/sfx_default.exe",
+   "format": "exe-sfx",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "bandizip 7.46 bz.exe c -y -fmt:exe \"local\\sfx_default.exe\" \"src\\일집_샘플\"",
+   "bandizip_made": true,
+   "commit_ok": false,
+   "verified": true,
+   "details": {
+    "size": 349604,
+    "payload": "zip(파이썬 zipfile 로 열림)",
+    "payload_entries": 15
+   },
+   "notes": "반디집 SFX 스텁(bdzsfx.x86.sfx)이 들어 있어 재배포 불가 → local/ (git 제외). 없으면 테스트는 건너뛸 것.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "py7z_pw_names_visible",
+   "file": "python/7z_pw_names_visible.7z",
+   "format": "7z",
+   "password": "Iljip-Test-1234",
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "python py7zr 1.1.0 SevenZipFile(password=PW, header_encryption=False).writeall(src/일집_샘플)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "details": {
+    "methods": [
+     "LZMA2",
+     "7zAES"
+    ],
+    "solid": true,
+    "password_encoding": "utf-16le (7z 규격; py7zr 로 해제 확인)"
+   },
+   "notes": "반디집 아님. bz.exe 는 암호 7z 를 항상 헤더 암호화로 만들어 '파일명 노출 암호 7z' 를 py7zr 로 대체. 목록은 암호 없이, 해제는 암호 필요.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "nfd_python_efs",
+   "file": "python/nfd_python_efs.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "맥_샘플",
+   "created_by": "python zipfile (NFD 이름 직접 기록)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-10"
+   ],
+   "nfd_names": true,
+   "bandizip_view": {
+    "list_names_nfd": false,
+    "extracted_names_nfd": false
+   },
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(EFS 플래그)"
+    ],
+    "efs_flag_on_non_ascii": true,
+    "unicode_path_extra_0x7075": false,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ],
+    "names_stored_as_nfd": true
+   },
+   "notes": "반디집 아님. 원시 이름 UTF-8 NFD + EFS 플래그 켜짐(맥/리눅스 zip 명령 모양). expected_entries 경로는 NFC.",
+   "expected_entries": [
+    {
+     "path": "맥_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/english.txt",
+     "size": 27,
+     "sha256": "dd5c8e3658ada8352196ea87c4d319cf390e8e53eb72b8bd33e46979646b20db",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/결재 폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/결재 폴더/결재_완료(최종).txt",
+     "size": 49,
+     "sha256": "19a09da94dce1d8acb2cdd20f3758c193fba98b65a109fb9399db6e488705659",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/맥에서_만든_문서.txt",
+     "size": 53,
+     "sha256": "c3a425290b76b5ba746bdcd89890f0e855e8f810a14e521be2f419c831cbbf07",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "nfd_python_noflag",
+   "file": "python/nfd_python_noflag.zip",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "맥_샘플",
+   "created_by": "python zipfile (NFD 이름 직접 기록, 이후 EFS 플래그 bit 11 을 지워 맥 '압축 유틸리티' 모양으로)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-10"
+   ],
+   "nfd_names": true,
+   "bandizip_view": {
+    "list_names_nfd": false,
+    "extracted_names_nfd": false
+   },
+   "details": {
+    "raw_name_encoding": [
+     "utf-8(플래그 없음)"
+    ],
+    "efs_flag_on_non_ascii": false,
+    "unicode_path_extra_0x7075": false,
+    "methods": [
+     "deflate",
+     "store"
+    ],
+    "encryption": [
+     "none"
+    ],
+    "names_stored_as_nfd": true
+   },
+   "notes": "반디집 아님. 원시 이름 UTF-8 NFD, EFS 플래그 없음, 0x7075 없음(맥 기본 '압축' 모양) — 이름 판별을 휴리스틱에만 의존. expected_entries 경로는 NFC.",
+   "expected_entries": [
+    {
+     "path": "맥_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/english.txt",
+     "size": 27,
+     "sha256": "dd5c8e3658ada8352196ea87c4d319cf390e8e53eb72b8bd33e46979646b20db",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/결재 폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "맥_샘플/결재 폴더/결재_완료(최종).txt",
+     "size": 49,
+     "sha256": "19a09da94dce1d8acb2cdd20f3758c193fba98b65a109fb9399db6e488705659",
+     "is_dir": false
+    },
+    {
+     "path": "맥_샘플/맥에서_만든_문서.txt",
+     "size": 53,
+     "sha256": "c3a425290b76b5ba746bdcd89890f0e855e8f810a14e521be2f419c831cbbf07",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "zip_numbered_split",
+   "file": "python/zip_numbered_split.zip.001",
+   "format": "zip",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [
+    "python/zip_numbered_split.zip.001",
+    "python/zip_numbered_split.zip.002",
+    "python/zip_numbered_split.zip.003"
+   ],
+   "root_folder": "일집_샘플",
+   "created_by": "python: bandizip/zip_default.zip 를 1650바이트씩 단순 절단(7-Zip '분할' 방식 .zip.001 모사)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-2"
+   ],
+   "details": {
+    "joined_sha256": "fd645d08992ba3f5aa868b939c979964e2eb0e6500ef936fb8707c74d3d519f6"
+   },
+   "notes": "반디집 아님(내용물 zip 은 반디집 산출물). 조각을 이어 붙이면 zip_default.zip 과 바이트 동일.",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "tbz2_python",
+   "file": "python/tbz2_python.tbz2",
+   "format": "tar.bz2",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": "일집_샘플",
+   "created_by": "python tarfile w:bz2 PAX UTF-8 (src/일집_샘플)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "iljip_known_gaps": [
+    "I2-9(.tbz2 미등록)"
+   ],
+   "inner_tar": {
+    "size": 112640,
+    "sha256": "c1d30101dad2cdf177f82132aebce990e4dd3b569a8cf25ae1cc0579c30e59cc",
+    "magic": "ustar(POSIX)",
+    "name": "tbz2_python.tar"
+   },
+   "bandizip_view": {
+    "listed_names": [
+     "tbz2_python.tar"
+    ],
+    "shows_inner_tar_only": true
+   },
+   "details": {
+    "raw_name_encoding": [
+     "utf-8"
+    ],
+    "pax_headers": true
+   },
+   "notes": "반디집 아님(bz.exe 는 bzip2 생성 불가). expected_entries 는 안쪽 tar 내용(PAX UTF-8), inner_tar 는 .tar 자체. 반디집 7.46 콘솔은 .tbz2 를 안쪽 .tar 하나로 보여 주고 꺼냄(bandizip_view).",
+   "expected_entries": [
+    {
+     "path": "일집_샘플",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/Report (final) v2.txt",
+     "size": 650,
+     "sha256": "981e454f0be747bc83f633406adf615a2c43f4a591d6cc896bf00b088e992773",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/data",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/data/sample.csv",
+     "size": 568,
+     "sha256": "7d2e662b80f502e2d23bd7ec3fe7ee15babacc7034438271d5a5089ab4842acb",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/readme.txt",
+     "size": 1060,
+     "sha256": "a8de5fcbb3b9b39b3a31018c9324291e91b1be81b02e1e850a6613cd67f9ec74",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/기호 #&+~!'@.txt",
+     "size": 33,
+     "sha256": "6f09115e4da912b980527449ddab07b3cdbb73cac328cf0ab0b8a58bcfa84616",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/반복_압축잘됨.txt",
+     "size": 76800,
+     "sha256": "0e53badbdbe61cca1b58d5c66d6aadf4933c2975dc3c8806f2a19f7f89ce8965",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈파일.txt",
+     "size": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/빈폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계",
+     "size": 0,
+     "sha256": null,
+     "is_dir": true
+    },
+    {
+     "path": "일집_샘플/하위폴더/2단계/3단계/깊은 파일 [끝].txt",
+     "size": 79,
+     "sha256": "c81b53c9c9459f9b6850484fdcf1e2e3d9dd3c96354dc625210f3dd0796bbe6d",
+     "is_dir": false
+    },
+    {
+     "path": "일집_샘플/하위폴더/보고서 최종.txt",
+     "size": 170,
+     "sha256": "1463398dadca0748e59b8c05dbf2dee5584ba59ea24a56602d82510cd033a85c",
+     "is_dir": false
+    }
+   ]
+  },
+  {
+   "id": "bz2_single_python",
+   "file": "python/견적서_2026.txt.bz2",
+   "format": "bz2",
+   "password": null,
+   "header_encrypted": false,
+   "split_volumes": [],
+   "root_folder": null,
+   "created_by": "python bz2.compress(level 9)",
+   "bandizip_made": false,
+   "commit_ok": true,
+   "verified": true,
+   "single_file_stream": true,
+   "bandizip_view": {
+    "listed_names": [
+     "견적서_2026.txt"
+    ],
+    "extracted_name": "견적서_2026.txt"
+   },
+   "notes": "반디집 아님(bz.exe 는 bzip2 생성 불가). 단일 파일 스트림.",
+   "expected_entries": [
+    {
+     "path": "견적서_2026.txt",
+     "size": 2464,
+     "sha256": "a11f5f1a841aff4c0790bff5cf07f61764828fc8635fd7a2cde88a3b535cae75",
+     "is_dir": false
+    }
+   ]
+  }
+ ],
+ "could_not_create": [
+  {
+   "id": "7z_pw_names_visible(bandizip)",
+   "reason": "bz.exe 의 -fmt:7z -p: 는 항상 헤더(파일명) 암호화 — 끄는 스위치 없음. python/7z_pw_names_visible.7z(py7zr)로 대체."
+  },
+  {
+   "id": "zip_aes256(-fmt:zip)",
+   "reason": "bz.exe 의 -fmt:zip -p: 는 ZipCrypto 고정. AES-256 은 -fmt:zipx 로만 가능 → zip_aes256.zip 은 -fmt:zipx -l:0 산출물(일반 AES ZIP 과 동일 구조)."
+  },
+  {
+   "id": "zip_utf8_efs(bandizip)",
+   "reason": "bz.exe 의 -fmt:zip 은 -cp:65001 이어도 EFS 플래그(bit 11)를 켜지 않음. EFS 켜진 UTF-8 ZIP 은 zipx 계열(zip_aes256.zip, zipx_*)과 python/nfd_python_efs.zip 이 대신 다룸."
+  },
+  {
+   "id": "xz(폴더)",
+   "reason": "-fmt:xz 는 파일 하나만 받음(폴더 시 0xa0000411). → txz_two_step.tar.xz(tar→xz 두 단계)와 xz_single."
+  },
+  {
+   "id": "tbz2/bz2(bandizip)",
+   "reason": "bz.exe -fmt: 목록에 bzip2 없음. python/ 에 tbz2_python.tbz2, 견적서_2026.txt.bz2 로 대체."
+  },
+  {
+   "id": "rar/egg/alz(bandizip)",
+   "reason": "반디집은 RAR·EGG·ALZ 생성 불가(-fmt: 목록에 없음)."
+  },
+  {
+   "id": "zip_numbered_split(bandizip)",
+   "reason": "bz.exe 의 zip 분할은 .z01 방식만. .zip.001 은 python 단순 절단으로 모사(python/zip_numbered_split.zip.001~)."
+  }
+ ]
+}
