@@ -142,9 +142,12 @@
 
             <!-- 우측: 현재 폴더 목록 + 빈 상태 -->
             <Grid Grid.Column="1">
+                <!-- 정렬은 VM 이 맡는다(Sorting 에서 기본 정렬을 막고 vm.SortBy — 폴더 먼저, 폴더를 옮겨도 유지, I0-5).
+                     열 폭 손잡이·정렬 화살표는 Styles.xaml 의 DataGridColumnHeader 템플릿 -->
                 <DataGrid x:Name="EntriesGrid"
                           ItemsSource="{Binding VisibleEntries}"
                           Margin="10,8"
+                          Sorting="EntriesGrid_Sorting"
                           PreviewKeyDown="EntriesGrid_PreviewKeyDown"
                           MouseDoubleClick="EntriesGrid_MouseDoubleClick"
                           Visibility="{Binding IsEmptyState, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
@@ -154,7 +157,7 @@
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="이름" Width="3*">
+                        <DataGridTemplateColumn Header="이름" Width="3*" SortMemberPath="Name">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">

@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         {
             vm.PropertyChanged += ViewModel_PropertyChanged;
             UpdateColumns();
+            UpdateSortArrows();
         }
     }
 
@@ -37,6 +38,34 @@ public partial class MainWindow : Window
             or nameof(MainViewModel.IsEmptyState))
         {
             UpdateColumns();
+        }
+        else if (e.PropertyName is nameof(MainViewModel.SortMember) or nameof(MainViewModel.SortDescending))
+        {
+            UpdateSortArrows();
+        }
+    }
+
+    /// <summary>
+    /// 열 머리를 누르면: DataGrid 기본 정렬(CollectionView — 폴더·파일이 섞이고, 폴더를 옮기면 풀림)을 막고 VM 이 정렬한다(I0-5).
+    /// 화살표는 <see cref="UpdateSortArrows"/> 가 VM 상태대로 그린다.
+    /// </summary>
+    private void EntriesGrid_Sorting(object sender, System.Windows.Controls.DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        if (ViewModel is not { } vm) return;
+        vm.SortBy(e.Column.SortMemberPath);
+        UpdateSortArrows();
+    }
+
+    /// <summary>정렬 기준 열에만 화살표(오름 ▲ / 내림 ▼). 머리줄 템플릿(Styles.xaml)이 SortDirection 으로 그린다.</summary>
+    private void UpdateSortArrows()
+    {
+        if (ViewModel is not { } vm) return;
+        foreach (var col in EntriesGrid.Columns)
+        {
+            col.SortDirection = col.SortMemberPath == vm.SortMember
+                ? vm.SortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending
+                : null;
         }
     }
 
@@ -116,14 +145,20 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// 끌어 놓기. 경로만 먼저 꺼내 두고 Drop 이벤트를 곧바로 끝낸 뒤(<see cref="System.Windows.Threading.Dispatcher.Yield()"/>) 처리한다 —
+    /// OLE 끌어 놓기는 받는 쪽 Drop 이 끝날 때까지 끌기를 시작한 탐색기 창이 기다리므로, 그 안에서 선택 창(모달)을 띄우면
+    /// 창이 떠 있는 동안 그 탐색기 창이 멈춘다(W1-D 1차 검증). 꺼낸 뒤의 끌기 데이터는 쓰지 않는다.
+    /// </summary>
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
         if (paths.Length == 0) return;
-        if (ViewModel is null) return;
+        if (ViewModel is not { } vm) return;
 
-        await ViewModel.HandleDroppedPathsAsync(paths);
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        await vm.HandleDroppedPathsAsync(paths);
     }
 
     private void About_Click(object sender, RoutedEventArgs e)

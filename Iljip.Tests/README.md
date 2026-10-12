@@ -19,6 +19,10 @@
   **W1-C(같은 날)** 에서 암호·무결성 버그 B3(반디집 한글 암호)·B4(ZIP CRC 미검사)·B5(틀린 암호를 화면이 못 알아봄)와 빈틈 I2-11(ZipCrypto 선택)을
   고쳤습니다(아래 'W1-C 에서 고친 것', 그 1차 검증 지적도 같은 절). 이제 안 고친 버그(Bn Skip)는 없습니다. ※ W1-B(7z.dll) 는 검증에서 되돌려져 이 판에 없습니다 —
   I1-7·I2-1·I2-2·I2-9 는 그대로 Skip/수동입니다.
+  **W1-D(같은 날)** 에서 0등급 화면 문제 I0-1(우클릭 '여기에 풀기'·'"이름"\ 에 풀기' 분리 + 첫 실행 인자 버그)·I0-2(사용 중인 파일)·I0-4(끌어 놓기 선택 창)·
+  I0-5(정렬·열 폭)를 고쳤습니다. 화면의 창 띄우기를 `IUserInteraction` 으로 빼서(W1-B 보관본과 같은 모양) 가짜 창으로 VM 흐름을 시험합니다(아래 'W1-D 에서 고친 것').
+  **W1-D 1차 검증 지적(같은 날)** 으로 헤더 암호 7z 를 우클릭으로 못 풀던 회귀(I1-7 화면 쪽까지 고침), 읽는 도중 잠긴 파일, 빈 압축, 끌어 놓기 선택 창, 빈 이름 폴더,
+  자연 정렬, 세 번째 암호 미시도를 고쳤습니다(아래 'W1-D 1차 검증 지적으로 고친 것').
 
 ## 실행 방법
 
@@ -28,12 +32,15 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-12 W1-C 후): `통과!  - 실패: 0, 통과: 562, 건너뜀: 6, 전체: 568` — **건너뜀(Skip)은 정상**입니다(아래 설명).
-  (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488)
+- 결과(2026-10-12 W1-D 1차 검증 후): `통과!  - 실패: 0, 통과: 759, 건너뜀: 6, 전체: 765` — **건너뜀(Skip)은 정상**입니다(아래 설명).
+  (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
+  → W1-D: 통과 714·건너뜀 6·전체 720)
   반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
+  빌드된 셸 확장 DLL(`D:\Python\일집-build\Release\x64\Iljip.ShellExtension\Iljip.ShellExtension.dll`)이 없거나 C++ 소스보다 오래되면
+  `ShellExtensionContractTests.DLL_메뉴_제목이_CSharp_이름_규칙과_같다` 1개가 더 건너뜁니다(빌드 명령은 `HANDOFF.md` 'C++ 셸 확장 DLL 만 빌드').
 - 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe`·반디집 `bz.exe` 를 띄우는 테스트(각 1~10초).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
-- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (443개) — 아래 '계약 테스트와 기록 테스트'.
+- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (640개, 2026-10-12 W1-D 1차 검증 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
   (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC` 다시 통과).
   ```powershell
@@ -58,7 +65,15 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/RoutingTests.cs` | [9] 확장자 → 서비스 라우팅 |
 | `Contract/KoreanFileNameDecoderTests.cs` | [10] CP949·UTF-8·ASCII·CP437 이름 판별 |
 | `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(전부 Skip, 본문은 '고쳐지면 맞아야 할 기대') |
-| `Contract/CommandLineTests.cs` | [12] 명령줄 해석(창이 안 뜨는 경로만, 60초 시간 제한) + 실제 `Iljip.exe --extract-to` |
+| `Contract/CommandLineTests.cs` | [12] 명령줄 처리(60초 시간 제한) — **가짜 창으로 `--extract-here`(그 자리에)·`--extract-to-folder`(이름 폴더, 다시 하면 '이름 (2)', 암호 묻기·틀리면 다시·취소, 동시에 여러 개)** + 실제 `Iljip.exe --extract-to`. (1차 검증) 헤더 암호 7z 를 열기·우클릭 풀기에서 암호를 한 번 묻고 풀기·틀리면 다시·취소·다른 압축을 열면 잊기, 암호 창은 취소할 때까지(몇 번째 맞는 암호든 풀림), 이름 폴더 풀기를 취소·손상으로 멈추면 파일이 없을 때만 그 폴더를 지움 |
+| `Contract/CommandLineParserTests.cs` | (W1-D) 명령줄 해석 순수 함수 — 키워드·인자 개수·대문자는 경로·'--extract-to-folder' 와 '--extract-to' 안 섞임 |
+| `Contract/ArchiveNamingTests.cs` | (W1-D) '"이름"\ 에 풀기' 폴더 이름 표(.tar.gz·.7z.001·.part1.rar·.vol1.egg·'.zip' …)와 '이름 (2)'·'(3)' 새 폴더 |
+| `Contract/AppStartupContractTests.cs` | (W1-D) 첫 실행 인자 버그 — App.xaml 에 StartupUri 없음, OnStartup 이 창을 직접 만들고 인자를 넘김(소스 확인) |
+| `Contract/ShellExtensionContractTests.cs` | (W1-D) C++ 셸 확장·매니페스트·C# 의 약속: CLSID 5개 일치, 메뉴 Verb, '여기에 풀기 (일집)' 제목, C++ 이 넘기는 키워드를 C# 이 알아봄. **빌드된 DLL 이 있으면 실제 GetTitle 이 C# 이름 규칙과 같은지**(Invoke 는 안 부름) |
+| `Contract/SourceFileOpenerTests.cs` | (W1-D) 원본 열기 — 쓰기 공유로 열린 파일은 읽힘, 공유를 막으면 '다른 프로그램이 쓰고 있어요', 재시도, 없는 파일. (1차 검증) 앞부분이 잠긴(LockFileEx) 파일은 열기에서 걸러짐, 첫 블록을 읽어 봐도 처음부터 읽힘, 읽는 도중 막히면 `SourceUnreadableException` |
+| `Contract/CompressSkipTests.cs` | (W1-D) 잠긴 파일·못 들어가는 하위 폴더·없어진 원본은 건너뛰고 나머지는 그대로(zip·tar), GZ·BZ2 는 `SourceUnreadableException`, 담는 차례는 예전과 같음, 화면 안내('건너뛴 파일 N개')·결과 보존·부분 파일 정리. (1차 검증) 통째로·뒤쪽만 잠긴 파일(바이트 범위 잠금)도 건너뜀(뒤쪽은 빼고 다시 씀), 하나도 못 담으면 빈 zip·tar 를 만들지 않고 `NothingToCompressException`(기존 파일 그대로, 화면은 오류 안내) |
+| `Contract/DropPolicyTests.cs` | (W1-D) 끌어 놓기 규칙 표 + 가짜 선택 창으로 [취소]·[새로 압축할 목록]·[열기]·[목록에 넣기]. (1차 검증) 기본 버튼(Enter)은 늘 [취소], `ChoiceDialog` 가 정한 버튼 하나만 IsDefault(창은 만들기만), Drop 이벤트를 끝낸 뒤(Dispatcher.Yield) 처리(소스) |
+| `Contract/SortingTests.cs` | (W1-D) 정렬 비교기(폴더 먼저·크기·날짜·같은 값은 이름), VM 정렬(두 번 누르면 내림, 폴더를 옮겨도 유지, 기본은 이름 오름차순), XAML 계약 + 열 머리 템플릿을 메모리에서 적용해 손잡이·화살표 확인. (1차 검증) 이름은 탐색기와 같은 자연 정렬(`2.txt` → `10.txt`, `1월` → `2월` → `10월`) |
 | `Contract/EggAlzTests.cs` | [13] EGG/ALZ 성공 경로(목록·해제·충돌·선택·취소·진행률·크기 0 항목·ALZ 한글·한자·기호 이름·끝 구분자 없는 폴더 항목) + **잘림·CRC 불일치 → 예외·짧은 파일 안 남김**, 분할 조각 후보 — 합성 EGG/ALZ |
 | `Contract/AlzNameScannerTests.cs` | ALZ 머리 원본 바이트 스캐너(B10 우회·폴더 속성): 맞게 읽기, 잘리면 온전한 항목까지만, 서명 깨짐·항목 수 불일치·분할이면 예외 없이 포기, 이름 바이트 풀기(UTF-8→CP949→CP437) |
 | `Contract/CollisionTests.cs` | 같은 이름이 있으면 덮지 않고 `이름 (1).txt` 로 비켜 쓰기, **같은 폴더에 동시에 여러 번 풀어도** 모두 다른 이름으로(gz·zip·egg) |
@@ -70,7 +85,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀 |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`) |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles` |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -125,7 +140,7 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 
 | 사유 | 무엇 | 지금 실제 동작(관찰) |
 |---|---|---|
-| I1-7 | 헤더(파일명) 암호 7z/RAR 를 열 때 암호를 안 물음 | **자동 테스트 없음** — 빈틈이 화면(`MainViewModel.OpenArchiveAsync` 가 암호 없이 목록만 읽고 재시도 안 함)에 있어 MANUAL_CHECKLIST 2절로 확인. 서비스 쪽(암호 주면 목록 OK, 없으면 암호 예외)은 PasswordTests 가 고정. RAR 헤더 암호는 픽스처 없어 미검증. ★ `헤더암호_7z_전체_해제가_반디집과_같다` 는 B1 테스트이지 I1-7 이 아님 |
+| I1-7 | 헤더(파일명) 암호 7z/RAR 를 열 때 암호를 안 물음 | **7z 는 W1-D 1차 검증에서 고침(Skip 아님)** — `MainViewModel.OpenArchiveAsync` 가 암호 예외면 암호를 묻고 다시 열며, 받은 암호로 이어서 풂(`CommandLineTests.헤더암호_7z…`). 서비스 쪽(암호 주면 목록 OK, 없으면 암호 예외)은 PasswordTests 가 고정. RAR 헤더 암호는 픽스처가 없어 여전히 미검증(같은 화면 길). ★ `헤더암호_7z_전체_해제가_반디집과_같다` 는 B1 테스트이지 I1-7 이 아님 |
 | I2-1 | 7z 만들기 | `NotSupportedException` |
 | I2-2 | `.7z.001`·`.zip.001` | 확장자 미등록(Resolve=null). SharpCompress 로 억지로 열면 둘 다 정상 — 등록만 하면 될 가능성 큼. `.zip`+`.z01` 분할은 **이미 됨** |
 | I2-9 | zipx·tgz·tar.gz·txz·xz·tbz2·iso·lzh·SFX exe | 미등록(.tar.gz 만 마지막 확장자 .gz 로 GZ 처리기). 기대값은 '반디집 7.46 과 같게': zipx·tgz·tar.gz·iso·lzh 는 안 내용을 바로, **.tar.xz·.tbz2 는 안쪽 `.tar` 하나만**(반디집 실측, 7z.dll 기본도 같음). tar 까지 한 번에 펼치는 건 '반디집보다 나은' 선택 목표라 시험하지 않음. 지금(SharpCompress 0.50.5): **.tar.gz 는 GZ 처리기가 안쪽 `이름.tar` 하나로 보여 주고 꺼냄**(기록 테스트 `기록_tar_gz는_안쪽_tar_하나로_보이고_풀린다`). 억지로 `ArchiveFactory.OpenArchive` 하면 zipx(일반)·SFX 는 정상, zipx(AES+XZ)는 목록은 되지만 해제가 'Specified method is not supported', tgz·tar.gz·xz·txz·tbz2·lzh 는 'Cannot determine compressed stream type'(tgz·tar.gz 는 `GZipArchive.OpenArchive` 로 직접 열면 이름 빈 항목 하나), iso 는 **항목 0개로 조용히 성공** |
@@ -196,7 +211,58 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 - `WinZipAes` 는 안쪽 방식 저장·Deflate·BZip2 만 직접 푼다. 그 밖(LZMA·PPMd 등)은 UTF-8 영문 암호면 SharpCompress 에 맡기고, CP949 암호면 '이 압축 방식은 아직 풀 수 없어요'.
 - 엔진 항목과 중앙 디렉터리 항목의 짝은 순번(+크기·CRC)으로 맞춘다. 어긋나면 이름으로 한 번 더 찾고, 그래도 없으면 위와 같이 엔진/못 푸는 방식.
 - EGG 한글 암호: EggDotNet 은 암호 글자의 아랫바이트만 써서(0.4.0 IL 확인) 알집이 만든 한글 암호 EGG 와 맞는지 모름(범위 밖).
-- 화면 흐름(암호 창 반복·경고 창 버튼)은 창이 필요해 자동 테스트가 없다 — W1-B 의 `IUserInteraction`(가짜 창 주입)이 들어오면 '반디집 한글 AES 를 열고 테스트암호로 15개 트리' VM 테스트를 붙일 것.
+- 화면 흐름 중 압축 옵션 창의 경고 버튼은 창 안의 일이라 자동 테스트가 없다(MANUAL_CHECKLIST 2절). 풀 때 암호 창 흐름(묻기·틀리면 다시·취소, 반디집 한글 AES·ZipCrypto)은
+  W1-D 의 `IUserInteraction`(가짜 창)으로 VM 테스트가 생겼다(`CommandLineTests.extract_to_folder는_암호를_묻고_푼다`·`암호를_틀리면_다시_묻고_맞으면_풀린다`).
+
+### W1-D 에서 고친 것(2026-10-12) — 0등급 화면 문제
+
+| 사유 | 무엇 | 어떻게 고쳤나 | 지키는 테스트 |
+|---|---|---|---|
+| (I0-1 전제) | 일집이 꺼져 있을 때 우클릭 메뉴를 고르면 빈 창만 뜨고 아무 일도 안 함(켜져 있으면 파이프로 넘겨 동작) | App.xaml 의 `StartupUri` 가 OnStartup 이 끝난 뒤에 창을 만들어 `MainWindow` 가 늘 null 이었음 → StartupUri 를 지우고 OnStartup 이 단일 인스턴스 확인 뒤 창을 직접 만들어 인자를 넘김 | `AppStartupContractTests`(소스), 실제 실행은 MANUAL_CHECKLIST 1절 |
+| I0-1 | 우클릭 '여기에 압축 풀기'가 실제로는 '이름 폴더에 풀기', 같은 이름 폴더가 있으면 말없이 합쳐 풂, 'x.tar.gz' 는 'x.tar' 폴더 | `--extract-here` = 압축 파일이 있는 폴더에 바로(메뉴 '여기에 풀기 (일집)', CLSID 그대로). 새 `--extract-to-folder` = '부모\이름' 폴더, 있으면 '이름 (2)'(`ArchiveNaming.FolderNameFor`·`UniqueFolder`, C++ 에도 같은 규칙). 새 C++ `ExtractToFolderCommand`(CLSID F5964E4F-…) 제목 '"보고서"\ 에 풀기 (일집)'/'각각 이름 폴더에 풀기 (일집)'(파일 이름 문자열만 봄), 매니페스트에 클래스·메뉴. 해석은 `Services/CommandLineParser.cs`(순수 함수). 여러 개를 골라 명령이 동시에 들어와도 VM 이 하나씩 처리 | `CommandLineParserTests`, `ArchiveNamingTests`, `CommandLineTests` 의 extract_here·extract_to_folder 들, `ShellExtensionContractTests`(DLL 제목 대조 포함) |
+| I0-2 | 다른 프로그램이 열어 둔 파일(아웃룩 PST 등)이 하나라도 있으면 압축 전체가 실패, 하위 폴더 하나만 권한이 없어도 실패 | 원본을 FileShare.ReadWrite\|Delete 로 열고 공유 위반이면 150ms×3 재시도(`Services/SourceFileOpener.cs`). 그래도 못 여는 파일·못 들어가는 폴더·없어진 원본은 건너뛰고(`Services/SourceCollector.cs` — 담는 차례는 예전과 같음) `CompressAsync` 가 `Task<CompressResult>` 로 건너뛴 목록을 돌려줌. 화면은 '압축을 마쳤어요. 건너뛴 파일 N개:'(10줄까지) 안내, 결과는 지우지 않음. GZ·BZ2 는 `SourceUnreadableException`(빈 압축 파일을 안 만듦). 덤: 실패 정리는 이번에 만들거나 고친 파일만 지움, 원본 폴더 안에 저장하는 압축 자신은 담지 않음 | `SourceFileOpenerTests`, `CompressSkipTests` |
+| I0-4 | 압축을 보다가 파일을 끌어 놓으면 보던 압축이 말없이 닫힘 | `Services/DropPolicy.cs`: 압축을 보는 중이면 [새로 압축할 목록 만들기]/[취소](압축 파일 하나면 맨 앞에 [이 압축 파일 열기]), 모으는 중에 압축 파일 하나면 [열기]/[목록에 넣기]/[취소]. 선택 창은 W1-C 의 `ChoiceDialog`(`IUserInteraction.Choose`). `AddToStaging` 은 더 이상 보던 압축을 닫지 않음(닫는 것은 고른 경우만 — `StartNewStaging`) | `DropPolicyTests` |
+| I0-5 | 이름 열 정렬이 안 됨(템플릿 열에 SortMemberPath 없음), 열 폭 손잡이·정렬 화살표 없음(머리 템플릿이 Border+ContentPresenter 뿐) | 이름 열 `SortMemberPath="Name"`, `Sorting` 에서 기본 정렬을 막고 VM 이 `EntrySortComparer` 로 정렬(폴더 먼저, 폴더를 옮기거나 다른 압축을 열어도 유지, 기본 이름 오름차순 = 예전 순서). Styles.xaml 머리 템플릿에 `PART_LeftHeaderGripper`·`PART_RightHeaderGripper`(투명 8px Thumb)·1px 구분선·▲▼ 화살표(SortDirection 트리거, `FgMutedBrush`) | `SortingTests`(창 없이 템플릿 적용까지), 끌기·화살표 모양·다크 테마는 MANUAL_CHECKLIST 7절 |
+
+기록 테스트 변경 없음. 바뀐 계약: `IArchiveService.CompressAsync` 반환형(`Task` → `Task<CompressResult>` — 기존 `await` 는 그대로 컴파일), `RoutingTests.FakeService` 한 줄,
+`MainViewModel.OpenArchiveAsync` 가 `Task<bool>`(열었는지). `CommandLineTests.대상이_없으면_아무것도_안_한다` 에 `--extract-to-folder` 행 추가.
+
+#### W1-D 1차 검증 지적으로 고친 것(2026-10-12)
+
+| 무엇 | 예전 동작 | 어떻게 고쳤나 | 지키는 테스트 |
+|---|---|---|---|
+| (회귀, major) 파일 이름까지 암호가 걸린 7z 를 우클릭 '여기에 풀기'·'"이름"\ 에 풀기'로 못 풂 | W1-D 가 우클릭 풀기를 '열기에 성공해야 푼다'로 바꿨는데, 헤더 암호 7z 는 목록 읽기가 암호 없이 늘 실패(I1-7) → 오류 창('…암호를 넣어 주세요')만 뜨고 넣을 곳이 없음. 열기·끌어 놓기로도 못 풂 | I1-7 의 화면 쪽을 고침: `OpenArchiveAsync` 가 암호 예외면 암호 창을 띄우고(틀리면 다시, 취소하면 아무것도 안 바꿈) 다시 엶. 맞은 암호는 기억해(`_archivePassword`, W1-B 보관본과 같은 모양) 같은 압축을 풀 때 다시 묻지 않음. 다른 압축을 열거나 비우면 잊음 | `CommandLineTests.헤더암호_7z도_우클릭으로_암호를_한번_묻고_풀린다`(4행)·`…열기에서_틀리면_다시_묻고_취소하면_풀지_않는다`·`…열면_암호를_묻고_목록을_보이며_풀때_다시_묻지_않는다`·`다른_압축을_열면_기억한_암호를_잊는다` |
+| 읽는 도중 잠긴 파일(LockFileEx 바이트 범위 잠금 — DB 등)이 있으면 압축 전체 실패 | 열기 단계의 공유 위반만 건너뜀 → 열고 나서 Read 에서 잠금 위반이면 '압축 실패' + 결과 삭제(TAR 도) | ① 열 때 첫 블록(80KB)을 읽어 봐서 앞부분 잠금은 열기에서 거름(`SourceFileOpener.TryOpenRead`) ② 그 뒤쪽 잠금은 `SourceFileOpener.Read`(TAR 는 `CancellableReadStream` 에 원본 경로)가 `SourceUnreadableException` 으로 알리고, 항목 머리를 이미 써서 그 항목만 뺄 수 없으므로 베이스 `RewriteWithoutUnreadable` 이 쓰다 만 것을 지우고 그 파일을 뺀 채 처음부터 다시 씀(파일마다 한 번). GZ·BZ2 는 엔진 문구 대신 쉬운 안내로 실패 | `CompressSkipTests.통째로_잠긴_파일은_…`·`읽는_도중_막힌_파일은_빼고_다시_써서_…`(zip·tar)·`단일파일_형식은_읽는_도중_막혀도_SourceUnreadable`, `SourceFileOpenerTests` 3개 |
+| 원본을 모두 건너뛰면 빈 압축 파일을 남기고 '압축을 마쳤어요' | 22바이트 빈 zip(tar 는 1024바이트)이 생겨 '0개 항목'으로 열림(GZ·BZ2 는 오류로 알리고 안 만듦 — 처리가 다름) | ZIP·TAR 는 담을 첫 파일을 연 뒤에야 압축 파일을 만듦(`LazyArchiveOutput`). 담은 파일이 0개이고 건너뛴 것이 있으면(빈 폴더만 남아도) 만들지 않고 `NothingToCompressException`(덮어쓰려던 기존 파일도 그대로). 화면은 '읽을 수 있는 파일이 하나도 없어서 압축 파일을 만들지 않았어요. 건너뛴 파일 N개: …' 오류, 모으던 목록은 그대로. 원래 담을 것이 없던 경우(건너뛴 것 없음)는 예전처럼 빈 압축 | `CompressSkipTests.모두_못_읽으면_빈_압축을_만들지_않는다`(4행)·`빈_폴더만_남으면_…`·`건너뛴_것이_없으면_…`·`화면은_하나도_못_담으면_…` |
+| 끌어 놓기 선택 창을 Drop 이벤트 안에서 모달로 띄움, 보던 것을 닫는 버튼이 기본(Enter) | 선택 창이 떠 있는 동안 끌기를 시작한 탐색기 창이 멈출 수 있음(OLE DoDragDrop 대기). Enter 한 번에 보던 압축이 닫히거나 모으던 목록이 비워짐 | `Window_Drop` 은 경로만 꺼내 두고 `await Dispatcher.Yield(Background)` 로 Drop 을 먼저 끝낸 뒤 처리. `IUserInteraction.Choose` 에 기본 버튼 순번, `DropDecision.DefaultIndex` = [취소], `ChoiceDialog` 는 그 버튼 하나만 IsDefault·처음 포커스(압축 옵션 창의 경고 창은 그대로 첫 버튼) | `DropPolicyTests.묻는_창의_기본_버튼은_늘_취소`·`선택_창은_정해_준_버튼_하나만_기본으로`(STA, 창은 안 띄움)·`끌어_놓기는_Drop_이벤트를_끝낸_뒤에_처리한다`(소스), VM 테스트 2개에 기본 버튼 확인. 탐색기가 안 멈추는지는 MANUAL_CHECKLIST 4절 |
+| '"이름"\ 에 풀기'를 취소하거나 손상으로 멈추면 빈 이름 폴더가 남아 다음엔 번호가 밀림 | 큰 파일을 풀다 취소 → 빈 '큰 (2)\큰 자료\' 가 남고 다시 풀면 '큰 (3)' | `ExtractToFolderAsync` 가 `Task<bool>`(다 풀었는지). 다 못 풀었으면 `ArchiveNaming.RemoveFolderIfNoFiles` 가 그 새 폴더에 파일이 하나도 없을 때만 아래에서부터 지움(비었을 때만 지우는 방식이라 그새 생긴 파일은 안 건드림, 정션은 안 따라감). 파일이 남았으면 그대로(앞서 다 풀린 파일은 남긴다는 계약) | `CommandLineTests.이름_폴더_풀기를_도중에_취소하면_빈_폴더를_남기지_않는다`(진행 첫 보고에서 취소 — `FakeUserInteraction.CancelOnFirstBytes`)·`…손상으로_멈추면_파일이_없을_때만_폴더를_지운다`(2행) |
+| 이름 정렬이 서수 비교라 '10.txt' 가 '2.txt' 앞에 | 탐색기·반디집과 차례가 다름(1월·10월, 견적서_2·견적서_10) | `EntrySortComparer.CompareNames` = `StrCmpLogicalW`(탐색기가 쓰는 함수, 대소문자 무시·숫자는 수 크기, 그 PC 의 언어 규칙) | `SortingTests.이름의_숫자는_수_크기로_비교한다`·`이름_비교는_탐색기_함수와_같다`·`압축할_목록의_숫자_이름도_수_크기_차례`, `기본은_폴더_먼저_이름순`(예전 이름 `기본_이름순이_예전_순서와_같다` — 샘플은 두 규칙 차례가 같아 둘 다 확인) |
+| (W1-D 이전부터) 암호 창을 세 번 띄우고도 세 번째 암호는 써 보지 않고 '3회 모두 일치하지 않아' | `attempt < 3` 루프의 첫 시도가 암호 없음이라 실제로 써 보는 암호는 앞의 둘뿐 | 반디집처럼 [취소]할 때까지 다시 묻고 넣은 암호는 모두 써 봄('3회' 경고 문구 없앰). 열기 단계 암호 창도 같은 규칙 | `CommandLineTests.틀린_암호_뒤에_넣은_맞는_암호는_몇_번째든_풀린다`(틀림 2·4번)·`틀린_암호를_넣다가_취소하면_아무것도_안_남는다` |
+
+바뀐 계약: `IUserInteraction.Choose(…, int defaultIndex = 0)`, `MainViewModel.ExtractToFolderAsync` 가 `Task<bool>`, ZIP·TAR `CompressAsync` 가 하나도 못 담으면 `NothingToCompressException`(새 예외).
+기록 테스트 변경 없음. `SortingTests.이름은_대소문자_무시_서수_비교` → `이름은_대소문자를_가리지_않는다`(같은 데이터·기대).
+
+#### W1-D 1차 검증에서 확인하지 못한 위험
+
+- 끌어 놓기 때 탐색기 창이 멈추지 않는지, Enter 가 [취소]인지는 창에서만 보인다(MANUAL_CHECKLIST 4절 — 사용자 화면에 창을 띄우는 자동 조작은 하지 않았다).
+  대화 상자 버튼 스타일(`DialogButton`)이 기본 버튼을 강조 색으로 칠하므로, 끌어 놓기 선택 창에서는 [취소]가 강조 색으로 보인다(어색하면 스타일 쪽 손질 필요).
+- 읽는 도중 막힌 파일을 빼고 다시 쓸 때는 앞서 쓴 만큼을 다시 압축한다(큰 폴더면 그만큼 더 걸리고 진행 막대가 처음부터 다시 오른다). 잠긴 파일이 여럿이면 파일마다 한 번씩.
+- 첫 블록 읽어 보기는 원본마다 처음 80KB 를 미리 읽는 것뿐이라(FileStream 버퍼에 남아 그대로 쓰임) 거의 느려지지 않는다. OneDrive '온라인 전용' 파일은 열 때 내려받기가 시작된다(예전에도 압축할 때 내려받음).
+- 바이트 범위 잠금 시험은 같은 프로세스의 다른 핸들로 흉내 냈다(잠금은 핸들마다라 결과는 같다). 실제 DB 프로그램으로는 MANUAL_CHECKLIST 7절.
+- 자연 정렬은 Windows 함수(StrCmpLogicalW)라 그 PC 의 언어 설정을 따른다(한국어 PC 의 탐색기와 같음). 테스트는 숫자·대소문자처럼 언어와 무관한 차례만 단언한다.
+- RAR 헤더 암호(파일 이름 암호화 RAR)는 픽스처가 없어 열기 암호 창을 확인하지 못했다(같은 화면 길 — 엔진이 암호 예외를 내면 묻는다).
+- 열 때 받은 암호를 기억하는 것은 '지금 열린 압축'만이다. 우클릭으로 여러 압축을 한꺼번에 풀면 압축마다 따로 묻는다(반디집의 '모든 압축 파일에 사용'은 없음).
+
+#### W1-D 에서 확인하지 못한 위험
+
+- **셸 메뉴·첫 실행은 실제로 눌러 보지 못했다** — 이 PC 에 셸 확장이 설치돼 있지 않고(MSIX 패키징·설치는 범위 밖), 사용자 화면에 창을 띄우는 자동 조작은 하지 않았다.
+  C++ DLL 은 NuGet Windows SDK 로 빌드(종료 코드 0)하고 테스트 프로세스에서 불러 GetTitle 만 확인했다. MANUAL_CHECKLIST 1절.
+- 예전 DLL(설치본)과 새 exe 를 섞으면 '여기에 압축 풀기' 메뉴가 이제 그 자리에 푼다(이름 폴더가 아니라). 재사용장치는 `--extract-to`(창 없이 풀기)만 써서 영향 없음.
+- 쓰기 공유로 열린 파일(PST·로그)은 그 순간의 내용이 담겨 일관되지 않을 수 있다(반디집도 같음). 안내 문구에는 넣지 않았다.
+- TAR 는 머리에 크기를 먼저 적으므로, 쓰기 공유로 연 파일이 압축 도중 줄어들면 예전처럼 '압축하는 도중에 바뀌었어요' 오류로 전체가 실패한다.
+- ~~선택 창의 첫 버튼이 기본(Enter)이다~~ — 1차 검증에서 끌어 놓기 선택 창의 기본 버튼을 [취소]로 바꿈(압축 옵션 창의 경고 창은 그대로 첫 버튼).
+- 명령줄 '경로만'(두 번째 실행으로 들어온 경로)도 끌어 놓기와 같은 규칙이라, 압축을 보는 중에 다른 압축을 '연결 프로그램 → 일집'으로 열면 선택 창이 뜬다(`--open` 은 묻지 않음).
+- 정렬 화살표는 MainWindow 가 VM 상태대로 열의 SortDirection 을 맞춘다. 목록을 새로 채울 때 DataGrid 가 화살표를 지우는지는 창에서만 보인다(MANUAL_CHECKLIST 7절).
 
 ### 확인하지 못한 위험(테스트 없음)
 
@@ -231,22 +297,17 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 5. EGG/ALZ: 7z.dll 계열은 egg/alz 를 못 풉니다. `EggAlzTests` 가 실패하면 EGG/ALZ 를 EggDotNet 서비스로 계속 보내도록 라우팅을 남기세요.
 6. 시간대 스위치로 한 번 더: `$env:ILJIP_TEST_TZ = "UTC"` 로 전체 실행.
 
-## 명령줄 해석 테스트의 한계와 제안(코드는 안 고침)
+## 명령줄·화면 흐름 테스트(W1-D 에서 제안 1·2 를 반영)
 
-`MainViewModel.ProcessCommandLineAsync` 는 인자 해석과 창 띄우기(폴더 선택 창·진행 창·`MessageBox`·저장 창)가 한 함수에 섞여 있고,
-진행 창은 `Application.Current.MainWindow` 를 씁니다. 그래서 테스트에서 돌리면 창이 떠서 멈추거나(모달) `Application.Current` 가 없어 오류 창이 뜹니다.
-지금은 창이 안 뜨는 경로만 시험합니다: `--open` 성공, 경로만 준 경우(열기·압축 대기), 인자 없음/파일 없음.
-화면 코드가 바뀌어 창으로 빠져도 테스트 호스트가 영영 멈추지 않도록, VM 호출은 스레드 풀에서 60초 시간 제한을 걸고 부릅니다(`RunVm`).
-`--extract`·`--extract-here`·`--compress` 는 MANUAL_CHECKLIST 로 사람이 확인합니다.
-`--extract-to` 는 `App.OnStartup` 의 창 없이 풀기 경로를 실제 `Iljip.exe` 로 실행해 확인합니다(종료 코드 0/2).
-
-최소 리팩터링 제안:
-1. 순수 함수 `CommandLineParser.Parse(string[] args) → CommandRequest { Verb, ArchivePath, Destination, Paths }` 로 해석만 떼어 내기
-   (`--extract-here` 의 대상 폴더 계산 `Path.Combine(부모, 확장자 뗀 이름)` 도 여기로 — `.tar.gz` 가 `x.tar` 폴더가 되는 점 등을 시험 가능).
-2. 창 띄우기를 `IUserInteraction`(폴더 고르기·저장 위치·암호 묻기·오류 알림·진행 창 만들기) 인터페이스로 빼서 `MainViewModel` 생성자로 주입
-   → 테스트는 가짜 구현을 넣어 `--extract-here`·암호 재시도 3회·취소·압축 실패 시 부분 파일 삭제(커밋 c8471d0)까지 창 없이 시험.
-   I1-7 도 이때 '열기 → 암호 요청 → 15개 목록'으로 자동 시험할 수 있습니다.
-3. `App.IsHeadlessExtractCommand`·`RunHeadlessExtractAsync` 를 `internal static` 으로 두고 `InternalsVisibleTo("Iljip.Tests")` 추가.
+- 해석은 순수 함수 `Services/CommandLineParser.cs`(`CommandLineParserTests`), '"이름"\ 에 풀기' 폴더 계산은 `ArchiveNaming.FolderNameFor`(`ArchiveNamingTests`).
+- 창 띄우기(폴더 고르기·저장 위치·압축 옵션·암호 묻기·선택 창·오류/안내·진행 창)는 `Services/IUserInteraction.cs` 로 빠졌고 `MainViewModel(IUserInteraction?, ArchiveServiceLocator?)`
+  생성자로 넣는다(기본은 실제 WPF 창 `Views/WpfUserInteraction.cs`). 테스트는 `TestSupport/FakeUserInteraction.cs` 를 넣어 `--extract-here`·`--extract-to-folder`·
+  암호 묻기/틀리면 다시/취소·끌어 놓기 선택·압축 건너뜀 안내·부분 파일 정리를 창 없이 시험한다.
+- 실제 WPF 창을 쓰는 VM(`new MainViewModel()`)으로 하는 테스트는 창이 안 뜨는 경로만이다. 그래도 화면 코드가 바뀌어 창으로 빠지면 테스트 호스트가
+  영영 멈추지 않도록, VM 호출은 스레드 풀에서 60초 시간 제한을 걸고 부른다(`TestSupport/VmRunner.cs`).
+- `--extract`(폴더 고르는 창)·`--compress` 의 실제 창, 셸 메뉴, 첫 실행은 MANUAL_CHECKLIST 로 사람이 확인한다.
+- `--extract-to` 는 `App.OnStartup` 의 창 없이 풀기 경로를 실제 `Iljip.exe` 로 실행해 확인한다(종료 코드 0/1/2).
+- 남은 제안: `App.IsHeadlessExtractCommand`·`RunHeadlessExtractAsync` 를 `internal static` 으로 두고 직접 시험(지금은 exe 를 띄워 확인).
 
 ## 그 밖에 고정해 둔 '현재 동작' (버그는 아니지만 엔진 교체 때 달라질 수 있는 것 — 대부분 기록 테스트)
 
@@ -256,10 +317,14 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 - 암호 없는 일집 ZIP 도 한글 이름에 EFS(UTF-8) 플래그를 켬(계약은 '한국어 탐색기 방식으로 읽어도 이름이 맞음').
 - 7z 항목의 압축 크기는 모두 0(SharpCompress) — 화면 압축률이 의미 없음. zip·tar 는 항목별 값.
 - 순수 .bz2 목록의 크기는 0(풀기 전엔 모름), 이름은 파일명에서 `.bz2` 를 뗀 것. FNAME 없는 .gz 도 같은 규칙(`.gz` 를 뗀 것, 크기는 gzip 끝의 원래 크기). 뗀 이름이 비거나 점·공백뿐이면 '압축풀림'.
-- 해제 실패 시 '파일'은 안 남지만 먼저 만든 '폴더'는 남을 수 있음(암호 오류만은 W1-C 부터 이번에 만든 폴더까지 지움).
-- 압축 도중 취소 시 서비스는 쓰다 만 ZIP·TAR 를 지우지 않음 — 지우는 건 `MainViewModel.CompressAsync` 의 몫.
+- 해제 실패 시 '파일'은 안 남지만 먼저 만든 '폴더'는 남을 수 있음(암호 오류만은 W1-C 부터 이번에 만든 폴더까지 지움). 단 화면의 '"이름"\ 에 풀기'는
+  W1-D 1차 검증부터 취소·실패로 그 이름 폴더에 파일이 하나도 안 남았으면 그 폴더(빈 하위 폴더 포함)를 지운다(`ArchiveNaming.RemoveFolderIfNoFiles`).
+- 압축 도중 취소 시 서비스는 쓰다 만 ZIP·TAR 를 지우지 않음 — 지우는 건 `MainViewModel.CompressAsync` 의 몫. (W1-D 1차 검증) ZIP·TAR 압축 파일은 담을 첫 파일을 연 뒤에 만들고,
+  읽는 도중 막힌 파일이 있어 처음부터 다시 쓸 때는 서비스가 쓰다 만 것을 지운다.
 - TAR 압축 도중 원본 파일이 줄어들면(머리에 적은 크기와 실제 읽은 양이 다름) `IOException`('…파일이 압축하는 도중에 바뀌었어요') — 조용히 깨진 tar 를 만들지 않음.
 - 이미 취소된 토큰이면 대상 폴더도 만들지 않음.
 - 선택 해제는 대소문자·`\`·앞뒤 `/` 차이를 무시하고, 이름 앞부분만 같은 것(`하위` vs `하위폴더`)은 고르지 않음.
 - 경로 공격은 `InvalidDataException("안전하지 않은 경로: …")` 로 멈춤(앞 항목은 풀려 있음). Windows 특수 이름(`a.txt:evil`, 끝 점·공백, `con.txt`)은 예외 없이 대상 폴더 안에 풀림. tar 링크 항목은 빈 일반 파일로 풀리고 그 아래 항목은 `IOException`.
 - 명령줄 키워드는 대소문자를 가림(`--OPEN` 은 경로로 취급되는데 결과적으로 열림). 창 없이 풀기의 `--extract-to` 는 대소문자 무시.
+- (W1-D) 키워드 명령의 인자가 모자라면 아무것도 안 함(예전엔 `--extract-to <있는 압축>` 처럼 폴더가 빠지면 경로 목록으로 처리돼 열렸음).
+- (W1-D) 목록 정렬은 압축할 목록(모으는 중)에도 적용된다(보이는 순서만 — 압축 대기 원본 목록 `Entries` 는 넣은 차례 그대로).

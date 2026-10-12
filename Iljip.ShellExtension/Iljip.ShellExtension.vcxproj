@@ -20,6 +20,21 @@
     <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
   </PropertyGroup>
 
+  <!--
+    Windows SDK 를 설치하지 않은 PC 용: NuGet 패키지(Microsoft.Windows.SDK.CPP + .x64)의 헤더·라이브러리로 빌드한다.
+    /p:UseNuGetWindowsSdk=true 일 때만 쓴다(설치된 SDK 가 있는 PC 는 지금처럼). 패키지 받기:
+      dotnet restore packaging\WinSdk\WinSdk.csproj
+    (W1-D 실측: SDK 미설치 PC 에서 VS BuildTools 18 + 이 패키지로 DLL 빌드 성공. MakeAppx·signtool 은 여전히 설치된 SDK 필요)
+  -->
+  <PropertyGroup Condition="'$(UseNuGetWindowsSdk)'=='true'">
+    <NuGetWindowsSdkVersion Condition="'$(NuGetWindowsSdkVersion)'==''">10.0.26100.9169</NuGetWindowsSdkVersion>
+    <NuGetWindowsSdkRoot Condition="'$(NuGetWindowsSdkRoot)'==''">$(USERPROFILE)\.nuget\packages</NuGetWindowsSdkRoot>
+    <NuGetWindowsSdkCpp>$(NuGetWindowsSdkRoot)\microsoft.windows.sdk.cpp\$(NuGetWindowsSdkVersion)\build\native</NuGetWindowsSdkCpp>
+    <NuGetWindowsSdkCppX64>$(NuGetWindowsSdkRoot)\microsoft.windows.sdk.cpp.x64\$(NuGetWindowsSdkVersion)\build\native</NuGetWindowsSdkCppX64>
+  </PropertyGroup>
+  <Import Project="$(NuGetWindowsSdkCpp)\Microsoft.Windows.SDK.cpp.props" Condition="'$(UseNuGetWindowsSdk)'=='true'" />
+  <Import Project="$(NuGetWindowsSdkCppX64)\Microsoft.Windows.SDK.cpp.x64.props" Condition="'$(UseNuGetWindowsSdk)'=='true'" />
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
 
   <PropertyGroup Label="Configuration">
@@ -80,5 +95,6 @@
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(NuGetWindowsSdkCpp)\Microsoft.Windows.SDK.cpp.targets" Condition="'$(UseNuGetWindowsSdk)'=='true'" />
   <Import Project="$(VCTargetsPath)\BuildCustomizations\CppWinRT.targets" Condition="Exists('$(VCTargetsPath)\BuildCustomizations\CppWinRT.targets')" />
 </Project>

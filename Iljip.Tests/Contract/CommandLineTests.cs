@@ -5,31 +5,17 @@ using Iljip.ViewModels;
 namespace Iljip.Tests.Contract;
 
 /// <summary>
-/// [범위 12] 명령줄(셸 확장 우클릭 메뉴가 넘기는 인자) 해석.
-/// MainViewModel.ProcessCommandLineAsync 는 해석과 '창 띄우기'(폴더 선택·진행 창·MessageBox·저장 창)가 한 함수에 섞여 있어,
-/// 창이 뜨지 않는 경로만 여기서 시험한다(--open 성공, 경로만 준 경우, 인자 없음/잘못된 인자).
-/// --extract / --extract-here / --compress 와 실패 경로(MessageBox)는 사람이 확인(MANUAL_CHECKLIST) — 리팩터링 제안은 README.
+/// [범위 12] 명령줄(셸 확장 우클릭 메뉴가 넘기는 인자) 처리. 해석 자체는 <see cref="CommandLineParserTests"/>(순수 함수).
+/// W1-D 부터 창 띄우기가 IUserInteraction 으로 빠져, 가짜 창(<see cref="FakeUserInteraction"/>)을 넣으면 '--extract-here'·'--extract-to-folder'
+/// (진행 창·암호 창 포함)도 창 없이 시험한다. 실제 WPF 창(new MainViewModel())을 쓰는 테스트는 창이 뜨지 않는 경로만이다.
+/// --extract(폴더 고르기)·--compress 의 실제 창 모양과 셸 메뉴는 사람이 확인(MANUAL_CHECKLIST).
 /// 다른 프로그램(배치·자동화)이 부르는 '--extract-to 창 없이 풀기'(App.RunHeadlessExtractAsync)는 실제 Iljip.exe 를 띄워 확인한다.
 /// </summary>
 public class CommandLineTests
 {
-    /// <summary>
-    /// MainViewModel.ProcessCommandLineAsync 를 시간 제한(60초)을 걸고 부른다. 화면 코드가 바뀌어 MessageBox·폴더 선택 창 같은
-    /// 모달 창으로 빠지면 테스트 호스트가 영영 멈추므로, 스레드 풀에서 돌리고 기다리다 시간이 넘으면 실패로 끝낸다
-    /// (떠 버린 창은 테스트 프로세스가 끝날 때 같이 닫힌다).
-    /// </summary>
-    private static async Task RunVm(MainViewModel vm, string[] args)
-    {
-        var run = Task.Run(() => vm.ProcessCommandLineAsync(args));
-        try
-        {
-            await run.WaitAsync(TimeSpan.FromSeconds(60));
-        }
-        catch (TimeoutException)
-        {
-            Assert.Fail($"ProcessCommandLineAsync({string.Join(" ", args)}) 가 60초 안에 안 끝남 — MessageBox 등 창이 떠서 멈춘 것으로 보임");
-        }
-    }
+    /// <summary>MainViewModel.ProcessCommandLineAsync 를 시간 제한(60초)을 걸고 스레드 풀에서 부른다(<see cref="VmRunner"/>).</summary>
+    private static Task RunVm(MainViewModel vm, string[] args) =>
+        VmRunner.Run(() => vm.ProcessCommandLineAsync(args), $"ProcessCommandLineAsync({string.Join(" ", args)})");
 
     /// <summary>MessageBox 가 뜨는 실패 경로로 빠지지 않게, 열기 전에 서비스로 먼저 읽혀지는지 확인한다.</summary>
     private static async Task<string> SafeArchive(string id)
@@ -134,6 +120,7 @@ public class CommandLineTests
     [InlineData("--open", "없음")]
     [InlineData("--extract", "없음")]
     [InlineData("--extract-here", "없음")]
+    [InlineData("--extract-to-folder", "없음")]
     [InlineData("--extract-to", "없음")]
     [InlineData("--compress", null)]
     [InlineData("--open", null)]
@@ -145,6 +132,445 @@ public class CommandLineTests
         await RunVm(vm, args);
         Assert.True(vm.IsEmptyState);
         Assert.False(Directory.Exists(tmp.P("dest")));
+    }
+
+    // ───────────── 우클릭 '여기에 풀기'·'"이름"\ 에 풀기'(I0-1) — 가짜 창으로 ─────────────
+
+    /// <summary>작업 폴더에 픽스처 사본을 두고 그 경로를 돌려준다(원본 픽스처 폴더에는 풀지 않음).</summary>
+    private static string CopyFixture(TempDir tmp, string id, string? name = null)
+    {
+        var fx = FixtureCatalog.Get(id);
+        string work = tmp.Dir("작업 폴더");
+        string dst = Path.Combine(work, name ?? Path.GetFileName(fx.FullPath));
+        File.Copy(fx.FullPath, dst);
+        return dst;
+    }
+
+    private static ExpectedEntry FileEntry(string root, string file) =>
+        new(Path.GetRelativePath(root, file).Replace('\\', '/'), new FileInfo(file).Length, TreeAssert.Sha256(file), false);
+
+    /// <summary>'--extract-here' = 압축 파일이 있는 폴더에 바로 푼다(반디집 '여기에 풀기'). '이름' 폴더를 만들지 않는다.</summary>
+    [Fact]
+    public async Task extract_here는_압축파일이_있는_폴더에_바로_푼다()
+    {
+        var fx = FixtureCatalog.Get("zip_default");
+        using var tmp = new TempDir("xh");
+        string zip = CopyFixture(tmp, "zip_default");
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction();
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { "--extract-here", zip });
+
+        Assert.Empty(ui.Errors);
+        Assert.Empty(ui.Warnings);
+        Assert.Empty(ui.PasswordPrompts);
+        Assert.Single(ui.ProgressSessions);
+        Assert.Equal($"압축 해제 완료: {work}", vm.StatusText);
+        Assert.False(Directory.Exists(Path.Combine(work, "zip_default")), "예전처럼 '이름' 폴더가 생김");
+        TreeAssert.ExtractedTreeEquals(work, fx.Expected.Append(FileEntry(work, zip)));
+    }
+
+    /// <summary>'--extract-here' 를 두 번 하면 같은 이름 파일은 '이름 (1).ext' 로 비켜 쓴다(기존 규칙 — 원본 비파괴).</summary>
+    [Fact]
+    public async Task extract_here를_두번_하면_파일은_비켜_쓴다()
+    {
+        using var tmp = new TempDir("xh2");
+        string zip = CopyFixture(tmp, "zip_default");
+        string work = Path.GetDirectoryName(zip)!;
+        await RunVm(new MainViewModel(new FakeUserInteraction()), new[] { "--extract-here", zip });
+        var ui = new FakeUserInteraction();
+        await RunVm(new MainViewModel(ui), new[] { "--extract-here", zip });
+
+        Assert.Empty(ui.Errors);
+        Assert.True(File.Exists(Path.Combine(work, "일집_샘플", "견적서_2026.txt")));
+        Assert.True(File.Exists(Path.Combine(work, "일집_샘플", "견적서_2026 (1).txt")), "두 번째 해제가 비켜 쓰지 않음");
+    }
+
+    /// <summary>'--extract-to-folder' = '부모\이름' 폴더에. 한 번 더 하면 '이름 (2)' 새 폴더(기존 폴더에 합치지 않음).</summary>
+    [Fact]
+    public async Task extract_to_folder는_이름_폴더에_풀고_다시_하면_이름_2()
+    {
+        var fx = FixtureCatalog.Get("zip_default");
+        using var tmp = new TempDir("xf");
+        string zip = CopyFixture(tmp, "zip_default");
+        string work = Path.GetDirectoryName(zip)!;
+
+        var ui = new FakeUserInteraction();
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "zip_default"), fx.Expected);
+
+        var ui2 = new FakeUserInteraction();
+        var vm2 = new MainViewModel(ui2);
+        await RunVm(vm2, new[] { "--extract-to-folder", zip });
+        Assert.Empty(ui2.Errors);
+        Assert.Equal($"압축 해제 완료: {Path.Combine(work, "zip_default (2)")}", vm2.StatusText);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "zip_default (2)"), fx.Expected);
+        // 첫 폴더는 그대로(합쳐 풀었다면 '(1)' 파일이 생겼을 것)
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "zip_default"), fx.Expected);
+    }
+
+    /// <summary>
+    /// 여러 압축을 골라 '각각 이름 폴더에 풀기' 하면 명령이 거의 동시에 들어온다(파일마다 Iljip.exe → 단일 인스턴스 파이프).
+    /// 같은 VM 에 동시에 넣어도 하나씩 차례로 모두 풀린다(겹쳐 돌면 '열렸나' 확인이 엇갈려 하나가 말없이 빠질 수 있었다).
+    /// </summary>
+    [Fact]
+    public async Task 동시에_들어온_이름_폴더_풀기는_모두_풀린다()
+    {
+        var zipFx = FixtureCatalog.Get("zip_default");
+        var tarFx = FixtureCatalog.Get("tar_default");
+        using var tmp = new TempDir("xfm");
+        string zip = CopyFixture(tmp, "zip_default");
+        string tar = CopyFixture(tmp, "tar_default");
+        string sameName = CopyFixture(tmp, "tar_default", "zip_default.tar");   // 'zip_default.zip' 과 같은 폴더 이름 'zip_default' 을 고름
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction();
+        var vm = new MainViewModel(ui);
+
+        await VmRunner.Run(() => Task.WhenAll(
+            Task.Run(() => vm.ProcessCommandLineAsync(new[] { "--extract-to-folder", zip })),
+            Task.Run(() => vm.ProcessCommandLineAsync(new[] { "--extract-to-folder", tar })),
+            Task.Run(() => vm.ProcessCommandLineAsync(new[] { "--extract-to-folder", sameName }))), "동시 명령 3개");
+
+        Assert.Empty(ui.Errors);
+        Assert.Equal(3, ui.ProgressSessions.Count);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "tar_default"), tarFx.Expected);
+        // 같은 이름을 고른 둘은 먼저 처리된 쪽이 'zip_default', 다음이 'zip_default (2)'(차례는 들어온 순서라 정해지지 않음)
+        var folders = new[] { "zip_default", "zip_default (2)" }.Select(f => Path.Combine(work, f)).ToList();
+        Assert.All(folders, f => Assert.True(Directory.Exists(f), $"폴더 없음: {f}"));
+        Assert.False(Directory.Exists(Path.Combine(work, "zip_default (3)")));
+        var exps = new[] { zipFx.Expected, tarFx.Expected };
+        foreach (var f in folders)
+            Assert.True(exps.Any(e => Matches(f, e)), $"{f}: 풀린 내용이 zip·tar 기대 어느 쪽과도 다름(합쳐 풀렸거나 빠짐)");
+    }
+
+    private static bool Matches(string dest, IEnumerable<ExpectedEntry> expected)
+    {
+        try { TreeAssert.ExtractedTreeEquals(dest, expected); return true; }
+        catch (Xunit.Sdk.XunitException) { return false; }
+    }
+
+    /// <summary>'x.tar.gz' 는 'x' 폴더(예전 '--extract-here' 는 'x.tar' 폴더). 안에는 지금 GZ 처리기가 꺼내는 안쪽 tar 하나.</summary>
+    [Fact]
+    public async Task extract_to_folder는_tar_gz를_x_폴더에_푼다()
+    {
+        var fx = FixtureCatalog.Get("targz_default");
+        var inner = fx.InnerTar ?? throw new InvalidOperationException("targz_default 에 inner_tar 가 없음");
+        using var tmp = new TempDir("xfg");
+        string arc = CopyFixture(tmp, "targz_default", "x.tar.gz");
+        string work = Path.GetDirectoryName(arc)!;
+        var ui = new FakeUserInteraction();
+
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", arc });
+
+        Assert.Empty(ui.Errors);
+        Assert.False(Directory.Exists(Path.Combine(work, "x.tar")), "예전 규칙('x.tar' 폴더)으로 풀림");
+        string only = Assert.Single(TreeAssert.Files(Path.Combine(work, "x")));
+        Assert.Equal(inner.Sha256, TreeAssert.Sha256(Path.Combine(work, "x", only)));
+    }
+
+    /// <summary>
+    /// 암호 압축: 가짜 암호 창에 맞는 암호를 주면 이름 폴더에 풀린다(첫 시도는 암호 없이 → '암호가 걸린 압축 파일이에요' 로 물음).
+    /// 반디집이 한글 암호로 만든 ZIP(AES·ZipCrypto, W1-C B3)도 화면 흐름으로 확인 — W1-C README 가 'IUserInteraction 이 들어오면 붙일 것'이라 한 VM 테스트.
+    /// </summary>
+    [Theory]
+    [InlineData("zip_aes256", FixtureCatalog.DefaultPassword)]
+    [InlineData("zip_aes256_korean_pw", FixtureCatalog.KoreanPassword)]
+    [InlineData("zip_zipcrypto_korean_pw", FixtureCatalog.KoreanPassword)]
+    public async Task extract_to_folder는_암호를_묻고_푼다(string id, string password)
+    {
+        var fx = FixtureCatalog.Get(id);
+        using var tmp = new TempDir("xfp");
+        string zip = CopyFixture(tmp, id);
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction(password);
+
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
+
+        var prompt = Assert.Single(ui.PasswordPrompts);
+        Assert.Equal(Iljip.Services.PasswordPromptReason.Required, prompt.Reason);
+        Assert.Equal(Path.GetFileName(zip), prompt.ArchiveName);
+        Assert.Equal(Iljip.Services.PasswordRequiredException.DefaultMessage, prompt.Message);
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, id), fx.Expected);
+    }
+
+    /// <summary>틀린 암호를 넣으면 '암호가 맞지 않아요'로 다시 묻고, 맞는 암호면 풀린다. 틀린 시도는 아무것도 남기지 않는다.</summary>
+    [Fact]
+    public async Task 암호를_틀리면_다시_묻고_맞으면_풀린다()
+    {
+        var fx = FixtureCatalog.Get("zip_aes256");
+        using var tmp = new TempDir("xfw");
+        string zip = CopyFixture(tmp, "zip_aes256");
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction("틀린암호", FixtureCatalog.DefaultPassword);
+
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
+
+        Assert.Equal(new[] { Iljip.Services.PasswordPromptReason.Required, Iljip.Services.PasswordPromptReason.Wrong },
+            ui.PasswordPrompts.Select(p => p.Reason).ToArray());
+        Assert.Equal(Iljip.Services.WrongPasswordException.DefaultMessage, ui.PasswordPrompts[1].Message);
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "zip_aes256"), fx.Expected);
+        Assert.False(Directory.Exists(Path.Combine(work, "zip_aes256 (2)")), "틀린 시도가 폴더를 남겨 번호가 밀림");
+    }
+
+    /// <summary>암호 창을 취소하면 아무것도 남지 않는다 — 만들었던 '이름' 폴더도 지운다(W1-C 되돌림).</summary>
+    [Fact]
+    public async Task extract_to_folder에서_암호를_취소하면_폴더도_안_남는다()
+    {
+        using var tmp = new TempDir("xfc");
+        string zip = CopyFixture(tmp, "zip_aes256");
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction();   // 암호 창 = 취소
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { "--extract-to-folder", zip });
+
+        Assert.Single(ui.PasswordPrompts);
+        Assert.Equal("압축 해제 취소됨", vm.StatusText);
+        Assert.Equal(new[] { Path.GetFileName(zip) }, Directory.EnumerateFileSystemEntries(work).Select(Path.GetFileName).ToArray());
+    }
+
+    // ───────────── 파일 이름까지 암호가 걸린 7z(헤더 암호, I1-7 화면 쪽) — W1-D 1차 검증 회귀 ─────────────
+
+    /// <summary>
+    /// 반디집 '파일 이름 암호화' 7z 를 우클릭으로 풀면: 열기 단계에서 암호를 한 번 묻고(문구 '파일 이름까지 암호가 걸려 있어요…'),
+    /// 그 암호로 풀어 다시 묻지 않는다. W1-D 처음엔 '열기에 성공해야 푼다'로 바뀌어 오류 창만 뜨고 어느 경로로도 못 풀었다(회귀).
+    /// </summary>
+    [Theory]
+    [InlineData("--extract-to-folder", "7z_header_encrypted", FixtureCatalog.DefaultPassword)]
+    [InlineData("--extract-to-folder", "7z_header_encrypted_korean_pw", FixtureCatalog.KoreanPassword)]
+    [InlineData("--extract-here", "7z_header_encrypted", FixtureCatalog.DefaultPassword)]
+    [InlineData("--extract-here", "7z_header_encrypted_korean_pw", FixtureCatalog.KoreanPassword)]
+    public async Task 헤더암호_7z도_우클릭으로_암호를_한번_묻고_풀린다(string verb, string id, string password)
+    {
+        var fx = FixtureCatalog.Get(id);
+        using var tmp = new TempDir("xh7");
+        string arc = CopyFixture(tmp, id);
+        string work = Path.GetDirectoryName(arc)!;
+        var ui = new FakeUserInteraction(password);
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { verb, arc });
+
+        Assert.Empty(ui.Errors);
+        Assert.Empty(ui.Warnings);
+        var prompt = Assert.Single(ui.PasswordPrompts);
+        Assert.Equal(Iljip.Services.PasswordPromptReason.Required, prompt.Reason);
+        Assert.Equal(Iljip.Services.PasswordRequiredException.HeaderMessage, prompt.Message);
+        Assert.Equal(arc, vm.CurrentArchivePath);
+        if (verb == "--extract-here")
+            TreeAssert.ExtractedTreeEquals(work, fx.Expected.Append(FileEntry(work, arc)));
+        else
+            TreeAssert.ExtractedTreeEquals(Path.Combine(work, id), fx.Expected);
+    }
+
+    /// <summary>헤더 암호 7z 를 열 때 틀린 암호면 '암호가 맞지 않아요'로 다시 묻고, 취소하면 아무것도 안 한다(오류 창·폴더 없음).</summary>
+    [Fact]
+    public async Task 헤더암호_7z_열기에서_틀리면_다시_묻고_취소하면_풀지_않는다()
+    {
+        using var tmp = new TempDir("xh7c");
+        string arc = CopyFixture(tmp, "7z_header_encrypted");
+        string work = Path.GetDirectoryName(arc)!;
+        var ui = new FakeUserInteraction("틀린암호");   // 두 번째 창은 취소
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { "--extract-to-folder", arc });
+
+        Assert.Equal(new[] { Iljip.Services.PasswordPromptReason.Required, Iljip.Services.PasswordPromptReason.Wrong },
+            ui.PasswordPrompts.Select(p => p.Reason).ToArray());
+        Assert.Equal(Iljip.Services.WrongPasswordException.DefaultMessage + Iljip.Services.WrongPasswordException.HeaderNote, ui.PasswordPrompts[1].Message);
+        Assert.Empty(ui.Errors);
+        Assert.Empty(ui.ProgressSessions);   // 풀기를 시작하지 않음
+        Assert.Equal("열기를 취소했어요", vm.StatusText);
+        Assert.True(vm.IsEmptyState);
+        Assert.Equal(new[] { Path.GetFileName(arc) }, Directory.EnumerateFileSystemEntries(work).Select(Path.GetFileName).ToArray());
+    }
+
+    /// <summary>
+    /// 열기(--open·경로만 = 더블클릭·끌어 놓기)도 헤더 암호 7z 면 암호를 묻고 목록을 보인다. 열 때 받은 암호는 기억해서,
+    /// 이어서 풀 때([압축 풀기]·선택 항목 풀기) 다시 묻지 않는다.
+    /// </summary>
+    [Theory]
+    [InlineData("--open")]
+    [InlineData(null)]
+    public async Task 헤더암호_7z를_열면_암호를_묻고_목록을_보이며_풀때_다시_묻지_않는다(string? verb)
+    {
+        var fx = FixtureCatalog.Get("7z_header_encrypted");
+        using var tmp = new TempDir("xh7o");
+        string arc = CopyFixture(tmp, "7z_header_encrypted");
+        var ui = new FakeUserInteraction(FixtureCatalog.DefaultPassword);
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, verb is null ? new[] { arc } : new[] { verb, arc });
+
+        Assert.Single(ui.PasswordPrompts);
+        Assert.Empty(ui.Errors);
+        Assert.Equal(arc, vm.CurrentArchivePath);
+        Assert.Equal(15, vm.Entries.Count);
+        Assert.Equal("15개 항목", vm.StatusText);
+
+        string dest = tmp.P("풀 곳");
+        Assert.True(await RunVmResult(() => vm.ExtractToFolderAsync(arc, dest)), "열 때 받은 암호로 풀리지 않음");
+        Assert.Single(ui.PasswordPrompts);   // 다시 묻지 않음
+        TreeAssert.ExtractedTreeEquals(dest, fx.Expected);
+    }
+
+    /// <summary>다른 압축을 열면 앞 압축의 암호는 잊는다(그 압축을 풀 때 다시 묻는다).</summary>
+    [Fact]
+    public async Task 다른_압축을_열면_기억한_암호를_잊는다()
+    {
+        using var tmp = new TempDir("xh7f");
+        string arc = CopyFixture(tmp, "7z_header_encrypted");
+        string zip = await SafeArchive("zip_default");
+        var ui = new FakeUserInteraction(FixtureCatalog.DefaultPassword, FixtureCatalog.DefaultPassword);
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { "--open", arc });
+        await RunVm(vm, new[] { "--open", zip });
+        Assert.Equal(zip, vm.CurrentArchivePath);
+
+        Assert.True(await RunVmResult(() => vm.ExtractToFolderAsync(arc, tmp.P("풀 곳"))));
+        Assert.Equal(2, ui.PasswordPrompts.Count);   // 열 때 한 번 + 지금 열린 압축이 아니라 풀 때 다시 한 번
+    }
+
+    private static async Task<bool> RunVmResult(Func<Task<bool>> action)
+    {
+        bool result = false;
+        await VmRunner.Run(async () => result = await action(), "VM 호출");
+        return result;
+    }
+
+    // ───────────── 암호 창은 [취소]할 때까지(W1-D 1차 검증 — 예전엔 세 번째 암호를 써 보지 않음) ─────────────
+
+    /// <summary>
+    /// 암호 창은 몇 번이고 다시 뜨고, 마지막으로 넣은 암호도 써 본다. 예전엔 창을 세 번 띄우고도 세 번째 암호는 시도하지 않은 채
+    /// '비밀번호가 3회 모두 일치하지 않아…'로 끝났다(그래서 세 번째에 맞게 넣어도 실패).
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public async Task 틀린_암호_뒤에_넣은_맞는_암호는_몇_번째든_풀린다(int wrongCount)
+    {
+        var fx = FixtureCatalog.Get("zip_aes256_korean_pw");
+        using var tmp = new TempDir("xfr");
+        string zip = CopyFixture(tmp, "zip_aes256_korean_pw");
+        string work = Path.GetDirectoryName(zip)!;
+        var answers = Enumerable.Range(1, wrongCount).Select(i => (string?)$"틀림{i}").Append(FixtureCatalog.KoreanPassword).ToArray();
+        var ui = new FakeUserInteraction(answers);
+
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
+
+        Assert.Equal(wrongCount + 1, ui.PasswordPrompts.Count);
+        Assert.Equal(Iljip.Services.PasswordPromptReason.Required, ui.PasswordPrompts[0].Reason);
+        Assert.All(ui.PasswordPrompts.Skip(1), p => Assert.Equal(Iljip.Services.PasswordPromptReason.Wrong, p.Reason));
+        Assert.Empty(ui.Warnings);
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(Path.Combine(work, "zip_aes256_korean_pw"), fx.Expected);
+    }
+
+    /// <summary>틀린 암호를 여러 번 넣다가 취소하면 '취소됨'으로 끝나고(경고 창 없음) 아무것도 남지 않는다.</summary>
+    [Fact]
+    public async Task 틀린_암호를_넣다가_취소하면_아무것도_안_남는다()
+    {
+        using var tmp = new TempDir("xfr2");
+        string zip = CopyFixture(tmp, "zip_aes256");
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction("틀림1", "틀림2", "틀림3");   // 네 번째 창은 취소
+        var vm = new MainViewModel(ui);
+
+        await RunVm(vm, new[] { "--extract-to-folder", zip });
+
+        Assert.Equal(4, ui.PasswordPrompts.Count);
+        Assert.Empty(ui.Warnings);
+        Assert.Equal("압축 해제 취소됨", vm.StatusText);
+        Assert.Equal(new[] { Path.GetFileName(zip) }, Directory.EnumerateFileSystemEntries(work).Select(Path.GetFileName).ToArray());
+    }
+
+    // ───────────── '"이름"\ 에 풀기'를 끝내지 못했을 때 빈 폴더 정리(W1-D 1차 검증) ─────────────
+
+    /// <summary>폴더 안에 큰 파일 하나짜리 ZIP(취소가 첫 파일을 쓰는 도중에 걸리게 4 MiB 난수).</summary>
+    private static async Task<string> MakeBigZip(TempDir tmp, string name)
+    {
+        string src = tmp.Dir("원본", "큰 자료");
+        var data = new byte[4 * 1024 * 1024];
+        new Random(42).NextBytes(data);
+        File.WriteAllBytes(Path.Combine(src, "큰.bin"), data);
+        string zip = Path.Combine(tmp.Dir("작업 폴더"), name);
+        await new Iljip.Services.ZipArchiveService().CompressAsync(new[] { src }, zip,
+            new Iljip.Models.CompressionOptions { Level = Iljip.Models.CompressionLevelOption.Store });
+        return zip;
+    }
+
+    /// <summary>
+    /// '"이름"\ 에 풀기'를 첫 파일을 쓰는 도중 취소하면 빈 '이름' 폴더(안에 빈 하위 폴더뿐)를 남기지 않는다 — 그래서 다시 풀면 '(2)' 로 밀리지 않는다.
+    /// 같은 이름 폴더가 이미 있어 '이름 (2)' 에 풀다 취소해도 '이름 (2)' 만 지우고 원래 폴더는 그대로.
+    /// </summary>
+    [Fact]
+    public async Task 이름_폴더_풀기를_도중에_취소하면_빈_폴더를_남기지_않는다()
+    {
+        using var tmp = new TempDir("xfcan");
+        string zip = await MakeBigZip(tmp, "큰.zip");
+        string work = Path.GetDirectoryName(zip)!;
+
+        var ui = new FakeUserInteraction { CancelOnFirstBytes = true };
+        var vm = new MainViewModel(ui);
+        await RunVm(vm, new[] { "--extract-to-folder", zip });
+        Assert.Equal("압축 해제 취소됨", vm.StatusText);
+        Assert.Empty(ui.Errors);
+        Assert.Equal(new[] { "큰.zip" }, Directory.EnumerateFileSystemEntries(work).Select(Path.GetFileName).ToArray());
+
+        // 다시 풀면 '큰'(번호 밀림 없음)
+        await RunVm(new MainViewModel(new FakeUserInteraction()), new[] { "--extract-to-folder", zip });
+        Assert.True(File.Exists(Path.Combine(work, "큰", "큰 자료", "큰.bin")));
+        Assert.False(Directory.Exists(Path.Combine(work, "큰 (2)")));
+
+        // 이제 '큰' 이 있으니 '큰 (2)' 에 풀다 취소 → '큰 (2)' 만 사라지고 '큰' 은 그대로
+        await RunVm(new MainViewModel(new FakeUserInteraction { CancelOnFirstBytes = true }), new[] { "--extract-to-folder", zip });
+        Assert.False(Directory.Exists(Path.Combine(work, "큰 (2)")), "취소한 '큰 (2)' 가 빈 채로 남음");
+        Assert.True(File.Exists(Path.Combine(work, "큰", "큰 자료", "큰.bin")));
+    }
+
+    /// <summary>
+    /// 손상(CRC 오류)으로 멈췄을 때: 맞게 풀린 파일이 하나도 없으면 '이름' 폴더를 지우고, 앞서 풀린 파일이 있으면 남긴다(기존 계약 — 깨진 그 파일만 지움).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task 이름_폴더_풀기가_손상으로_멈추면_파일이_없을_때만_폴더를_지운다(bool breakFirst)
+    {
+        using var tmp = new TempDir("xfbad");
+        string src = tmp.Dir("원본", "자료");
+        File.WriteAllText(Path.Combine(src, "가.txt"), "FIRST-FILE-CONTENT-0123456789");
+        File.WriteAllText(Path.Combine(src, "나.txt"), "SECOND-FILE-CONTENT-0123456789");
+        string zip = Path.Combine(tmp.Dir("작업 폴더"), "손상.zip");
+        await new Iljip.Services.ZipArchiveService().CompressAsync(new[] { src }, zip,
+            new Iljip.Models.CompressionOptions { Level = Iljip.Models.CompressionLevelOption.Store });
+        var bytes = File.ReadAllBytes(zip);
+        int at = IndexOf(bytes, System.Text.Encoding.ASCII.GetBytes(breakFirst ? "FIRST-FILE" : "SECOND-FILE"));
+        Assert.True(at > 0, "내용 위치를 못 찾음");
+        bytes[at + 3] ^= 0x20;
+        File.WriteAllBytes(zip, bytes);
+        string work = Path.GetDirectoryName(zip)!;
+        var ui = new FakeUserInteraction();
+
+        await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
+
+        Assert.Contains("CRC", Assert.Single(ui.Errors));
+        string dest = Path.Combine(work, "손상");
+        if (breakFirst)
+            Assert.False(Directory.Exists(dest), "파일 하나 없는 '손상' 폴더가 남음");
+        else
+            Assert.Equal(new[] { "자료/가.txt" }, TreeAssert.Files(dest));
+    }
+
+    private static int IndexOf(byte[] haystack, byte[] needle)
+    {
+        for (int i = 0; i + needle.Length <= haystack.Length; i++)
+            if (haystack.AsSpan(i, needle.Length).SequenceEqual(needle)) return i;
+        return -1;
     }
 
     // ───────────── 창 없이 풀기: Iljip.exe --extract-to <압축> <폴더> ─────────────

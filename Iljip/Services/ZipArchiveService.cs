@@ -84,7 +84,7 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         return byName.Count == 1 ? byName[0] : null;
     }
 
-    public override Task CompressAsync(
+    public override Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,
@@ -94,53 +94,107 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         options ??= CompressionOptions.Default;
         return Task.Run(() =>
         {
-            // sourcePaths를 두 번(파일·빈폴더) 열거하므로 한 번만 구체화한다(지연 열거 재실행 방지).
-            var srcList = sourcePaths as IList<string> ?? sourcePaths.ToList();
-            var files = CollectFiles(srcList);
-            long totalBytes = SumFileSizes(files);
-            int totalFiles = files.Count;
-            long bytesProcessed = 0;
-            int filesProcessed = 0;
+            // 파일·빈 폴더·못 들어간 폴더를 한 번에 모은다(I0-2 — 하위 폴더 권한 오류로 전체가 실패하지 않게).
+            var sources = SourceCollector.Collect(sourcePaths);
+            // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
+            return RewriteWithoutUnreadable(archivePath,
+                dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken));
+        }, cancellationToken);
+    }
 
-            string? archiveDir = Path.GetDirectoryName(archivePath);
-            if (!string.IsNullOrEmpty(archiveDir))
-                Directory.CreateDirectory(archiveDir);
+    /// <summary>
+    /// ZIP 을 한 번 쓴다. <paramref name="dropped"/>(앞 회차에서 읽는 도중 막힌 파일)는 열지 않고 건너뜀으로 적는다.
+    /// 담은 파일이 하나도 없고 건너뛴 것이 있으면 압축 파일을 만들지 않고 <see cref="NothingToCompressException"/>(I0-2).
+    /// </summary>
+    private static CompressResult WriteZip(
+        SourceSet sources, IReadOnlyDictionary<string, string> dropped, string archivePath,
+        CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        var files = sources.Files;
+        var skipped = new List<SkippedSource>(sources.Skipped);
+        long totalBytes = SumFileSizes(files);
+        int totalFiles = files.Count;
+        long bytesProcessed = 0;
+        int filesProcessed = 0;
 
-            // 암호 방식(I2-11): AES-256(기본, 안전) 또는 ZipCrypto(호환 — 탐색기·오래된 프로그램).
-            bool zipCrypto = options.HasPassword && options.Encryption == ZipEncryption.ZipCrypto;
+        // 암호 방식(I2-11): AES-256(기본, 안전) 또는 ZipCrypto(호환 — 탐색기·오래된 프로그램).
+        bool zipCrypto = options.HasPassword && options.Encryption == ZipEncryption.ZipCrypto;
 
-            using var fs = File.Create(archivePath);
-            using var zipStream = new ZipOutputStream(fs, ZipCryptoCodec(zipCrypto ? options.Password : null))
+        // 압축 파일은 담을 첫 파일을 연 뒤에 만든다 — 모두 못 읽으면 빈 zip 을 남기지 않게(덮어쓰려던 기존 파일도 그대로)
+        using var output = new LazyArchiveOutput<ZipOutputStream>(archivePath, fs =>
+        {
+            var zip = new ZipOutputStream(fs, ZipCryptoCodec(zipCrypto ? options.Password : null))
             {
                 IsStreamOwner = false,
                 UseZip64 = UseZip64.Dynamic
             };
-
-            zipStream.SetLevel(ToSharpZipLevel(options.Level));
+            zip.SetLevel(ToSharpZipLevel(options.Level));
             if (options.HasPassword)
             {
-                zipStream.Password = options.Password;
+                zip.Password = options.Password;
+            }
+            return zip;
+        });
+
+        var buffer = new byte[81920];
+        foreach (var (sourceFile, entryName) in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // 압축 파일을 원본 폴더 안에 저장하는 경우: 지금 쓰고 있는 자기 자신은 담지 않는다(못 열어 '건너뜀'으로 보이지 않게)
+            if (IsSameFile(sourceFile, archivePath)) continue;
+
+            // 앞 회차에서 읽는 도중 막혔던 파일 — 다시 열지 않고 건너뜀
+            if (dropped.TryGetValue(sourceFile, out var droppedReason))
+            {
+                skipped.Add(new SkippedSource(sourceFile, droppedReason));
+                bytesProcessed += SafeLength(sourceFile);
+                continue;
             }
 
-            foreach (var (sourceFile, entryName) in files)
+            // 원본을 '먼저' 연다(I0-2): 다른 프로그램이 쓰는 중이어도 공유를 허락했으면 읽고, 아예 막았으면 이 파일만 건너뛴다.
+            // 항목 머리(PutNextEntry)를 쓰기 전에 열어야(첫 블록까지 읽어 봄) 못 연 파일이 빈 항목으로 남지 않는다.
+            if (!SourceFileOpener.TryOpenRead(sourceFile, out var opened, out var reason))
+            {
+                skipped.Add(new SkippedSource(sourceFile, reason!));
+                bytesProcessed += SafeLength(sourceFile);   // 진행률이 건너뛴 만큼 뒤처지지 않게
+                continue;
+            }
+
+            using var input = opened!;
+            var zipStream = output.Writer;
+            var entry = new ZipEntry(entryName)
+            {
+                DateTime = File.GetLastWriteTime(sourceFile),
+                // Size는 명시하지 않는다. FileInfo.Length로 미리 박아두면, 폴더 압축 도중
+                //   쓰기 중인 파일(로그/DB 등)의 길이가 스트리밍 사이에 바뀔 때 실제 기록 바이트와
+                //   불일치해 CloseEntry가 'size was incorrect' 예외를 던지고 압축 전체가 깨진다.
+                //   생략하면 SharpZipLib이 CloseEntry에서 실제 기록 길이로 헤더를 채운다.
+                // 파일명을 UTF-8 + EFS(General Purpose Bit 11) 플래그로 기록.
+                // 한글 파일명이 일집/탐색기/macOS 등 어디서든 올바르게 보이게 함.
+                IsUnicodeText = true,
+                // AES-256 (WinZip 호환). 0 이면 암호가 있을 때 ZipCrypto. 암호 없으면 무시됨.
+                AESKeySize = options.HasPassword && !zipCrypto ? 256 : 0
+            };
+
+            zipStream.PutNextEntry(entry);
+
+            progress?.Report(new ArchiveProgress
+            {
+                CurrentFile = entryName,
+                BytesProcessed = bytesProcessed,
+                TotalBytes = totalBytes,
+                FilesProcessed = filesProcessed,
+                TotalFiles = totalFiles
+            });
+
+            int read;
+            // 읽는 도중 막히면(뒤쪽 바이트 범위 잠금) SourceUnreadableException → 베이스가 이 파일을 빼고 처음부터 다시 쓴다
+            while ((read = SourceFileOpener.Read(input, buffer, sourceFile)) > 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                var entry = new ZipEntry(entryName)
-                {
-                    DateTime = File.GetLastWriteTime(sourceFile),
-                    // Size는 명시하지 않는다. FileInfo.Length로 미리 박아두면, 폴더 압축 도중
-                    //   쓰기 중인 파일(로그/DB 등)의 길이가 스트리밍 사이에 바뀔 때 실제 기록 바이트와
-                    //   불일치해 CloseEntry가 'size was incorrect' 예외를 던지고 압축 전체가 깨진다.
-                    //   생략하면 SharpZipLib이 CloseEntry에서 실제 기록 길이로 헤더를 채운다.
-                    // 파일명을 UTF-8 + EFS(General Purpose Bit 11) 플래그로 기록.
-                    // 한글 파일명이 일집/탐색기/macOS 등 어디서든 올바르게 보이게 함.
-                    IsUnicodeText = true,
-                    // AES-256 (WinZip 호환). 0 이면 암호가 있을 때 ZipCrypto. 암호 없으면 무시됨.
-                    AESKeySize = options.HasPassword && !zipCrypto ? 256 : 0
-                };
-
-                zipStream.PutNextEntry(entry);
+                zipStream.Write(buffer, 0, read);
+                bytesProcessed += read;
 
                 progress?.Report(new ArchiveProgress
                 {
@@ -150,56 +204,42 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
                     FilesProcessed = filesProcessed,
                     TotalFiles = totalFiles
                 });
-
-                using (var input = File.OpenRead(sourceFile))
-                {
-                    var buffer = new byte[81920];
-                    int read;
-                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        zipStream.Write(buffer, 0, read);
-                        bytesProcessed += read;
-
-                        progress?.Report(new ArchiveProgress
-                        {
-                            CurrentFile = entryName,
-                            BytesProcessed = bytesProcessed,
-                            TotalBytes = totalBytes,
-                            FilesProcessed = filesProcessed,
-                            TotalFiles = totalFiles
-                        });
-                    }
-                }
-
-                zipStream.CloseEntry();
-                filesProcessed++;
             }
 
-            // 빈 디렉터리 보존: 파일이 하나도 없는 폴더는 위 루프에서 누락되므로
-            // 끝에 '/'를 붙인 디렉터리 엔트리로 별도 기록한다(SharpZipLib이 디렉터리로 인식).
-            foreach (var dirEntry in CollectEmptyDirectories(srcList))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                zipStream.PutNextEntry(new ZipEntry(dirEntry)
-                {
-                    DateTime = DateTime.Now,
-                    IsUnicodeText = true
-                });
-                zipStream.CloseEntry();
-            }
+            zipStream.CloseEntry();
+            filesProcessed++;
+        }
 
-            zipStream.Finish();
+        // 담은 파일이 하나도 없는데 건너뛴 것이 있다 = 사용자가 고른 것을 하나도 못 담음 → 빈(또는 빈 폴더뿐인) 압축을 만들지 않는다
+        if (filesProcessed == 0 && skipped.Count > 0)
+            throw new NothingToCompressException(skipped);
 
-            progress?.Report(new ArchiveProgress
+        // 빈 디렉터리 보존: 파일이 하나도 없는 폴더는 위 루프에서 누락되므로
+        // 끝에 '/'를 붙인 디렉터리 엔트리로 별도 기록한다(SharpZipLib이 디렉터리로 인식).
+        foreach (var (_, dirEntry) in sources.EmptyDirectories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            output.Writer.PutNextEntry(new ZipEntry(dirEntry)
             {
-                CurrentFile = string.Empty,
-                BytesProcessed = totalBytes,
-                TotalBytes = totalBytes,
-                FilesProcessed = filesProcessed,
-                TotalFiles = totalFiles
+                DateTime = DateTime.Now,
+                IsUnicodeText = true
             });
-        }, cancellationToken);
+            output.Writer.CloseEntry();
+        }
+
+        // 담을 것이 원래 없었으면(예: 원본 폴더 안의 압축 파일 자신뿐) 예전처럼 빈 zip 을 만든다
+        output.Writer.Finish();
+        output.Complete();
+
+        progress?.Report(new ArchiveProgress
+        {
+            CurrentFile = string.Empty,
+            BytesProcessed = totalBytes,
+            TotalBytes = totalBytes,
+            FilesProcessed = filesProcessed,
+            TotalFiles = totalFiles
+        });
+        return new CompressResult(skipped);
     }
 
     /// <summary>

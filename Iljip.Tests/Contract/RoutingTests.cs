@@ -93,6 +93,22 @@ public class RoutingTests
         Assert.IsType<SevenZipArchiveService>(locator.Resolve("x.7z"));
     }
 
+    /// <summary>
+    /// ResolveByExtension 은 파일을 읽지 않는다(끌어 놓기·명령줄 경로 분류·저장 형식 고르기용) — 내용이 압축이 아니어도, 없는 파일이어도 확장자대로.
+    /// 속이 ZIP 인 .docx 는 압축 파일로 보지 않는다(끌어 놓으면 압축할 목록으로).
+    /// </summary>
+    [Fact]
+    public void ResolveByExtension은_확장자만_본다()
+    {
+        using var tmp = new TempDir("rbe");
+        string fake = tmp.P("가짜.zip");
+        File.WriteAllText(fake, "압축 아님");
+        Assert.IsType<ZipArchiveService>(Locator.ResolveByExtension(fake));
+        Assert.IsType<TarArchiveService>(Locator.ResolveByExtension(tmp.P("없음.TAR")));
+        Assert.Null(Locator.ResolveByExtension(tmp.P("보고서.docx")));
+        Assert.Null(Locator.ResolveByExtension(""));
+    }
+
     /// <summary>ArchiveEntry.Name: 폴더 항목('a/b/')도 마지막 이름('b')을 돌려준다 — 화면 목록 표시 계약.</summary>
     [Theory]
     [InlineData("a/b/", "b")]
@@ -110,6 +126,6 @@ public class RoutingTests
         public Task<IReadOnlyList<ArchiveEntry>> ListEntriesAsync(string a, string? p = null, CancellationToken c = default) => throw new NotImplementedException();
         public Task ExtractAsync(string a, string d, string? p = null, IProgress<ArchiveProgress>? pr = null, CancellationToken c = default) => throw new NotImplementedException();
         public Task ExtractEntriesAsync(string a, string d, IReadOnlyCollection<string> e, string? p = null, IProgress<ArchiveProgress>? pr = null, CancellationToken c = default) => throw new NotImplementedException();
-        public Task CompressAsync(IEnumerable<string> s, string a, CompressionOptions? o = null, IProgress<ArchiveProgress>? pr = null, CancellationToken c = default) => throw new NotImplementedException();
+        public Task<CompressResult> CompressAsync(IEnumerable<string> s, string a, CompressionOptions? o = null, IProgress<ArchiveProgress>? pr = null, CancellationToken c = default) => throw new NotImplementedException();
     }
 }

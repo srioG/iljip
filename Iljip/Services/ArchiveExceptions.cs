@@ -4,7 +4,7 @@ namespace Iljip.Services;
 // (EngineErrorTranslator, 각 서비스의 TranslateError). Message 가 곧 화면에 보일 쉬운 한국어 문구라 기존 'ex.Message 표시'도
 // 그대로 맞고, 엔진의 원래 예외는 InnerException 에 넣어 Logger 로 남긴다.
 // 화면(MainViewModel.IsPasswordRelated)은 문구가 아니라 타입으로 '암호 문제'를 판정한다(B5) — ArchivePasswordException 이면 암호를 다시 묻는다.
-// W1-C 에는 암호·무결성에 필요한 것만 있다. 설계표의 나머지(분할 조각 없음·형식 미지원·7z.dll 없음·원본 못 읽음)는 W1-B(7z.dll)와 같이 들어온다.
+// W1-C 에는 암호·무결성에 필요한 것만 있다(W1-D 에서 '원본 못 읽음' 추가). 설계표의 나머지(분할 조각 없음·형식 미지원·7z.dll 없음)는 W1-B(7z.dll)와 같이 들어온다.
 // ★ 손상 문구에 '압축 파일이 아닌'·'not archive' 를 넣지 말 것 — 재사용장치가 그 문자열로 '압축 아님'을 분류한다(재사용장치_processor.py 491행).
 
 /// <summary>일집 압축 예외의 공통 부모. <see cref="EntryPath"/> 는 문제가 난 항목(알 때만).</summary>
@@ -95,6 +95,46 @@ public sealed class ChecksumMismatchException : CorruptArchiveException
         : base($"'{entryPath}' 파일 내용이 원본과 달라요(CRC 오류). 압축 파일이 손상됐을 수 있어요.", inner, entryPath)
     {
     }
+}
+
+/// <summary>
+/// 압축할 원본을 못 읽었다(I0-2) — 단일 파일 형식(GZ·BZ2)이라 그 파일을 건너뛰면 만들 것이 없을 때 던진다.
+/// 여러 파일을 담는 형식(ZIP·TAR)은 못 읽은 파일만 건너뛰고 <see cref="Iljip.Models.CompressResult.Skipped"/> 에 적는다
+/// (읽는 도중에 막힌 파일은 <see cref="SourceFileOpener.Read"/> 가 이 예외로 알리고, 서비스가 그 파일을 뺀 채 처음부터 다시 쓴다 — 밖으로 나가지 않음).
+/// </summary>
+public sealed class SourceUnreadableException : ArchiveException
+{
+    public SourceUnreadableException(string sourcePath, string reason, Exception? inner = null)
+        : base($"'{System.IO.Path.GetFileName(sourcePath)}' 파일을 읽을 수 없어요({reason}). 다른 프로그램이 쓰고 있으면 닫고 다시 해 주세요.", inner)
+    {
+        SourcePath = sourcePath;
+        Reason = reason;
+    }
+
+    /// <summary>못 읽은 원본 경로.</summary>
+    public string SourcePath { get; }
+
+    /// <summary>쉬운 한국어 이유(<see cref="SourceFileOpener"/>).</summary>
+    public string Reason { get; }
+}
+
+/// <summary>
+/// 압축할 원본을 하나도 담지 못했다(I0-2) — 여러 파일을 담는 형식(ZIP·TAR)에서 파일을 모두 건너뛴 경우.
+/// 빈 압축 파일을 남기지 않는다(빈 zip 을 그대로 거래처에 보내는 일이 없게 — GZ·BZ2 의 <see cref="SourceUnreadableException"/> 과 같은 처리).
+/// 서비스는 이때 압축 파일을 만들지 않는다(덮어쓰려던 기존 파일도 그대로). 화면은 <see cref="Skipped"/> 를 같이 보여 준다.
+/// </summary>
+public sealed class NothingToCompressException : ArchiveException
+{
+    public const string DefaultMessage = "읽을 수 있는 파일이 하나도 없어서 압축 파일을 만들지 않았어요.";
+
+    public NothingToCompressException(IReadOnlyList<Iljip.Models.SkippedSource> skipped)
+        : base(DefaultMessage)
+    {
+        Skipped = skipped;
+    }
+
+    /// <summary>건너뛴 원본(못 연 파일·못 들어간 폴더 등).</summary>
+    public IReadOnlyList<Iljip.Models.SkippedSource> Skipped { get; }
 }
 
 /// <summary>형식은 알지만 그 안의 압축 방식을 풀 수 없다.</summary>

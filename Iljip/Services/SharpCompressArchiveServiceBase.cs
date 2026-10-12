@@ -352,78 +352,98 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         throw new ChecksumMismatchException(path);
     }
 
-    public abstract Task CompressAsync(
+    public abstract Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,
         IProgress<ArchiveProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// 압축 시 소스 파일 평탄화. 폴더면 재귀, 파일이면 그대로.
-    /// 폴더 자체의 이름을 entry 루트로 두는 반디집/알집 기본 동작과 동일.
-    /// </summary>
-    protected static List<(string sourceFile, string entryName)> CollectFiles(IEnumerable<string> sourcePaths)
-    {
-        var result = new List<(string, string)>();
-        foreach (var src in sourcePaths)
-        {
-            if (File.Exists(src))
-            {
-                result.Add((src, Path.GetFileName(src)));
-            }
-            else if (Directory.Exists(src))
-            {
-                string baseDir = src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                string parent = Path.GetDirectoryName(baseDir) ?? string.Empty;
+    // 압축할 원본 모으기(파일 평탄화 + 완전히 빈 폴더 + 못 들어간 폴더)는 Services/SourceCollector.cs(I0-2 — 하위 폴더 권한 오류로 전체가 실패하지 않게).
+    // 파일이 있는 폴더는 파일 항목이, 하위 폴더가 있는 폴더는 그 하위 항목이 경로를 만들어 주므로 '완전히 빈' 폴더만 따로 기록하면 된다.
 
-                foreach (var file in Directory.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories))
-                {
-                    string rel = Path.GetRelativePath(parent, file).Replace(Path.DirectorySeparatorChar, '/');
-                    result.Add((file, rel));
-                }
+    /// <summary>
+    /// 여러 파일을 담는 형식(ZIP·TAR)의 '못 읽는 원본 건너뛰기' 틀(I0-2). <paramref name="writeOnce"/> 는 '뺄 파일'(경로 → 이유)을 받아
+    /// 그 파일들을 건너뛰며 압축 파일을 한 번 쓴다. 열 때(첫 블록까지) 못 읽는 파일은 writeOnce 가 스스로 건너뛴다.
+    /// 열고 나서 읽는 도중에 막힌 파일(다른 프로그램이 파일의 뒤쪽 한 부분만 잠근 DB 등)은 항목 머리를 이미 써서 그 항목만 뺄 수 없으므로,
+    /// writeOnce 가 <see cref="SourceUnreadableException"/> 을 던지면 쓰다 만 압축 파일을 지우고 그 파일을 뺀 채 처음부터 다시 쓴다
+    /// (파일마다 한 번뿐이라 끝이 있다. 드문 경우라 앞서 쓴 만큼을 다시 쓰는 비용은 감수 — 진행 막대가 처음부터 다시 오른다).
+    /// 담은 파일이 하나도 없으면 writeOnce 는 압축 파일을 만들지 않고 <see cref="NothingToCompressException"/> 을 던진다.
+    /// </summary>
+    protected static CompressResult RewriteWithoutUnreadable(string archivePath, Func<IReadOnlyDictionary<string, string>, CompressResult> writeOnce)
+    {
+        var dropped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        while (true)
+        {
+            try
+            {
+                return writeOnce(dropped);
+            }
+            catch (SourceUnreadableException ex) when (!dropped.ContainsKey(ex.SourcePath))
+            {
+                dropped[ex.SourcePath] = ex.Reason;
+                // 읽기 실패는 그 파일을 열어 항목 머리를 쓴 뒤에만 난다 → 이번 회차가 만든(또는 덮어쓰기 시작한) 압축 파일이다
+                try { File.Delete(archivePath); } catch { /* 다음 회차가 덮어쓴다 */ }
             }
         }
-        return result;
     }
 
     /// <summary>
-    /// 압축 소스에서 '완전히 빈 디렉터리'(파일도 하위 폴더도 전혀 없는)의 상대 경로를 수집한다.
-    /// 반환 형식은 CollectFiles의 entryName과 동일(부모 기준 상대, '/' 구분)하되 끝에 '/'를 붙인다.
-    /// <para>
-    /// CollectFiles는 파일만 모으므로, 안에 파일이 하나도 없는 폴더는 압축 결과에서 조용히 누락된다.
-    /// 파일이 있는 폴더는 파일 엔트리가, 하위 폴더가 있는 폴더는 그 하위 엔트리가 경로를 만들어주므로,
-    /// '파일도 하위 폴더도 없는 완전히 빈 디렉터리'만 별도 엔트리로 보존하면 충분하다.
-    /// </para>
+    /// 압축 파일을 처음 쓸 때 만드는 출력(I0-2) — 담을 파일이 하나도 없으면 아예 만들지 않아(빈 압축 파일 없음),
+    /// 덮어쓰려던 기존 파일도 그대로 남는다. <see cref="Dispose"/> 는 실패 중에도 원래 예외를 가리지 않는다(닫다 난 오류는 삼킴).
     /// </summary>
-    protected static List<string> CollectEmptyDirectories(IEnumerable<string> sourcePaths) =>
-        CollectEmptyDirectoriesWithSource(sourcePaths).Select(d => d.entryName).ToList();
-
-    /// <summary><see cref="CollectEmptyDirectories"/>와 같은 규칙. 원본 폴더 경로(수정 시각을 옮길 때 씀)도 같이 돌려준다.</summary>
-    protected static List<(string sourceDir, string entryName)> CollectEmptyDirectoriesWithSource(IEnumerable<string> sourcePaths)
+    protected sealed class LazyArchiveOutput<TWriter> : IDisposable where TWriter : class, IDisposable
     {
-        var result = new List<(string, string)>();
-        foreach (var src in sourcePaths)
+        private readonly string _archivePath;
+        private readonly Func<FileStream, TWriter> _createWriter;
+        private FileStream? _file;
+        private TWriter? _writer;
+
+        public LazyArchiveOutput(string archivePath, Func<FileStream, TWriter> createWriter)
         {
-            if (!Directory.Exists(src)) continue;
+            _archivePath = archivePath;
+            _createWriter = createWriter;
+        }
 
-            string baseDir = src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string parent = Path.GetDirectoryName(baseDir) ?? string.Empty;
+        /// <summary>만들었는가.</summary>
+        public bool Created => _writer is not null;
 
-            var allDirs = new List<string> { baseDir };
-            allDirs.AddRange(Directory.EnumerateDirectories(baseDir, "*", SearchOption.AllDirectories));
-
-            foreach (var dir in allDirs)
+        /// <summary>쓰기 도구(처음 부르면 압축 파일을 만든다).</summary>
+        public TWriter Writer
+        {
+            get
             {
-                // 파일도 하위 디렉터리도 전혀 없는 '완전히 빈' 디렉터리만 명시적 엔트리가 필요.
-                if (Directory.EnumerateFileSystemEntries(dir).Any()) continue;
-
-                string rel = Path.GetRelativePath(parent, dir).Replace(Path.DirectorySeparatorChar, '/');
-                if (rel.Length == 0 || rel == ".") continue;
-                result.Add((dir, rel.TrimEnd('/') + "/"));
+                if (_writer is not null) return _writer;
+                string? dir = Path.GetDirectoryName(_archivePath);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+                _file = File.Create(_archivePath);
+                try
+                {
+                    _writer = _createWriter(_file);
+                }
+                catch
+                {
+                    _file.Dispose();
+                    _file = null;
+                    throw;
+                }
+                return _writer;
             }
         }
-        return result;
+
+        /// <summary>성공해서 닫는다(닫다 난 오류는 그대로 던짐 — 마무리 쓰기 실패를 숨기지 않게).</summary>
+        public void Complete()
+        {
+            _writer?.Dispose();
+            _file?.Dispose();
+        }
+
+        public void Dispose()
+        {
+            try { _writer?.Dispose(); } catch { /* 이미 실패 중 — 원래 예외를 가리지 않게 */ }
+            try { _file?.Dispose(); } catch { /* 위와 같음 */ }
+        }
     }
 
     /// <summary>입력 파일들의 총 바이트 합계 (진행률 계산용).</summary>
@@ -431,11 +451,22 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     {
         long total = 0;
         foreach (var (sourceFile, _) in files)
-        {
-            try { total += new FileInfo(sourceFile).Length; }
-            catch { /* 권한 등 */ }
-        }
+            total += SafeLength(sourceFile);
         return total;
+    }
+
+    /// <summary>두 경로가 같은 파일인가(전체 경로를 대소문자 무시로 비교 — 압축 파일이 원본 폴더 안에 있을 때 자기 자신을 거르는 데 씀).</summary>
+    protected static bool IsSameFile(string a, string b)
+    {
+        try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase); }
+        catch { return false; }
+    }
+
+    /// <summary>파일 크기(못 읽으면 0 — 권한 등).</summary>
+    protected static long SafeLength(string path)
+    {
+        try { return new FileInfo(path).Length; }
+        catch { return 0; }
     }
 
     /// <summary>

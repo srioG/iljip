@@ -224,7 +224,7 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
         catch { return false; }
     }
 
-    public override Task CompressAsync(
+    public override Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,
@@ -250,50 +250,58 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             if (Directory.Exists(sourceFile))
                 throw new InvalidOperationException("BZIP2는 단일 파일만 압축할 수 있어요. 폴더는 .tar.bz2를 사용해주세요. (추후 지원 예정)");
 
-            string? archiveDir = Path.GetDirectoryName(archivePath);
-            if (!string.IsNullOrEmpty(archiveDir))
-                Directory.CreateDirectory(archiveDir);
+            // 원본을 압축 파일보다 먼저 연다(I0-2): 쓰는 중이어도 공유를 허락했으면 읽고, 못 열면 빈 .bz2 를 만들기 전에 알린다
+            // (단일 파일 형식이라 건너뛰면 만들 것이 없다).
+            if (!SourceFileOpener.TryOpenRead(sourceFile, out var opened, out var reason))
+                throw new SourceUnreadableException(sourceFile, reason!);
 
-            long totalBytes = new FileInfo(sourceFile).Length;
-            string entryName = Path.GetFileName(sourceFile);
-
-            progress?.Report(new ArchiveProgress
+            using (var input = opened!)
             {
-                CurrentFile = entryName,
-                TotalBytes = totalBytes,
-                TotalFiles = 1
-            });
+                string? archiveDir = Path.GetDirectoryName(archivePath);
+                if (!string.IsNullOrEmpty(archiveDir))
+                    Directory.CreateDirectory(archiveDir);
 
-            using (var input = File.OpenRead(sourceFile))
-            using (var output = File.Create(archivePath))
-            using (var bz = BZip2Stream.Create(output, CompressionMode.Compress, decompressConcatenated: false))
-            {
-                var buffer = new byte[81920];
-                long copied = 0;
-                int read;
-                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                long totalBytes = input.Length;
+                string entryName = Path.GetFileName(sourceFile);
+
+                progress?.Report(new ArchiveProgress
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    bz.Write(buffer, 0, read);
-                    copied += read;
+                    CurrentFile = entryName,
+                    TotalBytes = totalBytes,
+                    TotalFiles = 1
+                });
 
-                    progress?.Report(new ArchiveProgress
+                using (var output = File.Create(archivePath))
+                using (var bz = BZip2Stream.Create(output, CompressionMode.Compress, decompressConcatenated: false))
+                {
+                    var buffer = new byte[81920];
+                    long copied = 0;
+                    int read;
+                    while ((read = SourceFileOpener.Read(input, buffer, sourceFile)) > 0)   // 읽는 도중 막히면 쉬운 안내(SourceUnreadableException)
                     {
-                        CurrentFile = entryName,
-                        BytesProcessed = copied,
-                        TotalBytes = totalBytes,
-                        TotalFiles = 1
-                    });
-                }
-            }
+                        cancellationToken.ThrowIfCancellationRequested();
+                        bz.Write(buffer, 0, read);
+                        copied += read;
 
-            progress?.Report(new ArchiveProgress
-            {
-                BytesProcessed = totalBytes,
-                TotalBytes = totalBytes,
-                FilesProcessed = 1,
-                TotalFiles = 1
-            });
+                        progress?.Report(new ArchiveProgress
+                        {
+                            CurrentFile = entryName,
+                            BytesProcessed = copied,
+                            TotalBytes = totalBytes,
+                            TotalFiles = 1
+                        });
+                    }
+                }
+
+                progress?.Report(new ArchiveProgress
+                {
+                    BytesProcessed = totalBytes,
+                    TotalBytes = totalBytes,
+                    FilesProcessed = 1,
+                    TotalFiles = 1
+                });
+            }
+            return CompressResult.Empty;
         }, cancellationToken);
     }
 }

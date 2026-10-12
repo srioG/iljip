@@ -145,7 +145,7 @@ public class PasswordTests
     /// <summary>
     /// [I1-7 서비스 쪽] 헤더 암호 7z: 암호 없이 목록 → 화면이 '암호 문제'로 알아볼 수 있는 예외, 틀린 암호 → 역시 암호 예외(W1-C, B5).
     /// 맞는 암호면 목록이 맞다(BandizipFixtureTests.목록이_반디집_기대값과_같다 에서 확인).
-    /// 빈틈은 화면이 이 예외를 받아도 '열기' 단계에서는 암호를 묻지 않는다는 것(MANUAL_CHECKLIST 2절, 자동 테스트 없음).
+    /// 화면은 이 예외를 받으면 '열기' 단계에서 암호를 묻고 다시 연다(W1-D 1차 검증 — CommandLineTests.헤더암호_7z…).
     /// </summary>
     [Fact]
     public async Task 헤더암호_7z_목록은_암호없이_암호예외()

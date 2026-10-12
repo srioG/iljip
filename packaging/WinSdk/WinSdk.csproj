@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    셸 확장(C++) 빌드용 Windows SDK 를 NuGet 으로 받아 두기만 하는 프로젝트(빌드하지 않음 — 솔루션에도 넣지 않음).
+    Windows SDK 를 설치하지 않은 PC 에서:
+      dotnet restore D:\Python\일집\packaging\WinSdk\WinSdk.csproj
+      "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" ^
+        D:\Python\일집\Iljip.ShellExtension\Iljip.ShellExtension.vcxproj /p:Configuration=Release /p:Platform=x64 ^
+        /p:UseNuGetWindowsSdk=true "/p:OutDir=D:\Python\일집-build\Release\x64\Iljip.ShellExtension\\" ^
+        "/p:IntDir=D:\Python\일집-build\obj\Release\x64\Iljip.ShellExtension\\"
+    버전을 바꾸면 Iljip.ShellExtension.vcxproj 의 NuGetWindowsSdkVersion 도 같이 바꿀 것.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.Windows.SDK.CPP" Version="[10.0.26100.9169]" />
+    <PackageDownload Include="Microsoft.Windows.SDK.CPP.x64" Version="[10.0.26100.9169]" />
+  </ItemGroup>
+
+</Project>

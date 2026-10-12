@@ -425,7 +425,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         catch (NullReferenceException) { return false; }
     }
 
-    public Task CompressAsync(
+    public Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,

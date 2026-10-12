@@ -1,7 +1,8 @@
 <Application x:Class="Iljip.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 시작 창(StartupUri)을 두지 않는다 — App.OnStartup 이 단일 인스턴스 확인 뒤 MainWindow 를 직접 만들고
+         명령줄 인자(우클릭 메뉴)를 넘긴다. StartupUri 로 만들면 OnStartup 이 끝난 뒤에야 창이 생겨 첫 실행의 인자가 버려졌다(W1-D). -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

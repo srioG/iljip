@@ -47,6 +47,9 @@
                             <com:Class Id="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4"
                                        Path="Iljip.ShellExtension.dll"
                                        ThreadingModel="STA" />
+                            <com:Class Id="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F"
+                                       Path="Iljip.ShellExtension.dll"
+                                       ThreadingModel="STA" />
                             <com:Class Id="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9"
                                        Path="Iljip.ShellExtension.dll"
                                        ThreadingModel="STA" />
@@ -64,30 +67,36 @@
                         <desktop4:ItemType Type=".zip">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                             <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
                         </desktop4:ItemType>
                         <desktop4:ItemType Type=".7z">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                             <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
                         </desktop4:ItemType>
                         <desktop4:ItemType Type=".rar">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                             <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
                         </desktop4:ItemType>
                         <desktop4:ItemType Type=".tar">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                             <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
                         </desktop4:ItemType>
                         <desktop4:ItemType Type=".gz">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                         </desktop4:ItemType>
                         <desktop4:ItemType Type=".bz2">
                             <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
                             <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
+                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
                         </desktop4:ItemType>
 
                         <!-- 일반 파일 우클릭 → 압축 -->

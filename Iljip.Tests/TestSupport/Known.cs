@@ -9,10 +9,9 @@ namespace Iljip.Tests.TestSupport;
 public static class Known
 {
     // ── 알려진 빈틈 ──────────────────────────────────────────────
-    // I1-7(헤더 암호 7z/RAR 를 열 때 암호를 안 물음)은 자동 테스트가 없다 — 빈틈이 화면(MainViewModel.OpenArchiveAsync 가
-    // 암호 없이 ListEntriesAsync 만 부르고 재시도 안 함)에 있어 창 없이 시험할 수 없다. MANUAL_CHECKLIST 2절로 사람이 확인.
-    // 서비스 쪽(암호 주면 목록 OK, 안 주면 암호 예외)은 PasswordTests 가 고정. RAR 헤더 암호는 픽스처가 없어 미검증.
-    // README 의 IUserInteraction 주입이 생기면 가짜 암호 창으로 '열기 → 암호 요청 → 15개 목록'을 시험할 것.
+    // I1-7(헤더 암호 7z/RAR 를 열 때 암호를 안 물음): 7z 는 W1-D 1차 검증에서 화면(MainViewModel.OpenArchiveAsync 가 암호 예외면 묻고 다시 엶)을
+    // 고쳐 Skip 사유가 없다 — 가짜 암호 창으로 CommandLineTests.헤더암호_7z…(열기·우클릭 풀기·틀린 암호·다른 압축을 열면 잊기)가 지킨다.
+    // 서비스 쪽(암호 주면 목록 OK, 안 주면 암호 예외)은 PasswordTests 가 고정. RAR 헤더 암호는 픽스처가 없어 여전히 미검증(같은 화면 길을 탐).
     public const string I2_1 = "known gap I2-1: 7z 압축 생성 불가 — SevenZipArchiveService.CompressAsync 가 NotSupportedException";
     public const string I2_2 = "known gap I2-2: .7z.001/.zip.001 숫자 분할 확장자 미등록 — Resolve 가 null (SharpCompress 로 강제로 열면 열리긴 함)";
     public const string I2_9 = "known gap I2-9: 미등록 형식(.zipx/.tgz/.tar.gz/.txz/.xz/.tbz2/.iso/.lzh/.exe SFX) — Resolve 가 null 이거나 .tar.gz 는 GZ 처리기가 이름 빈 항목 하나만 봄";

@@ -47,7 +47,12 @@ public interface IArchiveService
     /// <param name="sourcePaths">파일 또는 폴더 경로 모음</param>
     /// <param name="archivePath">생성될 압축 파일 경로</param>
     /// <param name="options">압축 옵션 (수준, 비밀번호 등). null이면 기본값.</param>
-    Task CompressAsync(
+    /// <returns>
+    /// 건너뛴 원본 목록(I0-2): 다른 프로그램이 잠가 못 연 파일·못 들어간 폴더·읽는 도중 막힌 파일은 압축 전체를 실패시키지 않고 빼고 여기에 적는다(ZIP·TAR).
+    /// 그래서 하나도 못 담았으면 빈 압축을 만들지 않고 <see cref="NothingToCompressException"/>.
+    /// 단일 파일 형식(GZ·BZ2)은 그 파일을 못 읽으면 <see cref="SourceUnreadableException"/>.
+    /// </returns>
+    Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,

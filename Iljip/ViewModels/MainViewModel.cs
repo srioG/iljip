@@ -6,17 +6,31 @@ using CommunityToolkit.Mvvm.Input;
 using Iljip.Models;
 using Iljip.Services;
 using Iljip.Views;
-using Microsoft.Win32;
 
 namespace Iljip.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly ArchiveServiceLocator _locator;
+    private readonly IUserInteraction _ui;
 
-    public MainViewModel()
+    /// <summary>
+    /// 지금 열린 압축에 맞았던 암호 — 열 때 받은 것(파일 이름까지 암호가 걸린 7z, I1-7)이나 풀 때 맞은 것.
+    /// 같은 압축을 다시 풀 때 묻지 않으려고 기억한다. 다른 압축을 열거나 비우면 지운다(W1-B 보관본과 같은 모양).
+    /// </summary>
+    private string? _archivePassword;
+
+    /// <summary>XAML(MainWindow 의 DataContext)용 — 실제 WPF 창을 쓴다.</summary>
+    public MainViewModel() : this(null, null)
     {
-        _locator = new ArchiveServiceLocator();
+    }
+
+    /// <param name="ui">사용자에게 묻고 알리는 창. null 이면 실제 WPF 창(<see cref="WpfUserInteraction"/>). 테스트는 가짜를 넣는다.</param>
+    /// <param name="locator">형식 라우터. null 이면 기본.</param>
+    public MainViewModel(IUserInteraction? ui, ArchiveServiceLocator? locator = null)
+    {
+        _ui = ui ?? new WpfUserInteraction();
+        _locator = locator ?? new ArchiveServiceLocator();
         Entries.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(IsStagingMode));
@@ -59,7 +73,7 @@ public partial class MainViewModel : ObservableObject
     /// <summary>좌측 폴더 트리 (아카이브 모드에서만 채워짐).</summary>
     public ObservableCollection<ArchiveTreeNode> FolderTree { get; } = new();
 
-    /// <summary>우측 목록에 실제로 표시되는 항목. 아카이브 모드: 선택 폴더의 직속 / 그 외: Entries 전체.</summary>
+    /// <summary>우측 목록에 실제로 표시되는 항목. 아카이브 모드: 선택 폴더의 직속 / 그 외: Entries 전체. 늘 <see cref="SortMember"/> 순.</summary>
     public ObservableCollection<ArchiveEntry> VisibleEntries { get; } = new();
 
     /// <summary>트리에서 선택된 폴더 노드.</summary>
@@ -71,89 +85,132 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _statusText = "준비됨";
 
+    // ===== 정렬 (I0-5) =====
+
+    /// <summary>목록 정렬 기준 열(화면 DataGrid 의 SortMemberPath). 기본은 이름 — 예전 목록 순서 그대로.</summary>
+    [ObservableProperty]
+    private string _sortMember = EntrySortComparer.Name;
+
+    /// <summary>내림차순인가.</summary>
+    [ObservableProperty]
+    private bool _sortDescending;
+
+    /// <summary>
+    /// 열 머리를 눌렀을 때: 같은 열이면 방향을 뒤집고, 다른 열이면 그 열 오름차순. 폴더는 늘 먼저(<see cref="EntrySortComparer"/>).
+    /// 정렬은 여기(VM)가 맡는다 — 폴더를 옮겨 다니거나 다른 압축을 열어도 유지되고, 항목이 많아도 한 번 정렬(O(N log N))로 끝난다.
+    /// </summary>
+    public void SortBy(string? member)
+    {
+        if (!EntrySortComparer.IsSortable(member)) return;
+        if (member == SortMember)
+            SortDescending = !SortDescending;
+        else
+        {
+            SortMember = member!;
+            SortDescending = false;
+        }
+        RefreshVisibleEntries();
+    }
+
     // ===== Commands =====
 
     [RelayCommand]
     private async Task OpenAsync()
     {
-        var dlg = new OpenFileDialog
-        {
-            Title = "압축 파일 열기",
-            Filter = BuildOpenFilter(),
-            CheckFileExists = true
-        };
-        if (dlg.ShowDialog() != true) return;
-        await OpenArchiveAsync(dlg.FileName);
+        var picked = _ui.PickFiles("압축 파일 열기", BuildOpenFilter(), multiselect: false);
+        if (picked is not { Count: > 0 }) return;
+        await OpenArchiveAsync(picked[0]);
     }
 
-    public async Task OpenArchiveAsync(string archivePath)
+    /// <summary>
+    /// 압축 파일을 열어 목록을 채운다. 열었으면 true(못 열면 오류 창을 보이고 false — 보던 것은 그대로).
+    /// 파일 이름까지 암호가 걸린 7z(헤더 암호 — 반디집 '파일 이름 암호화')는 목록부터 암호가 필요해 여기서 암호를 묻고 다시 연다(I1-7 의 화면 쪽).
+    /// 틀리면 다시 묻고, 취소하면 아무것도 바꾸지 않는다(false). 맞은 암호는 같은 압축을 풀 때 다시 묻지 않게 기억한다.
+    /// (W1-D 1차 검증: 우클릭 풀기를 '열기에 성공해야 푼다'로 바꾸며 헤더 암호 7z 를 어느 경로로도 못 풀게 된 회귀를 이것으로 고침)
+    /// </summary>
+    public async Task<bool> OpenArchiveAsync(string archivePath)
     {
         var service = _locator.Resolve(archivePath);
         if (service is null)
         {
-            MessageBox.Show(
-                $"지원하지 않는 형식이에요:\n{Path.GetExtension(archivePath)}",
-                "일집", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            _ui.ShowWarning($"지원하지 않는 형식이에요:\n{Path.GetExtension(archivePath)}");
+            return false;
         }
 
-        try
+        string? password = null;
+        StatusText = "압축 파일을 읽는 중...";
+        while (true)
         {
-            StatusText = "압축 파일을 읽는 중...";
-            var entries = await service.ListEntriesAsync(archivePath);
+            try
+            {
+                var entries = await service.ListEntriesAsync(archivePath, password);
 
-            Entries.Clear();
-            foreach (var e in entries)
-                Entries.Add(e);
+                Entries.Clear();
+                foreach (var e in entries)
+                    Entries.Add(e);
 
-            CurrentArchivePath = archivePath;
-            BuildFolderTree();
-            StatusText = $"{entries.Count}개 항목";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"파일을 열 수 없어요:\n\n{ex.Message}",
-                "일집", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusText = "오류 발생";
+                CurrentArchivePath = archivePath;
+                _archivePassword = string.IsNullOrEmpty(password) ? null : password;
+                BuildFolderTree();
+                StatusText = $"{entries.Count}개 항목";
+                return true;
+            }
+            catch (Exception ex) when (IsPasswordRelated(ex))
+            {
+                // 암호는 [취소]할 때까지 다시 묻는다(풀 때와 같음)
+                var reason = string.IsNullOrEmpty(password) ? PasswordPromptReason.Required : PasswordPromptReason.Wrong;
+                var pw = _ui.AskPassword(Path.GetFileName(archivePath), reason, PasswordPromptMessage(ex, reason));
+                if (pw is null)
+                {
+                    StatusText = "열기를 취소했어요";
+                    return false;
+                }
+                password = pw;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"열기 실패: {archivePath}", ex);
+                _ui.ShowError($"파일을 열 수 없어요:\n\n{ex.Message}");
+                StatusText = "오류 발생";
+                return false;
+            }
         }
     }
+
+    /// <summary>암호 창 문구: 일집 암호 예외면 그 문구('암호가 걸린 압축 파일이에요…'·'파일 이름까지…'·'암호가 맞지 않아요…'), 엔진 예외면 예전 문구.</summary>
+    private static string PasswordPromptMessage(Exception ex, PasswordPromptReason reason) =>
+        ex is ArchivePasswordException
+            ? ex.Message
+            : reason == PasswordPromptReason.Required
+                ? "이 압축 파일은 비밀번호가 필요해요."
+                : "비밀번호가 틀린 것 같아요. 다시 입력해주세요.";
 
     /// <summary>파일/폴더 선택 다이얼로그를 띄워 Staging에 추가.</summary>
     [RelayCommand]
     private void AddFiles()
     {
-        var dlg = new OpenFileDialog
-        {
-            Title = "압축할 파일 선택 (여러 개 가능)",
-            Multiselect = true
-        };
-        if (dlg.ShowDialog() != true) return;
-        AddToStaging(dlg.FileNames);
+        var picked = _ui.PickFiles("압축할 파일 선택 (여러 개 가능)", null, multiselect: true);
+        if (picked is not { Count: > 0 }) return;
+        AddToStaging(picked);
     }
 
     /// <summary>폴더를 Staging에 추가.</summary>
     [RelayCommand]
     private void AddFolder()
     {
-        var dlg = new OpenFolderDialog
-        {
-            Title = "압축할 폴더 선택"
-        };
-        if (dlg.ShowDialog() != true) return;
-        AddToStaging(new[] { dlg.FolderName });
+        var folder = _ui.PickFolder("압축할 폴더 선택");
+        if (folder is null) return;
+        AddToStaging(new[] { folder });
     }
 
-    /// <summary>임시 압축 목록에 파일/폴더 경로들을 추가.</summary>
+    /// <summary>
+    /// 임시 압축 목록에 파일/폴더 경로들을 추가. 압축 파일을 보는 중이면 아무것도 하지 않는다 —
+    /// 보던 압축을 닫고 새 목록을 만드는 것은 사용자가 그렇게 고른 경우에만(<see cref="StartNewStaging"/>, I0-4).
+    /// (예전엔 여기서 열린 압축을 말없이 닫아, 압축을 보다가 파일을 끌어 놓으면 보던 압축이 사라졌다)
+    /// </summary>
     public void AddToStaging(IEnumerable<string> paths)
     {
-        // Archive 모드 → 새 Staging으로 전환 (열린 압축 닫음)
-        if (IsArchiveMode)
-        {
-            Entries.Clear();
-            CurrentArchivePath = null;
-            FolderTree.Clear();
-            SelectedFolder = null;
-        }
+        if (IsArchiveMode) return;
 
         var existingSources = Entries
             .Where(e => !string.IsNullOrEmpty(e.SourcePath))
@@ -202,6 +259,7 @@ public partial class MainViewModel : ObservableObject
             if (entry is not null)
             {
                 Entries.Add(entry);
+                existingSources.Add(p);
                 added++;
             }
         }
@@ -215,13 +273,20 @@ public partial class MainViewModel : ObservableObject
         RefreshVisibleEntries();
     }
 
+    /// <summary>보던 압축(또는 모으던 목록)을 닫고 새 압축할 목록을 만든다 — 사용자가 고른 경우에만 부른다(I0-4).</summary>
+    public void StartNewStaging(IEnumerable<string> paths)
+    {
+        CloseView();
+        AddToStaging(paths);
+    }
+
     /// <summary>Staging 목록을 실제로 압축한다.</summary>
     [RelayCommand]
     private async Task CompressAsync()
     {
         if (!IsStagingMode)
         {
-            MessageBox.Show("압축할 파일을 먼저 드래그하거나 [추가] 버튼으로 넣어주세요.", "일집");
+            _ui.ShowInfo("압축할 파일을 먼저 드래그하거나 [추가] 버튼으로 넣어주세요.");
             return;
         }
 
@@ -245,64 +310,116 @@ public partial class MainViewModel : ObservableObject
             defaultName = SanitizeFileName(new DirectoryInfo(defaultDir).Name) + ".zip";
         }
 
-        var dlgSave = new SaveFileDialog
-        {
-            Title = "압축 파일로 저장",
-            Filter = _locator.BuildSaveFilter(),
-            FileName = defaultName,
-            InitialDirectory = defaultDir,
-            DefaultExt = ".zip"
-        };
-        if (dlgSave.ShowDialog() != true) return;
+        string? savePath = _ui.AskSavePath("압축 파일로 저장", _locator.BuildSaveFilter(), defaultName, defaultDir, ".zip");
+        if (savePath is null) return;
 
-        var service = _locator.Resolve(dlgSave.FileName) ?? _locator.GetDefaultForCompression();
+        // 만들 형식은 확장자로만 고른다(덮어쓸 기존 파일의 내용은 보지 않음)
+        var service = _locator.ResolveByExtension(savePath) ?? _locator.GetDefaultForCompression();
 
-        var optDlg = new CompressionOptionsDialog(Path.GetExtension(dlgSave.FileName))
-        {
-            Owner = Application.Current.MainWindow
-        };
-        if (optDlg.ShowDialog() != true) return;
-        var compressionOptions = optDlg.Result ?? CompressionOptions.Default;
+        var compressionOptions = _ui.AskCompressionOptions(Path.GetExtension(savePath));
+        if (compressionOptions is null) return;
 
-        var progressDlg = new ProgressDialog
-        {
-            Owner = Application.Current.MainWindow,
-            Title = "압축 중..."
-        };
-        var progress = new ThrottledArchiveProgress(p => progressDlg.UpdateProgress(p));
-        progressDlg.Show();
-
+        // 실패 정리 때 '이번에 만들거나 고친 파일'만 지우려고 시작 전 모습을 적어 둔다 — 원본을 못 읽어(SourceUnreadable 등)
+        // 압축 파일을 열기도 전에 끝났는데 덮어쓰려던 기존 파일을 지우는 일이 없게.
+        var before = OutputStamp.Of(savePath);
+        var session = _ui.ShowProgress("압축 중...");
+        CompressResult result;
         try
         {
-            await service.CompressAsync(
+            result = await service.CompressAsync(
                 sourcePaths,
-                dlgSave.FileName,
+                savePath,
                 options: compressionOptions,
-                progress: progress,
-                cancellationToken: progressDlg.CancellationToken);
-
-            StatusText = $"압축 완료: {dlgSave.FileName}";
-
-            // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환)
-            await OpenArchiveAsync(dlgSave.FileName);
+                progress: session.Progress,
+                cancellationToken: session.CancellationToken);
         }
         catch (OperationCanceledException)
         {
             StatusText = "압축 취소됨";
-            try { File.Delete(dlgSave.FileName); } catch { }
+            DeletePartialOutput(savePath, before);
+            return;
+        }
+        catch (NothingToCompressException ex)
+        {
+            // 하나도 못 담았다(I0-2) — 서비스가 압축 파일을 만들지 않았다. 빈 압축을 남기지 않고 무엇을 못 읽었는지 알린다.
+            DeletePartialOutput(savePath, before);
+            session.Close();
+            _ui.ShowError(NothingCompressedMessage(ex.Skipped));
+            StatusText = "오류 발생";
+            return;
         }
         catch (Exception ex)
         {
             // 비취소 실패(I/O·디스크풀·소스 변경 등)로도 부분/손상 아카이브가 디스크에 남아 정상
             // 파일로 오인될 수 있다. 취소 경로와 동일하게 부분 산출물을 정리한 뒤 오류를 알린다.
-            try { File.Delete(dlgSave.FileName); } catch { }
-            MessageBox.Show($"압축 실패:\n\n{ex.Message}",
-                "일집", MessageBoxButton.OK, MessageBoxImage.Error);
+            DeletePartialOutput(savePath, before);
+            session.Close();
+            Logger.LogError($"압축 실패: {savePath}", ex);
+            _ui.ShowError($"압축 실패:\n\n{ex.Message}");
             StatusText = "오류 발생";
+            return;
         }
         finally
         {
-            progressDlg.Close();
+            session.Close();
+        }
+
+        // 건너뛴 파일이 있어도 성공이다 — 결과물은 지우지 않고, 연 뒤에 무엇이 빠졌는지 알린다(I0-2)
+        StatusText = $"압축 완료: {savePath}";
+
+        // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환)
+        await OpenArchiveAsync(savePath);
+
+        if (result.Skipped.Count > 0)
+            _ui.ShowInfo(SkippedMessage(result.Skipped));
+    }
+
+    /// <summary>건너뛴 원본 안내 문구(최대 10줄, 나머지는 '외 N개').</summary>
+    internal static string SkippedMessage(IReadOnlyList<SkippedSource> skipped) =>
+        SkippedLines($"압축을 마쳤어요. 건너뛴 파일 {skipped.Count}개:", skipped);
+
+    /// <summary>하나도 못 담아 압축 파일을 만들지 않았을 때의 오류 문구(I0-2).</summary>
+    internal static string NothingCompressedMessage(IReadOnlyList<SkippedSource> skipped) =>
+        SkippedLines($"{NothingToCompressException.DefaultMessage}\n건너뛴 파일 {skipped.Count}개:", skipped)
+        + "\n\n다른 프로그램이 쓰고 있으면 닫고 다시 해 주세요.";
+
+    private static string SkippedLines(string header, IReadOnlyList<SkippedSource> skipped)
+    {
+        const int MaxLines = 10;
+        var lines = new List<string> { header };
+        foreach (var s in skipped.Take(MaxLines))
+        {
+            string name = Path.GetFileName(s.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrEmpty(name)) name = s.Path;
+            bool isFolder = Directory.Exists(s.Path);
+            lines.Add(isFolder ? $"- {name} 폴더 ({s.Reason})" : $"- {name} ({s.Reason})");
+        }
+        if (skipped.Count > MaxLines)
+            lines.Add($"외 {skipped.Count - MaxLines}개");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>압축 실패·취소 때 부분 산출물 지우기 — 시작 전과 달라졌을 때만(새로 생겼거나 고쳐 쓰였을 때).</summary>
+    private static void DeletePartialOutput(string path, OutputStamp before)
+    {
+        if (OutputStamp.Of(path) == before) return;   // 손대지 않은 기존 파일(또는 처음부터 없음)
+        try { File.Delete(path); } catch { /* 정리 실패는 무시 */ }
+    }
+
+    /// <summary>파일이 있는지·크기·수정 시각(바뀌었는지만 본다).</summary>
+    private readonly record struct OutputStamp(bool Exists, long Length, DateTime LastWriteUtc)
+    {
+        public static OutputStamp Of(string path)
+        {
+            try
+            {
+                var fi = new FileInfo(path);
+                return fi.Exists ? new OutputStamp(true, fi.Length, fi.LastWriteTimeUtc) : default;
+            }
+            catch
+            {
+                return default;
+            }
         }
     }
 
@@ -345,41 +462,34 @@ public partial class MainViewModel : ObservableObject
     {
         if (!IsArchiveMode || string.IsNullOrEmpty(CurrentArchivePath))
         {
-            MessageBox.Show("먼저 압축 파일을 열어주세요.", "일집");
+            _ui.ShowInfo("먼저 압축 파일을 열어주세요.");
             return;
         }
 
-        var dlg = new OpenFolderDialog
-        {
-            Title = "압축을 풀 폴더를 선택하세요"
-        };
-        if (dlg.ShowDialog() != true) return;
+        var folder = _ui.PickFolder("압축을 풀 폴더를 선택하세요");
+        if (folder is null) return;
 
-        await ExtractToFolderAsync(CurrentArchivePath, dlg.FolderName);
+        await ExtractToFolderAsync(CurrentArchivePath, folder);
     }
 
     /// <summary>
     /// 지정한 폴더로 압축 해제. UI 진행률 + 비밀번호 재시도 포함.
     /// CLI / 셸 확장 / 기존 ExtractCommand 모두에서 호출.
+    /// 암호는 사용자가 [취소]할 때까지 몇 번이고 다시 묻는다(반디집과 같음 — B-067). 예전엔 암호 창을 세 번 띄우고도 세 번째로 넣은 암호는
+    /// 써 보지 않은 채 '3회 모두 일치하지 않아'로 끝났다(W1-D 1차 검증). 이 압축을 열 때·앞서 풀 때 맞은 암호가 있으면 그것부터 쓴다.
     /// </summary>
     /// <param name="selectedPaths">지정하면 해당 항목들만 해제. null이면 전체.</param>
-    public async Task ExtractToFolderAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths = null)
+    /// <returns>다 풀었으면 true. 취소·실패(오류 창을 이미 보임)·암호 창 취소면 false.</returns>
+    public async Task<bool> ExtractToFolderAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths = null)
     {
         var service = _locator.Resolve(archivePath);
-        if (service is null) return;
+        if (service is null) return false;
 
-        string? password = null;
-        bool extracted = false;
-        for (int attempt = 0; attempt < 3 && !extracted; attempt++)
+        bool sameArchive = string.Equals(archivePath, CurrentArchivePath, StringComparison.OrdinalIgnoreCase);
+        string? password = sameArchive ? _archivePassword : null;
+        while (true)
         {
-            var progressDlg = new ProgressDialog
-            {
-                Owner = Application.Current.MainWindow,
-                Title = "압축 해제 중..."
-            };
-            var progress = new ThrottledArchiveProgress(p => progressDlg.UpdateProgress(p));
-            progressDlg.Show();
-
+            var session = _ui.ShowProgress("압축 해제 중...");
             try
             {
                 if (selectedPaths is null)
@@ -387,66 +497,52 @@ public partial class MainViewModel : ObservableObject
                         archivePath,
                         destFolder,
                         password: password,
-                        progress: progress,
-                        cancellationToken: progressDlg.CancellationToken);
+                        progress: session.Progress,
+                        cancellationToken: session.CancellationToken);
                 else
                     await service.ExtractEntriesAsync(
                         archivePath,
                         destFolder,
                         selectedPaths,
                         password: password,
-                        progress: progress,
-                        cancellationToken: progressDlg.CancellationToken);
+                        progress: session.Progress,
+                        cancellationToken: session.CancellationToken);
 
                 StatusText = $"압축 해제 완료: {destFolder}";
-                extracted = true;
+                if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
+                return true;
             }
             catch (OperationCanceledException)
             {
                 StatusText = "압축 해제 취소됨";
-                return;
+                return false;
             }
             catch (Exception ex) when (IsPasswordRelated(ex))
             {
-                // 비밀번호 프롬프트 뒤에 진행 창이 남지 않도록 먼저 닫는다.
-                // finally가 다시 Close()를 호출해도 WPF에서 이미 닫힌 창에 대한 Close()는 무동작이라 안전.
-                progressDlg.Close();
+                // 비밀번호 프롬프트 뒤에 진행 창이 남지 않도록 먼저 닫는다(finally 가 다시 닫아도 안전).
+                session.Close();
                 // 이유 한 줄: 일집 암호 예외는 그 문구('암호가 걸린 압축 파일이에요…' / '암호가 맞지 않아요…'), 엔진 예외는 예전 문구
-                var pw = new PasswordPromptDialog(
-                    ex is ArchivePasswordException
-                        ? ex.Message
-                        : attempt == 0
-                            ? "이 압축 파일은 비밀번호가 필요해요."
-                            : "비밀번호가 틀린 것 같아요. 다시 입력해주세요.")
-                {
-                    Owner = Application.Current.MainWindow
-                };
-                if (pw.ShowDialog() != true)
+                var reason = string.IsNullOrEmpty(password) ? PasswordPromptReason.Required : PasswordPromptReason.Wrong;
+                var pw = _ui.AskPassword(Path.GetFileName(archivePath), reason, PasswordPromptMessage(ex, reason));
+                if (pw is null)
                 {
                     StatusText = "압축 해제 취소됨";
-                    return;
+                    return false;
                 }
-                password = pw.Password;
-                continue;
+                password = pw;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"압축 해제 실패:\n\n{ex.Message}",
-                    "일집", MessageBoxButton.OK, MessageBoxImage.Error);
+                session.Close();
+                Logger.LogError($"압축 해제 실패: {archivePath}", ex);
+                _ui.ShowError($"압축 해제 실패:\n\n{ex.Message}");
                 StatusText = "오류 발생";
-                return;
+                return false;
             }
             finally
             {
-                progressDlg.Close();
+                session.Close();
             }
-        }
-
-        if (!extracted)
-        {
-            MessageBox.Show("비밀번호가 3회 모두 일치하지 않아 해제에 실패했어요.",
-                "일집", MessageBoxButton.OK, MessageBoxImage.Warning);
-            StatusText = "비밀번호 불일치";
         }
     }
 
@@ -463,10 +559,10 @@ public partial class MainViewModel : ObservableObject
             .ToList();
         if (paths.Count == 0) return;
 
-        var dlg = new OpenFolderDialog { Title = "선택한 항목을 풀 폴더를 선택하세요" };
-        if (dlg.ShowDialog() != true) return;
+        var folder = _ui.PickFolder("선택한 항목을 풀 폴더를 선택하세요");
+        if (folder is null) return;
 
-        await ExtractToFolderAsync(CurrentArchivePath, dlg.FolderName, paths);
+        await ExtractToFolderAsync(CurrentArchivePath, folder, paths);
     }
 
     /// <summary>우측 목록에서 폴더를 더블클릭했을 때 해당 폴더로 이동.</summary>
@@ -527,31 +623,35 @@ public partial class MainViewModel : ObservableObject
         SelectedFolder = root; // → RefreshVisibleEntries
     }
 
-    /// <summary>선택 폴더 기준으로 우측 표시 목록을 갱신. 아카이브 모드가 아니면 Entries 전체.</summary>
+    /// <summary>
+    /// 선택 폴더 기준으로 우측 표시 목록을 갱신. 아카이브 모드가 아니면 Entries 전체.
+    /// 정렬은 <see cref="SortMember"/>·<see cref="SortDescending"/>(기본 이름 오름차순, 폴더 먼저 — 예전 순서와 같음).
+    /// </summary>
     private void RefreshVisibleEntries()
     {
         VisibleEntries.Clear();
 
+        IEnumerable<ArchiveEntry> items;
         if (IsArchiveMode && SelectedFolder is not null)
         {
-            foreach (var child in SelectedFolder.Children.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                VisibleEntries.Add(new ArchiveEntry
+            items = SelectedFolder.Children
+                .Select(child => new ArchiveEntry
                 {
                     Path = child.FullPath,
                     IsDirectory = true,
                     Size = -1,        // 폴더는 크기 칸 비움 (BytesToHuman이 음수를 빈 문자열로 처리)
                     CompressedSize = -1
-                });
-            }
-            foreach (var file in SelectedFolder.Files.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-                VisibleEntries.Add(file);
+                })
+                .Concat(SelectedFolder.Files);
         }
         else
         {
-            foreach (var e in Entries)
-                VisibleEntries.Add(e);
+            items = Entries;
         }
+
+        // OrderBy 는 안정 정렬(같은 값끼리 원래 차례 유지) — 비교기도 값이 같으면 이름으로 차례를 정한다
+        foreach (var e in items.OrderBy(e => e, new EntrySortComparer(SortMember, SortDescending)).ToList())
+            VisibleEntries.Add(e);
     }
 
     private static string GetDirectory(string path)
@@ -588,12 +688,19 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Clear()
     {
+        CloseView();
+        StatusText = "준비됨";
+    }
+
+    /// <summary>보던 압축·모으던 목록을 모두 비운다(상태 줄은 그대로).</summary>
+    private void CloseView()
+    {
         Entries.Clear();
         CurrentArchivePath = null;
+        _archivePassword = null;
         FolderTree.Clear();
         SelectedFolder = null;
         VisibleEntries.Clear();
-        StatusText = "준비됨";
     }
 
     /// <summary>
@@ -620,94 +727,151 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CloseWindow()
     {
-        Application.Current.MainWindow?.Close();
+        Application.Current?.MainWindow?.Close();
     }
 
-    /// <summary>드래그 앤 드롭 처리.</summary>
-    /// - 단일 압축 파일 → 열기
-    /// - 그 외(일반 파일/폴더, 또는 여러 파일) → Staging에 추가
+    /// <summary>
+    /// 끌어 놓기(와 키워드 없이 경로만 준 명령줄) 처리 — <see cref="DropPolicy"/>(I0-4):
+    /// 빈 창이면 압축 파일 1개는 열고 그 밖은 압축할 목록에. 목록을 모으는 중이면 일반 파일은 더하고, 압축 파일 1개는 묻는다.
+    /// 압축을 보는 중이면 늘 묻는다(보던 압축을 말없이 닫지 않음).
+    /// 압축 파일인지는 확장자로만 본다 — 내용으로 보면 .docx·.xlsx(속은 ZIP)를 압축하려고 끌어 놓아도 '열기'가 돼 버린다.
+    /// </summary>
     public async Task HandleDroppedPathsAsync(IReadOnlyList<string> paths)
     {
         if (paths.Count == 0) return;
 
-        if (paths.Count == 1 && File.Exists(paths[0]) && _locator.Resolve(paths[0]) is not null)
+        var state = IsArchiveMode ? ViewState.Archive : IsStagingMode ? ViewState.Staging : ViewState.Empty;
+        var decision = DropPolicy.Decide(state, paths, IsArchiveFileByExtension);
+        var choice = decision.Kind switch
         {
-            await OpenArchiveAsync(paths[0]);
-            return;
-        }
+            DropDecisionKind.OpenDirect => DropChoice.OpenArchive,
+            DropDecisionKind.StageDirect => DropChoice.AddToStaging,
+            _ => AskDropChoice(decision, state),
+        };
 
-        AddToStaging(paths);
+        switch (choice)
+        {
+            case DropChoice.OpenArchive:
+                await OpenArchiveAsync(paths[0]);   // 열리면 목록이 바뀌고, 못 열면(오류 창) 보던 것·모으던 목록은 그대로
+                break;
+            case DropChoice.AddToStaging:
+                AddToStaging(paths);
+                break;
+            case DropChoice.NewStaging:
+                StartNewStaging(paths);
+                break;
+            default:
+                break;   // 취소 — 아무것도 바꾸지 않는다
+        }
     }
 
+    private DropChoice AskDropChoice(DropDecision decision, ViewState state)
+    {
+        var labels = decision.Options.Select(o => DropPolicy.Label(o, state)).ToList();
+        // 기본 버튼(Enter)은 [취소] — Enter 한 번에 보던 압축이 닫히거나 모으던 목록이 비워지지 않게
+        int index = _ui.Choose(decision.Message ?? string.Empty, labels, decision.DefaultIndex);
+        return index >= 0 && index < decision.Options.Count ? decision.Options[index] : DropChoice.Cancel;
+    }
+
+    private bool IsArchiveFileByExtension(string path) => File.Exists(path) && _locator.ResolveByExtension(path) is not null;
+
     /// <summary>
-    /// 명령줄 인자를 받아 적절한 동작 수행. 셸 확장이 호출하는 진입점.
+    /// 명령줄 인자를 받아 적절한 동작 수행. 셸 확장이 호출하는 진입점. 해석은 <see cref="CommandLineParser"/>(순수 함수).
     /// 인자 형식:
-    ///   --open &lt;archive&gt;             압축 파일을 열기만 함
-    ///   --extract &lt;archive&gt;          폴더 선택 다이얼로그로 압축 해제
-    ///   --extract-here &lt;archive&gt;     압축 파일과 같은 위치의 동명 폴더에 해제
-    ///   --extract-to &lt;archive&gt; &lt;dst&gt; 지정 폴더로 해제
-    ///   --compress &lt;p1&gt; &lt;p2&gt; ...     인자들을 Staging에 추가 (압축 다이얼로그 자동 진행)
-    ///   &lt;path&gt;...                     경로만 주어지면 드롭과 동일한 동작
+    ///   --open &lt;archive&gt;               압축 파일을 열기만 함
+    ///   --extract &lt;archive&gt;            폴더 선택 다이얼로그로 압축 해제
+    ///   --extract-here &lt;archive&gt;       압축 파일이 있는 폴더에 바로 해제(반디집 '여기에 풀기')
+    ///   --extract-to-folder &lt;archive&gt;  '부모\이름' 폴더에 해제. 그 이름이 이미 있으면 '이름 (2)' …(합치지 않음)
+    ///   --extract-to &lt;archive&gt; &lt;dst&gt;   지정 폴더로 해제
+    ///   --compress &lt;p1&gt; &lt;p2&gt; ...       인자들을 Staging에 추가 (압축 다이얼로그 자동 진행)
+    ///   &lt;path&gt;...                       경로만 주어지면 드롭과 동일한 동작
+    /// (W1-D 전에는 '--extract-here' 가 '이름' 폴더에 풀었다 — 그 동작은 '--extract-to-folder' 로 옮김)
     /// </summary>
     public async Task ProcessCommandLineAsync(string[] args)
     {
-        if (args.Length == 0) return;
+        var cmd = CommandLineParser.Parse(args);
+        if (cmd.Verb == CommandVerb.None) return;
 
+        // 한 번에 하나씩: 여러 압축을 골라 우클릭하면 파일마다 Iljip.exe 가 떠 단일 인스턴스 파이프로 거의 동시에 들어온다
+        // (App.OnSecondInstanceLaunched 는 async void). 겹쳐 돌면 진행·암호 창이 섞이고 같은 '이름 (2)' 폴더를 둘이 고를 수 있어 차례로 처리한다.
+        await _commandGate.WaitAsync();
         try
         {
-            string verb = args[0];
-
-            switch (verb)
+            switch (cmd.Verb)
             {
-                case "--open" when args.Length >= 2 && File.Exists(args[1]):
-                    await OpenArchiveAsync(args[1]);
+                case CommandVerb.Open when File.Exists(cmd.Archive):
+                    await OpenArchiveAsync(cmd.Archive!);
                     break;
 
-                case "--extract" when args.Length >= 2 && File.Exists(args[1]):
-                    await OpenArchiveAsync(args[1]);
-                    await ExtractAsync(); // 폴더 선택 다이얼로그 + 해제 완료까지 대기(--extract-here/-to와 일관, fire-and-forget 제거)
+                // 해제 명령은 열기가 실제로 된 경우에만 이어서 푼다 — 열지 못했으면(오류 창을 이미 보임) 해제 오류 창을 또 띄우지 않는다.
+                // 파일 이름까지 암호가 걸린 7z 는 열기가 암호를 묻는다(I1-7) — 맞으면 그 암호로 풀고(다시 묻지 않음), 취소하면 풀지 않는다.
+                case CommandVerb.Extract when File.Exists(cmd.Archive):
+                    if (await OpenArchiveAsync(cmd.Archive!))
+                        await ExtractAsync(); // 폴더 선택 다이얼로그 + 해제 완료까지 대기(fire-and-forget 제거)
                     break;
 
-                case "--extract-here" when args.Length >= 2 && File.Exists(args[1]):
+                case CommandVerb.ExtractHere when File.Exists(cmd.Archive):
                     {
-                        var ap = args[1];
+                        var ap = Path.GetFullPath(cmd.Archive!);
                         var parent = Path.GetDirectoryName(ap) ?? Environment.CurrentDirectory;
-                        var sub = Path.GetFileNameWithoutExtension(ap);
-                        var dest = Path.Combine(parent, sub);
-                        await OpenArchiveAsync(ap);
-                        await ExtractToFolderAsync(ap, dest);
+                        if (await OpenArchiveAsync(ap))
+                            await ExtractToFolderAsync(ap, parent);   // 같은 이름 파일은 '이름 (1).ext' 로 비켜 씀(기존 규칙)
                         break;
                     }
 
-                case "--extract-to" when args.Length >= 3 && File.Exists(args[1]):
-                    await OpenArchiveAsync(args[1]);
-                    await ExtractToFolderAsync(args[1], args[2]);
-                    break;
-
-                case "--compress":
-                    if (args.Length >= 2)
+                case CommandVerb.ExtractToFolder when File.Exists(cmd.Archive):
                     {
-                        AddToStaging(args.Skip(1));
-                        // 사용자 의도가 명확하므로 압축 다이얼로그를 바로 띄움
-                        if (CompressCommand.CanExecute(null))
-                            CompressCommand.Execute(null);
+                        var ap = Path.GetFullPath(cmd.Archive!);
+                        var parent = Path.GetDirectoryName(ap) ?? Environment.CurrentDirectory;
+                        if (await OpenArchiveAsync(ap))
+                        {
+                            // 열기(오류 창) 뒤에 정한다 — 그사이 생긴 폴더와도 겹치지 않게
+                            var dest = ArchiveNaming.UniqueFolder(parent, ArchiveNaming.FolderNameFor(ap));
+                            // 취소·손상으로 멈췄는데 새 폴더에 파일이 하나도 안 남았으면(빈 하위 폴더뿐) 그 폴더를 지운다 — 다음에 풀 때 번호가 밀리지 않게.
+                            // 앞서 다 풀린 파일이 있으면 남긴다(기존 계약). 암호 오류·암호 창 취소는 서비스가 이미 모두 되돌렸다.
+                            if (!await ExtractToFolderAsync(ap, dest))
+                                ArchiveNaming.RemoveFolderIfNoFiles(dest);
+                        }
+                        break;
                     }
+
+                case CommandVerb.ExtractTo when File.Exists(cmd.Archive):
+                    if (await OpenArchiveAsync(cmd.Archive!))
+                        await ExtractToFolderAsync(cmd.Archive!, cmd.Dest!);
                     break;
 
-                default:
-                    // 키워드가 아니면 모두 경로로 간주 (드롭과 동일 처리)
-                    var pathLike = args.Where(a => File.Exists(a) || Directory.Exists(a)).ToList();
-                    if (pathLike.Count > 0)
-                        await HandleDroppedPathsAsync(pathLike);
+                case CommandVerb.Compress:
+                    // 셸 '일집으로 압축'은 사용자가 고른 것 — 압축을 보는 중이면 그것을 닫고 새 목록을 만든다
+                    if (IsArchiveMode) StartNewStaging(cmd.Paths);
+                    else AddToStaging(cmd.Paths);
+                    // 사용자 의도가 명확하므로 압축 다이얼로그를 바로 띄움(끝날 때까지 기다림)
+                    if (IsStagingMode && CompressCommand.CanExecute(null))
+                        await CompressCommand.ExecuteAsync(null);
                     break;
+
+                case CommandVerb.Paths:
+                    {
+                        // 키워드가 아니면 모두 경로로 간주 (드롭과 동일 처리)
+                        var pathLike = cmd.Paths.Where(a => File.Exists(a) || Directory.Exists(a)).ToList();
+                        if (pathLike.Count > 0)
+                            await HandleDroppedPathsAsync(pathLike);
+                        break;
+                    }
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"명령 처리 중 오류:\n\n{ex.Message}",
-                "일집", MessageBoxButton.OK, MessageBoxImage.Error);
+            Logger.LogError("명령 처리 중 오류", ex);
+            _ui.ShowError($"명령 처리 중 오류:\n\n{ex.Message}");
+        }
+        finally
+        {
+            _commandGate.Release();
         }
     }
+
+    /// <summary>명령줄 처리를 한 번에 하나씩(<see cref="ProcessCommandLineAsync"/>).</summary>
+    private readonly SemaphoreSlim _commandGate = new(1, 1);
 
     /// <summary>
     /// 해제 실패가 '암호 문제'(암호 창을 다시 띄울 일)인가. 서비스가 일집 예외로 바꿔 던지는 것은 타입으로만 판정한다(B5) —

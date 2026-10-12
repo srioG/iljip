@@ -37,7 +37,7 @@ public sealed class RarArchiveService : SharpCompressArchiveServiceBase
         throw new InvalidDataException("이 RAR 파일은 손상되었거나 들어 있는 파일이 없어요.");
     }
 
-    public override Task CompressAsync(
+    public override Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,

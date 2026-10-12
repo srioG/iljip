@@ -71,14 +71,23 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        // 명령줄 인자가 있으면 MainWindow의 ViewModel에 위임
-        if (e.Args.Length > 0 && MainWindow?.DataContext is MainViewModel vm)
+        // 창은 여기서 직접 만든다(App.xaml 에 StartupUri 없음). 예전엔 StartupUri 가 OnStartup 이 끝난 '뒤'에 창을 만들어
+        // 아래 MainWindow 가 늘 null 이었다 — 일집이 꺼져 있을 때 우클릭 메뉴(--open·--extract-here …)를 고르면 빈 창만 떴다
+        // (이미 켜져 있으면 파이프로 넘겨 받아 동작했다).
+        var win = new MainWindow();
+        MainWindow = win;
+
+        // 명령줄 인자가 있으면 창이 다 뜬 뒤 MainWindow의 ViewModel에 위임
+        if (e.Args.Length > 0 && win.DataContext is MainViewModel vm)
         {
-            MainWindow.Loaded += async (_, _) =>
+            string[] args = e.Args;
+            win.Loaded += async (_, _) =>
             {
-                await vm.ProcessCommandLineAsync(e.Args);
+                await vm.ProcessCommandLineAsync(args);
             };
         }
+
+        win.Show();
     }
 
     private static bool IsHeadlessExtractCommand(string[] args)

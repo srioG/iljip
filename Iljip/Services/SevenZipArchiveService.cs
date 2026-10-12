@@ -51,7 +51,7 @@ public sealed class SevenZipArchiveService : SharpCompressArchiveServiceBase
         }
     }
 
-    public override Task CompressAsync(
+    public override Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,
         CompressionOptions? options = null,
