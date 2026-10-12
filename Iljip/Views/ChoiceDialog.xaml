@@ -1,0 +1,17 @@
+<Window x:Class="Iljip.Views.ChoiceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="일집"
+        Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource WindowBgBrush}"
+        TextElement.Foreground="{DynamicResource FgBrush}">
+    <StackPanel Margin="22">
+        <TextBlock x:Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,16" />
+        <!-- 고를 버튼들(코드에서 채움, 첫 버튼이 기본) -->
+        <StackPanel x:Name="ButtonsPanel" />
+    </StackPanel>
+</Window>

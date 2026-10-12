@@ -32,6 +32,9 @@ public static class Crc32
 /// </summary>
 public static class ZipCryptoLucky
 {
+    /// <summary>InlineData 자리표시: 'ZipCrypto 1바이트 검사를 우연히 통과하는 틀린 암호'를 픽스처에서 계산해 쓴다.</summary>
+    public const string Marker = "<1바이트 검사 통과 틀린 암호>";
+
     /// <summary>
     /// 1바이트 검사를 통과하는 틀린 암호들 중, 지정 압축 파일을 일집으로 풀었을 때 <paramref name="outcome"/> 을 만족하는 첫 암호.
     /// (통과한 뒤에 무슨 일이 나는지는 쓰레기 Deflate 스트림이 어떻게 깨지느냐에 달려 암호마다 다르다 —
@@ -277,12 +280,19 @@ public static class DeflateStored
 /// 블록이 있으면 다음 항목 머리로 잘못 읽는다. 진짜 알집 산출물이 빈 파일을 이렇게 쓰는지는 확인하지 못했다(알집 없음).
 /// 폴더는 이름 끝 '/' 와 윈도 속성 0x80 으로 나타낸다(일집 EggAlzArchiveService 는 둘 중 하나만 있어도 폴더로 본다 —
 /// 끝 '/' 없이 속성만 있는 폴더는 <see cref="Item.DirSlash"/> = false).
+/// <para>
+/// 암호(<see cref="Item.Password"/>, EGG 'Standard' = 전통 ZipCrypto): 끝 표시 앞에 암호 머리(0x08D1470F · 플래그 1 · 크기 2 = 17 ·
+/// 방식 0 · 암호 머리 12바이트 · CRC32 4바이트)를 넣고, 블록 데이터는 그 키 상태로 이어서 암호화한 것(12바이트 머리는 블록에 넣지 않음).
+/// EggDotNet 0.4.0 이 읽는 방식(IL 확인): 암호 글자마다 (글자 &amp; 0xFF)로 키를 돌리고, 머리 12바이트를 푼 마지막 바이트를 CRC 의 윗바이트와 비교.
+/// 그래서 ASCII 암호만 쓴다(한글 암호 EGG 는 EggDotNet 이 글자의 아랫바이트만 써서 알집과 맞는지 확인하지 못함 — 범위 밖).
+/// </para>
 /// </summary>
 public static class RawEgg
 {
     /// <param name="Data">null 이면 폴더(윈도 속성 0x80).</param>
     /// <param name="DirSlash">폴더 이름 끝에 '/' 를 붙일지. false 면 이름 그대로 — 폴더 속성으로만 폴더임을 알 수 있는 항목 재현용.</param>
-    public sealed record Item(string Name, byte[]? Data, bool DirSlash = true)
+    /// <param name="Password">null 이 아니면 이 ASCII 암호로 ZipCrypto 암호화(크기 &gt; 0 인 항목만).</param>
+    public sealed record Item(string Name, byte[]? Data, bool DirSlash = true, string? Password = null)
     {
         public bool IsDir => Data is null;
     }
@@ -357,13 +367,25 @@ public static class RawEgg
             w.Write(0x0A8590E3u); w.Write(id++); w.Write((long)data.Length);
             w.Write(0x0A8591ACu); w.Write((byte)0); w.Write((ushort)nb.Length); w.Write(nb);
             w.Write(0x2C86950Bu); w.Write((byte)0); w.Write((ushort)9); w.Write(fileTime); w.Write((byte)(it.IsDir ? 0x80 : 0x20));
+            uint crc = Crc32.Compute(data);
+            byte[] payload = data;
+            if (it.Password is not null && data.Length > 0)
+            {
+                var zc = new ZipCryptoWriter(it.Password);
+                var head = new byte[12];
+                new Random((int)crc).NextBytes(head);
+                head[11] = (byte)(crc >> 24);   // 확인 바이트 = CRC 윗바이트
+                w.Write(0x08D1470Fu); w.Write((byte)0); w.Write((ushort)17); w.Write((byte)0);
+                w.Write(zc.Encrypt(head)); w.Write(crc);
+                payload = zc.Encrypt(data);
+            }
             w.Write(0x08E28222u);
             if (data.Length > 0)
             {
                 w.Write(0x02B50C13u); w.Write((byte)0); w.Write((byte)0);
-                w.Write((uint)data.Length); w.Write((uint)data.Length); w.Write(Crc32.Compute(data));
+                w.Write((uint)data.Length); w.Write((uint)payload.Length); w.Write(crc);
                 w.Write(0x08E28222u);
-                w.Write(data);
+                w.Write(payload);
             }
         }
         w.Write(0x08E28222u);
@@ -382,6 +404,109 @@ public static class RawEgg
             list.Add(File.Exists(p) ? new Item(rel, File.ReadAllBytes(p)) : new Item(rel + "/", null));
         }
         return list;
+    }
+}
+
+/// <summary>전통 ZipCrypto 암호화기(키 상태가 이어짐 — 머리 12바이트 다음에 데이터를 같은 객체로 암호화).</summary>
+public sealed class ZipCryptoWriter
+{
+    private uint _k0 = 0x12345678, _k1 = 0x23456789, _k2 = 0x34567890;
+
+    /// <param name="password">ASCII 암호(글자마다 한 바이트).</param>
+    public ZipCryptoWriter(string password)
+    {
+        foreach (char c in password) Update((byte)(c & 0xFF));
+    }
+
+    public byte[] Encrypt(byte[] plain)
+    {
+        var o = new byte[plain.Length];
+        for (int i = 0; i < plain.Length; i++)
+        {
+            uint t = (_k2 | 2) & 0xFFFF;
+            o[i] = (byte)(plain[i] ^ (byte)((t * (t ^ 1)) >> 8));
+            Update(plain[i]);
+        }
+        return o;
+    }
+
+    private void Update(byte c)
+    {
+        _k0 = Crc32.Update(_k0, c);
+        _k1 = unchecked((_k1 + (_k0 & 0xFF)) * 134775813 + 1);
+        _k2 = Crc32.Update(_k2, (byte)(_k1 >> 24));
+    }
+}
+
+/// <summary>
+/// ZipCrypto 암호 ZIP 작성기 — 암호를 '바이트 그대로' 쓴다(반디집의 CP949 한글 암호, 7-Zip·맥 도구의 UTF-8 암호 재현).
+/// 항목마다 12바이트 암호 머리 = 고정 씨앗 난수 11바이트 + 확인 바이트(CRC 윗바이트, 데이터 설명자 없음). 이름은 UTF-8 + EFS.
+/// <see cref="Item.HeaderFilter"/>(암호화된 머리, 확인 바이트 → 받을지)를 주면 씨앗을 0부터 올려 가며 조건에 맞는 머리를 고른다 —
+/// '다른 암호 바이트도 1바이트 검사를 통과하는 머리'(UTF-8·CP949 두 후보가 모두 통과하는 B3 재현)를 결정적으로 만든다.
+/// </summary>
+public static class RawZipCrypto
+{
+    /// <param name="Deflate">true 면 방식 8(Deflate, .NET 압축기), 아니면 0(저장).</param>
+    public sealed record Item(string Name, byte[] Data, byte[] PasswordBytes, bool Deflate = false, Func<byte[], byte, bool>? HeaderFilter = null);
+
+    public static void Write(string path, params Item[] items)
+    {
+        const ushort dosTime = (3 << 11) | (4 << 5) | (6 / 2);            // 03:04:06
+        const ushort dosDate = ((2026 - 1980) << 9) | (1 << 5) | 2;       // 2026-01-02
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        var central = new List<(byte[] Name, ushort Method, uint Crc, int CSize, int USize, long Offset)>();
+        foreach (var it in items)
+        {
+            byte[] name = Encoding.UTF8.GetBytes(it.Name);
+            uint crc = Crc32.Compute(it.Data);
+            byte check = (byte)(crc >> 24);
+            byte[] plain = it.Deflate ? DeflateRaw(it.Data) : it.Data;
+            byte[]? payload = null;
+            for (int seed = 0; seed < 1_000_000 && payload is null; seed++)
+            {
+                var head = new byte[12];
+                new Random(seed).NextBytes(head);
+                head[11] = check;
+                var zc = new ZipCryptoWriter(Encoding.Latin1.GetString(it.PasswordBytes));   // Latin-1 = 바이트 그대로
+                byte[] encHead = zc.Encrypt(head);
+                if (it.HeaderFilter is null || it.HeaderFilter(encHead, check))
+                    payload = encHead.Concat(zc.Encrypt(plain)).ToArray();
+            }
+            if (payload is null) throw new InvalidOperationException("조건에 맞는 암호 머리를 못 찾음: " + it.Name);
+
+            ushort method = (ushort)(it.Deflate ? 8 : 0);
+            central.Add((name, method, crc, payload.Length, it.Data.Length, ms.Position));
+            w.Write(0x04034b50u); w.Write((ushort)20); w.Write((ushort)0x0801); w.Write(method);
+            w.Write(dosTime); w.Write(dosDate);
+            w.Write(crc); w.Write((uint)payload.Length); w.Write((uint)it.Data.Length);
+            w.Write((ushort)name.Length); w.Write((ushort)0); w.Write(name); w.Write(payload);
+        }
+        long cdStart = ms.Position;
+        foreach (var c in central)
+        {
+            w.Write(0x02014b50u); w.Write((ushort)20); w.Write((ushort)20); w.Write((ushort)0x0801); w.Write(c.Method);
+            w.Write(dosTime); w.Write(dosDate);
+            w.Write(c.Crc); w.Write((uint)c.CSize); w.Write((uint)c.USize);
+            w.Write((ushort)c.Name.Length); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0);
+            w.Write(0u); w.Write((uint)c.Offset); w.Write(c.Name);
+        }
+        long cdEnd = ms.Position;
+        w.Write(0x06054b50u); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)items.Length); w.Write((ushort)items.Length);
+        w.Write((uint)(cdEnd - cdStart)); w.Write((uint)cdStart); w.Write((ushort)0);
+        w.Flush();
+        File.WriteAllBytes(path, ms.ToArray());
+    }
+
+    /// <summary>HeaderFilter: <paramref name="other"/> 암호 바이트로도 1바이트 검사를 통과하는(<paramref name="passes"/> = false 면 통과하지 않는) 머리만.</summary>
+    public static Func<byte[], byte, bool> OtherPasses(byte[] other, bool passes = true) =>
+        (encHead, check) => Iljip.Services.ZipPasswordProbe.ZipCryptoCheck(other, encHead, new[] { check }) == passes;
+
+    private static byte[] DeflateRaw(byte[] data)
+    {
+        using var ms = new MemoryStream();
+        using (var ds = new DeflateStream(ms, CompressionLevel.Optimal, leaveOpen: true)) ds.Write(data);
+        return ms.ToArray();
     }
 }
 

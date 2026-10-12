@@ -112,7 +112,8 @@ public class RoundTripTests
     }
 
     /// <summary>
-    /// 현재 동작 기록(I2-11): 일집의 암호 ZIP 은 모든 파일이 WinZip AES(방식 99)다 — ZipCrypto 를 고를 수 없음.
+    /// 현재 동작 기록: 암호 방식을 고르지 않으면(기본 AES-256) 일집의 암호 ZIP 은 모든 파일이 WinZip AES(방식 99)다.
+    /// (W1-C 부터 ZipCrypto 도 고를 수 있음 — KnownGapTests.ZIP_암호를_ZipCrypto로_고를_수_있다, ZipEncryptionTests)
     /// 파일명은 UTF-8 + EFS 플래그(bit 11).
     /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]

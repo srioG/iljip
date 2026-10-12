@@ -377,14 +377,116 @@ public class EggAlzTests
     }
 
     /// <summary>
-    /// 확인 실패 문구: 암호 걸린 항목이면 화면이 암호를 다시 묻게('암호' 포함 — 옛 ZIP 방식 EGG 암호는 틀린 암호가 검사를 우연히
-    /// 통과해 내용만 틀릴 수 있음), 아니면 묻지 않게. (암호 EGG 작성기가 없어 문구 판정만 시험)
+    /// 확인 실패: 암호 걸린 항목이면 화면이 암호를 다시 묻는 틀린 암호 예외(옛 ZIP 방식 EGG 암호는 틀린 암호가 검사를 우연히
+    /// 통과해 내용만 틀릴 수 있음 — '손상일 수도' 문구 포함), 아니면 묻지 않는 손상 예외(W1-C: 문구가 아니라 타입으로 판정).
     /// </summary>
     [Fact]
     public void 확인값_불일치는_암호_항목에서만_암호를_다시_묻게_한다()
     {
-        Assert.True(Internals.IsPasswordRelated(EggAlzArchiveService.DamagedEntry("a.txt", encrypted: true, "x")));
+        var encrypted = EggAlzArchiveService.DamagedEntry("a.txt", encrypted: true, "x");
+        Assert.IsType<WrongPasswordException>(encrypted);
+        Assert.True(Internals.IsPasswordRelated(encrypted));
         Assert.False(Internals.IsPasswordRelated(EggAlzArchiveService.DamagedEntry("a.txt", encrypted: false, "x")));
+    }
+
+    // ───── 암호 EGG(W1-C) — RawEgg 의 'Standard'(전통 ZipCrypto) 암호 ─────
+
+    private const string EggPassword = "egg-pass-1234";
+
+    /// <summary>앞.txt + 큰.bin 을 같은 암호로 건 EGG.</summary>
+    private static string WriteEncryptedEgg(TempDir tmp, string name, string password = EggPassword)
+    {
+        string arc = tmp.P(name + ".egg");
+        RawEgg.Write(arc, new[]
+        {
+            new RawEgg.Item("폴더/앞.txt", FrontData, Password: password),
+            new RawEgg.Item("폴더/큰.bin", BigData, Password: password),
+        });
+        return arc;
+    }
+
+    /// <summary>작성기 확인 겸 성공 경로: 맞는 암호면 원본과 같게 풀린다(EggDotNet 자체 CRC 확인 포함).</summary>
+    [Fact]
+    public async Task 암호_EGG는_맞는_암호로_풀린다()
+    {
+        using var tmp = new TempDir("eggpw");
+        string arc = WriteEncryptedEgg(tmp, "pw");
+        string dest = tmp.P("out");
+        await Svc.For(arc).ExtractAsync(arc, dest, EggPassword);
+        Assert.Equal(new[] { "폴더/앞.txt", "폴더/큰.bin" }, TreeAssert.Files(dest));
+        Assert.Equal(TreeAssert.Sha256(FrontData), TreeAssert.Sha256(Path.Combine(dest, "폴더", "앞.txt")));
+        Assert.Equal(TreeAssert.Sha256(BigData), TreeAssert.Sha256(Path.Combine(dest, "폴더", "큰.bin")));
+    }
+
+    /// <summary>계약(W1-C, B5): 암호 EGG 에 틀린 암호 → WrongPasswordException, 암호 없음 → PasswordRequiredException. 어느 쪽이든 파일·새 폴더가 남지 않는다.</summary>
+    [Theory]
+    [InlineData("wrong-pass", typeof(WrongPasswordException))]
+    [InlineData(null, typeof(PasswordRequiredException))]
+    [InlineData("", typeof(PasswordRequiredException))]
+    public async Task 암호_EGG의_틀리거나_없는_암호는_암호예외_그리고_파일없음(string? password, Type expected)
+    {
+        using var tmp = new TempDir("eggpw2");
+        string arc = WriteEncryptedEgg(tmp, "pw");
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, password));
+        Assert.IsType(expected, ex);
+        Assert.True(Internals.IsPasswordRelated(ex!));
+        Assert.False(Directory.Exists(dest), "암호 오류인데 대상 폴더(또는 파일)가 남음");
+    }
+
+    /// <summary>
+    /// 계약(W1-C, B4 와 같은 규칙): 첫 항목의 1바이트 검사를 우연히 통과한 틀린 암호는 첫 파일을 쓰레기로 '풀어' 쓴 뒤 CRC 에서 걸린다 —
+    /// 틀린 암호 예외이고, 장부가 이번에 쓴 것(쓰레기 앞.txt·폴더)을 모두 지운다. 다시 맞는 암호로 풀면 '이름 (1)' 없이 원래 이름으로 풀린다.
+    /// </summary>
+    [Fact]
+    public async Task 암호_EGG_검사통과_틀린암호는_쓰레기를_남기지_않는다()
+    {
+        using var tmp = new TempDir("egglucky");
+        string arc = WriteEncryptedEgg(tmp, "lucky");
+        string lucky = EggLuckyPassword(arc);
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, lucky));
+        Assert.IsType<WrongPasswordException>(ex);
+        Assert.False(Directory.Exists(dest), $"'{lucky}': 우연 통과 틀린 암호가 쓴 것이 남음");
+
+        await Svc.For(arc).ExtractAsync(arc, dest, EggPassword);
+        Assert.Equal(new[] { "폴더/앞.txt", "폴더/큰.bin" }, TreeAssert.Files(dest));
+    }
+
+    /// <summary>EGG 첫 항목(앞.txt)의 12바이트 암호 머리 검사(마지막 바이트 = CRC 윗바이트)를 통과하는 틀린 ASCII 암호.</summary>
+    private static string EggLuckyPassword(string eggPath)
+    {
+        byte[] b = File.ReadAllBytes(eggPath);
+        int at = CorruptArchiveTests.IndexOf(b, BitConverter.GetBytes(0x08D1470Fu));
+        Assert.True(at > 0, "암호 머리를 못 찾음");
+        byte[] head = b[(at + 8)..(at + 20)];
+        byte check = b[at + 23];   // CRC(LE) 의 마지막 바이트 = 윗바이트
+        for (int i = 0; i < 1_000_000; i++)
+        {
+            string pw = "w" + i;
+            if (pw != EggPassword && DecryptLastByte(pw, head) == check) return pw;
+        }
+        throw new InvalidOperationException("통과하는 틀린 암호를 못 찾음");
+    }
+
+    private static byte DecryptLastByte(string password, byte[] head)
+    {
+        uint k0 = 0x12345678, k1 = 0x23456789, k2 = 0x34567890;
+        void Upd(byte c)
+        {
+            k0 = Crc32.Update(k0, c);
+            k1 = unchecked((k1 + (k0 & 0xFF)) * 134775813 + 1);
+            k2 = Crc32.Update(k2, (byte)(k1 >> 24));
+        }
+        foreach (char c in password) Upd((byte)c);
+        byte last = 0;
+        foreach (byte e in head)
+        {
+            uint t = (k2 | 2) & 0xFFFF;
+            last = (byte)(e ^ (byte)((t * (t ^ 1)) >> 8));
+            Upd(last);
+        }
+        return last;
     }
 
     /// <summary>

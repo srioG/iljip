@@ -6,8 +6,8 @@ using Iljip.Tests.TestSupport;
 namespace Iljip.Tests.Contract;
 
 /// <summary>
-/// [범위 11] 알려진 빈틈 — 전부 Skip. 본문은 '고쳐지면 반디집처럼 돼야 할 올바른 기대'다.
-/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다.
+/// [범위 11] 알려진 빈틈 — 남은 것은 Skip. 본문은 '고쳐지면 반디집처럼 돼야 할 올바른 기대'다.
+/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C)은 Skip 을 지운 채 여기 둔다.
 /// (지금 관찰된 실제 동작은 RoutingTests 의 '미등록 확장자' 테스트와 README 의 Skip 목록에 적어 둠)
 /// </summary>
 public class KnownGapTests
@@ -98,11 +98,11 @@ public class KnownGapTests
     }
 
     /// <summary>
-    /// [I2-11] ZIP 암호 방식으로 ZipCrypto 를 고를 수 있어야 하고, 그렇게 만든 ZIP 은 AES(방식 99)가 아니어야 한다
-    /// (Windows 탐색기·구형 프로그램 호환). API 가 아직 없으므로 CompressionOptions 에서
-    /// 이름에 'ZipCrypto' 가 들어간 enum 값을 가진 속성을 리플렉션으로 찾는다 — 새 API 이름이 다르면 이 부분만 고칠 것.
+    /// [I2-11 메움] ZIP 암호 방식으로 ZipCrypto 를 고를 수 있어야 하고, 그렇게 만든 ZIP 은 AES(방식 99)가 아니어야 한다
+    /// (Windows 탐색기·구형 프로그램 호환). CompressionOptions 에서 이름에 'ZipCrypto' 가 들어간 enum 값을 가진 속성을
+    /// 리플렉션으로 찾는다(W1-C: <see cref="CompressionOptions.Encryption"/> = <see cref="ZipEncryption.ZipCrypto"/>).
     /// </summary>
-    [Fact(Skip = Known.I2_11)]
+    [Fact]
     public async Task ZIP_암호를_ZipCrypto로_고를_수_있다()
     {
         var prop = typeof(CompressionOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance)

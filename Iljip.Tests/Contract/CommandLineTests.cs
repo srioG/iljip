@@ -173,6 +173,18 @@ public class CommandLineTests
         TreeAssert.NoFiles(dest);
     }
 
+    /// <summary>암호 ZIP 은 창 없이 풀기로 풀 수 없다(암호를 넘길 방법이 없음) — 종료 코드 1, 파일·새 폴더가 남지 않는다(W1-C 판정은 만들기 전).</summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_암호파일은_1_그리고_파일없음()
+    {
+        var fx = FixtureCatalog.Get("zip_aes256");
+        using var tmp = new TempDir("exe4");
+        string dest = tmp.P("out");
+        int code = await RunIljip(new[] { "--extract-to", fx.FullPath, dest });
+        Assert.Equal(1, code);
+        TreeAssert.NoFiles(dest);
+    }
+
     /// <summary>키워드 대소문자를 가리지 않는다(창 없이 풀기만 — 화면 쪽 switch 와 다름).</summary>
     [IljipExeFact]
     public async Task 실행파일_EXTRACT_TO_대문자도_된다()

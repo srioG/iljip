@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using ICSharpCode.SharpZipLib.Checksum;
 using Iljip.Models;
 using SharpCompress.Archives;
 using SharpCompress.Common;
@@ -23,30 +24,38 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     {
         return Task.Run<IReadOnlyList<ArchiveEntry>>(() =>
         {
-            var options = BuildReaderOptions(password);
-            using var archive = OpenForRead(archivePath, options);
-
-            var entries = new List<ArchiveEntry>();
-            foreach (var e in archive.Entries)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var options = BuildReaderOptions(password);
+                using var archive = OpenForRead(archivePath, options);
 
-                // e.Key는 ReaderOptions.ArchiveEncoding.CustomDecoder(=DecodeBytes)로 이미
-                // 올바르게 디코드된 상태다. 여기서 KoreanFileNameDecoder.Decode를 또 적용하면
-                // (이중 디코드) 비한글 비ASCII 파일명이 CP437→CP949 오재해석으로 손상될 수 있어
-                // 다시 디코드하지 않는다.
-                string decoded = MapEntryKey(archivePath, e.Key);
-
-                entries.Add(new ArchiveEntry
+                var entries = new List<ArchiveEntry>();
+                foreach (var e in archive.Entries)
                 {
-                    Path = decoded,
-                    Size = e.Size,
-                    CompressedSize = e.CompressedSize,
-                    IsDirectory = e.IsDirectory,
-                    LastModified = e.LastModifiedTime
-                });
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // e.Key는 ReaderOptions.ArchiveEncoding.CustomDecoder(=DecodeBytes)로 이미
+                    // 올바르게 디코드된 상태다. 여기서 KoreanFileNameDecoder.Decode를 또 적용하면
+                    // (이중 디코드) 비한글 비ASCII 파일명이 CP437→CP949 오재해석으로 손상될 수 있어
+                    // 다시 디코드하지 않는다.
+                    string decoded = MapEntryKey(archivePath, e.Key);
+
+                    entries.Add(new ArchiveEntry
+                    {
+                        Path = decoded,
+                        Size = e.Size,
+                        CompressedSize = e.CompressedSize,
+                        IsDirectory = e.IsDirectory,
+                        LastModified = e.LastModifiedTime
+                    });
+                }
+                return entries;
             }
-            return entries;
+            catch (Exception ex) when (TranslateError(ex, archivePath, password, null, null) is { } translated)
+            {
+                // 헤더 암호 7z 의 '암호 없음'·'틀린 암호'를 화면이 타입으로 알아보게(B5)
+                throw translated;
+            }
         }, cancellationToken);
     }
 
@@ -86,7 +95,68 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         return ExtractCore(archivePath, destinationFolder, ShouldExtract, password, progress, cancellationToken);
     }
 
-    /// <summary>해제 공통 구현. <paramref name="shouldExtract"/>로 항목을 필터링한다.</summary>
+    /// <summary>
+    /// 해제 한 번의 준비물(<see cref="PrepareExtract"/> 가 만듦). 서비스 객체는 여러 해제가 같이 쓰므로 호출마다 새로 만든다.
+    /// </summary>
+    protected sealed class ExtractPlan
+    {
+        public ExtractPlan(ReaderOptions options) => Options = options;
+
+        /// <summary>엔진으로 열 때 쓸 옵션(암호·이름 판별).</summary>
+        public ReaderOptions Options { get; }
+
+        /// <summary>
+        /// (항목 순번, 항목) → 풀린 내용 스트림. null 을 돌려주면(또는 이 값이 null 이면) 기본 <see cref="OpenEntryData"/>.
+        /// ZIP 의 WinZip AES 항목을 일집이 직접 풀 때 쓴다(<see cref="ZipArchiveService"/>).
+        /// </summary>
+        public Func<int, IArchiveEntry, Stream?>? OpenOverride { get; init; }
+
+        /// <summary>풀린 내용의 CRC-32 를 항목에 적힌 값과 맞춰 본다(B4 — ZIP 만, SharpCompress 가 보지 않음).</summary>
+        public bool VerifyCrc { get; init; }
+
+        /// <summary>
+        /// 풀기 전에 암호를 충분히 확인했다(ZIP 판정 — <see cref="ZipPasswordProbeResult.Confirmed"/>). 그러면 암호 항목의 데이터·CRC·인증값 오류는
+        /// 틀린 암호가 아니라 손상으로 알린다 — 화면이 암호를 다시 묻지 않고, 앞서 맞게 풀린 파일은 남는다.
+        /// </summary>
+        public bool PasswordConfirmed { get; init; }
+
+        /// <summary>
+        /// 이 계획으로 풀다가 암호 오류·손상 예외가 나면 이번에 만든 것을 모두 지우고 이 계획으로 처음부터 다시 푼다
+        /// (ZIP 의 UTF-8·CP949 두 암호 후보가 모두 판정을 통과해 못 가린 경우 — B3).
+        /// </summary>
+        public ExtractPlan? Alternate { get; init; }
+    }
+
+    /// <summary>
+    /// 해제 준비 — 대상 폴더에 아무것도 만들기 '전에' 부른다. 암호가 틀리면 여기서 예외를 던져 폴더도 안 생기게 할 수 있다(ZIP).
+    /// 기본: 받은 암호 그대로, CRC 검사 없음.
+    /// </summary>
+    protected virtual ExtractPlan PrepareExtract(string archivePath, string? password, Func<string, bool> shouldExtract)
+        => new(BuildReaderOptions(password));
+
+    /// <summary>
+    /// 엔진 예외 → 일집 암호 예외(아니면 null = 원래 예외 그대로). <paramref name="entry"/> 가 null 이면 열기·목록 단계.
+    /// 형식별로 더 아는 것이 있으면 파생 클래스가 바꾼다(7z 헤더 암호 → <see cref="SevenZipArchiveService"/>).
+    /// </summary>
+    protected virtual Exception? TranslateError(Exception ex, string archivePath, string? password, IArchiveEntry? entry, string? entryPath)
+        => EngineErrorTranslator.Translate(ex, new EngineErrorTranslator.Context(
+            PasswordGiven: !string.IsNullOrEmpty(password),
+            EntryEncrypted: entry is not null && IsEncrypted(entry),
+            EntryPath: entryPath));
+
+    /// <summary>항목이 암호 항목인지(엔진이 모르면 false).</summary>
+    protected static bool IsEncrypted(IArchiveEntry entry)
+    {
+        try { return entry.IsEncrypted; }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 해제 공통 구현. <paramref name="shouldExtract"/>로 항목을 필터링한다.
+    /// 암호 오류(<see cref="ArchivePasswordException"/>, 엔진 예외는 <see cref="TranslateError"/> 로 바꿈)면 이번에 만든 파일·폴더를
+    /// 모두 지운다(<see cref="ExtractionLedger"/>). 손상·CRC 오류·취소는 쓰다 만 그 파일만 지우고 앞서 끝난 파일은 남긴다(기존 계약).
+    /// 계획에 다른 암호 후보(<see cref="ExtractPlan.Alternate"/>)가 있으면, 암호 오류·손상일 때 만든 것을 모두 지우고 그 후보로 한 번 더 푼다.
+    /// </summary>
     private Task ExtractCore(
         string archivePath,
         string destinationFolder,
@@ -97,14 +167,54 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     {
         return Task.Run(() =>
         {
-            Directory.CreateDirectory(destinationFolder);
+            ExtractPlan plan;
+            try
+            {
+                plan = PrepareExtract(archivePath, password, shouldExtract);
+            }
+            catch (Exception ex) when (ex is not ArchiveException && TranslateError(ex, archivePath, password, null, null) is { } translated)
+            {
+                throw translated;
+            }
 
-            var options = BuildReaderOptions(password);
-            using var archive = OpenForRead(archivePath, options);
+            var ledger = new ExtractionLedger();
+            try
+            {
+                ExtractWithPlan(plan, ledger, archivePath, destinationFolder, shouldExtract, password, progress, cancellationToken);
+            }
+            catch (ArchiveException ex) when (plan.Alternate is not null && ex is ArchivePasswordException or CorruptArchiveException)
+            {
+                // 두 암호 후보가 모두 판정을 통과한 드문 경우(B3): 먼저 쓴 후보로 만든 것(맞게 풀린 파일까지)을 모두 지우고
+                // 다른 후보로 처음부터 다시 푼다 — 같은 이름으로 다시 쓰게(아니면 '이름 (1)' 로 비켜 써짐). 이번에도 실패하면 그 예외 그대로.
+                ledger.Rollback();
+                ExtractWithPlan(plan.Alternate, new ExtractionLedger(), archivePath, destinationFolder, shouldExtract, password, progress, cancellationToken);
+            }
+        }, cancellationToken);
+    }
+
+    /// <summary>계획 하나로 한 번 푼다. 예외는 일집 예외로 바꿔 던지고, 암호 오류면 <paramref name="ledger"/> 로 이번에 만든 것을 모두 지운다.</summary>
+    private void ExtractWithPlan(
+        ExtractPlan plan,
+        ExtractionLedger ledger,
+        string archivePath,
+        string destinationFolder,
+        Func<string, bool> shouldExtract,
+        string? password,
+        IProgress<ArchiveProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        IArchiveEntry? current = null;   // 지금 풀고 있는 항목(오류 번역에 씀 — 열기 단계면 null)
+        string? currentPath = null;
+        try
+        {
+            ledger.EnsureDirectory(destinationFolder);
+
+            using var archive = OpenForRead(archivePath, plan.Options);
+            var entries = archive.Entries.ToList();
 
             long totalBytes = 0;
             int totalFiles = 0;
-            foreach (var e in archive.Entries)
+            foreach (var e in entries)
             {
                 if (e.IsDirectory) continue;
                 string dp = MapEntryKey(archivePath, e.Key);   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
@@ -117,12 +227,15 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             int filesProcessed = 0;
             string fullDestRoot = Path.GetFullPath(destinationFolder + Path.DirectorySeparatorChar);
 
-            foreach (var entry in archive.Entries)
+            for (int index = 0; index < entries.Count; index++)
             {
+                var entry = entries[index];
                 cancellationToken.ThrowIfCancellationRequested();
 
                 string decodedPath = MapEntryKey(archivePath, entry.Key);   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
                 if (!shouldExtract(decodedPath)) continue;
+                current = entry;
+                currentPath = decodedPath;
 
                 string outputPath = Path.Combine(destinationFolder, decodedPath);
                 string fullOutputPath = Path.GetFullPath(outputPath);
@@ -133,13 +246,13 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
 
                 if (entry.IsDirectory)
                 {
-                    Directory.CreateDirectory(fullOutputPath);
+                    ledger.EnsureDirectory(fullOutputPath);
                     continue;
                 }
 
                 string? parent = Path.GetDirectoryName(fullOutputPath);
                 if (!string.IsNullOrEmpty(parent))
-                    Directory.CreateDirectory(parent);
+                    ledger.EnsureDirectory(parent);
 
                 progress?.Report(new ArchiveProgress
                 {
@@ -152,10 +265,12 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
 
                 // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 자동 변경 → 원본 유실 방지(OutputFiles).
                 var output = OutputFiles.CreateNew(fullOutputPath, out string writePath);
+                ledger.AddFile(writePath);
                 try
                 {
+                    var crc = plan.VerifyCrc ? new Crc32() : null;
                     using (output)
-                    using (var input = OpenEntryData(archivePath, entry))
+                    using (var input = plan.OpenOverride?.Invoke(index, entry) ?? OpenEntryData(archivePath, entry))
                     {
                         var buffer = new byte[81920];
                         int read;
@@ -163,6 +278,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                         {
                             cancellationToken.ThrowIfCancellationRequested();
                             output.Write(buffer, 0, read);
+                            crc?.Update(new ArraySegment<byte>(buffer, 0, read));
                             bytesProcessed += read;
 
                             progress?.Report(new ArchiveProgress
@@ -175,12 +291,14 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                             });
                         }
                     }
+                    if (crc is not null) VerifyCrc(entry, decodedPath, (uint)crc.Value, plan.PasswordConfirmed);
                 }
                 catch
                 {
-                    // 취소/오류로 중단되면 절반만 기록된 writePath(정상 이름이라 완전한 파일로 오인됨)를
-                    // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존).
+                    // 취소/오류/CRC 불일치로 중단되면 절반만 기록된(또는 틀린 내용의) writePath(정상 이름이라 완전한 파일로 오인됨)를
+                    // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존 — 암호 오류면 바깥에서 장부로 모두 지움).
                     try { File.Delete(writePath); } catch { /* 정리 실패는 무시 */ }
+                    ledger.ForgetFile(writePath);
                     throw;
                 }
 
@@ -191,6 +309,8 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 }
 
                 filesProcessed++;
+                current = null;
+                currentPath = null;
             }
 
             progress?.Report(new ArchiveProgress
@@ -201,7 +321,35 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 FilesProcessed = filesProcessed,
                 TotalFiles = totalFiles
             });
-        }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var translated = ex as ArchiveException ?? TranslateError(ex, archivePath, password, current, currentPath);
+            // 판정이 암호를 이미 충분히 확인했으면 암호 항목의 데이터·인증값 오류(엔진 번역의 '틀린 암호, 손상일 수도')는 손상이다(B4) —
+            // 다시 묻지 않고, 앞서 맞게 풀린 파일은 남긴다(깨진 그 파일은 위에서 이미 지움).
+            if (plan.PasswordConfirmed && translated is WrongPasswordException { MayBeCorrupt: true } maybe)
+                translated = new CorruptArchiveException(ex, maybe.EntryPath ?? currentPath);
+            if (translated is ArchivePasswordException)
+                ledger.Rollback();   // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다
+            if (translated is null || ReferenceEquals(translated, ex)) throw;
+            throw translated;
+        }
+    }
+
+    /// <summary>
+    /// B4: 풀린 내용의 CRC-32 를 항목에 적힌 값과 비교한다. WinZip AES 의 AE-2(암호 항목인데 CRC 칸이 0)는 CRC 를 적지 않으므로 건너뛴다
+    /// (그 무결성은 AES 인증값이 맡음 — <see cref="WinZipAes"/>). 크기 0 항목은 CRC 0 과 비교된다(빈 내용의 CRC 가 0).
+    /// 틀리면 손상. 단 암호 항목인데 판정이 암호를 충분히 확인하지 못했으면(<paramref name="passwordConfirmed"/> 아님 — ZipCrypto 항목 하나뿐 등)
+    /// 1바이트 암호 검사를 우연히 통과한 틀린 암호일 수 있어 암호 예외(마지막 방어선).
+    /// </summary>
+    private static void VerifyCrc(IArchiveEntry entry, string path, uint actual, bool passwordConfirmed)
+    {
+        bool encrypted = IsEncrypted(entry);
+        uint expected = unchecked((uint)entry.Crc);
+        if (encrypted && expected == 0) return;
+        if (actual == expected) return;
+        if (encrypted && !passwordConfirmed) throw new WrongPasswordException(entryPath: path, mayBeCorrupt: true);
+        throw new ChecksumMismatchException(path);
     }
 
     public abstract Task CompressAsync(
@@ -327,19 +475,26 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         };
     }
 
-    private static ReaderOptions BuildReaderOptions(string? password) => new()
+    /// <summary>
+    /// 엔진 옵션. <paramref name="passwordBytes"/> 를 주면 암호를 그 '바이트 그대로' 넘긴다(Latin-1 문자열 + Latin-1 암호 인코딩) —
+    /// SharpCompress 는 암호 문자열을 늘 UTF-8 로 바꾸므로, 반디집의 CP949 한글 ZipCrypto 암호(B3)는 이렇게만 맞는다.
+    /// </summary>
+    protected static ReaderOptions BuildReaderOptions(string? password, byte[]? passwordBytes = null) => new()
     {
         // ""(빈 암호)는 '암호 없음'과 같게 — 엔진에 빈 문자열을 넘기면 그것을 실제 암호로 쓰려 한다.
-        Password = string.IsNullOrEmpty(password) ? null : password,
-        ArchiveEncoding = new ArchiveEncoding
-        {
-            // CP437은 0x00~0xFF를 무손실 1:1 매핑 → CustomDecoder가 적용되지 않는
-            // 경로에서도 원본 바이트가 보존되어 호출부의 KoreanFileNameDecoder.Decode로 복구 가능.
-            Default = Encoding.GetEncoding(437),
-            // 파일명 원본 바이트를 직접 받아 UTF-8/CP949를 자동 판별 (가장 견고).
-            // 네 번째 인자(EncodingType: UTF-8 플래그 등)는 무시 — 플래그와 무관하게 'strict UTF-8 먼저' 판별(기존 동작).
-            CustomDecoder = (bytes, index, count, _) =>
-                KoreanFileNameDecoder.DecodeBytes(bytes, index, count)
-        }
+        Password = passwordBytes is not null ? Encoding.Latin1.GetString(passwordBytes)
+                 : string.IsNullOrEmpty(password) ? null : password,
+        ArchiveEncoding = passwordBytes is not null
+            ? new ArchiveEncoding { Default = Cp437, CustomDecoder = DecodeName, Password = Encoding.Latin1 }
+            : new ArchiveEncoding { Default = Cp437, CustomDecoder = DecodeName }
     };
+
+    // CP437은 0x00~0xFF를 무손실 1:1 매핑 → CustomDecoder가 적용되지 않는
+    // 경로에서도 원본 바이트가 보존되어 호출부의 KoreanFileNameDecoder.Decode로 복구 가능.
+    private static Encoding Cp437 => Encoding.GetEncoding(437);
+
+    // 파일명 원본 바이트를 직접 받아 UTF-8/CP949를 자동 판별 (가장 견고).
+    // 네 번째 인자(EncodingType: UTF-8 플래그 등)는 무시 — 플래그와 무관하게 'strict UTF-8 먼저' 판별(기존 동작).
+    private static string DecodeName(byte[] bytes, int index, int count, EncodingType _) =>
+        KoreanFileNameDecoder.DecodeBytes(bytes, index, count);
 }

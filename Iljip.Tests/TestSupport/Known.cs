@@ -17,15 +17,11 @@ public static class Known
     public const string I2_2 = "known gap I2-2: .7z.001/.zip.001 숫자 분할 확장자 미등록 — Resolve 가 null (SharpCompress 로 강제로 열면 열리긴 함)";
     public const string I2_9 = "known gap I2-9: 미등록 형식(.zipx/.tgz/.tar.gz/.txz/.xz/.tbz2/.iso/.lzh/.exe SFX) — Resolve 가 null 이거나 .tar.gz 는 GZ 처리기가 이름 빈 항목 하나만 봄";
     public const string I2_10 = "known gap I2-10: 맥 ZIP 의 NFD(자모 분리) 한글 이름을 NFC 로 바꾸지 않음 — 목록·풀린 파일 이름이 자모 분리 그대로";
-    public const string I2_11 = "known gap I2-11: ZIP 암호 방식 선택 불가(AES-256 고정) — CompressionOptions 에 ZipCrypto 선택이 없음";
 
-    // ── 이번에 발견한 버그(아직 안 고친 것) ─────────────────────────
-    // B1·B2·B6·B7·B8·B9·B10 과 TAR-빈폴더는 W1-A(SharpCompress 0.50.5 업그레이드 + 서비스 우회)에서 고쳤다 —
-    // 근거 테스트는 Contract/FixedBugTests.cs 로 옮겨 기대를 뒤집었고, Skip 테스트는 Skip 을 지웠다.
-    public const string B3 = "bug B3: 반디집(한국어 Windows)이 한글 암호로 만든 ZIP 은 암호 바이트가 CP949 인데 SharpCompress 는 UTF-8 로 바꿔 비교 — ZipCrypto 'The password did not match.', AES 'bad password' 로 못 풂";
-    public const string B4 = "bug B4: ZIP 해제 때 CRC-32 를 검사하지 않음 — Store 방식 데이터 1바이트가 깨진 ZIP 을 오류 없이 '틀린 내용'으로 풀어 냄. " +
-        "ZipCrypto 1바이트 암호 검사를 우연히 통과한 틀린 암호(약 1/256)도 첫 파일을 쓰레기 내용으로 '풀어' 남긴 뒤 다음 파일에서 암호 불일치로 멈춤";
-    public const string B5 = "bug B5: 틀린 암호인데 MainViewModel.IsPasswordRelated 가 암호 문제로 못 알아보는 예외가 있음 — 7z 틀린 암호(DataErrorException 'Data Error'), ZipCrypto 1바이트 검사를 우연히 통과한 틀린 암호(약 1/256, ZlibException 'Bad state') → 다시 묻지 않고 오류 창으로 끝남";
+    // ── 이번에 발견한 버그 ─────────────────────────
+    // 모두 고쳤다(남은 Bn Skip 없음). B1·B2·B6·B7·B8·B9·B10 과 TAR-빈폴더는 W1-A(SharpCompress 0.50.5 업그레이드 + 서비스 우회),
+    // B3·B4·B5 와 I2-11 은 W1-C(ZIP 암호 판정·CRC 검사·일집 암호 예외·ZipCrypto 선택) — 근거 테스트는 Contract/FixedBugTests.cs 로 옮겨
+    // 기대를 뒤집었고, Skip 테스트는 Skip 을 지웠다. 새 버그를 찾으면 여기에 "bug Bn: …" 사유를 다시 둘 것.
 }
 
 /// <summary>
@@ -65,7 +61,7 @@ public static class FixtureSets
     /// <summary>반디집 7z(일반·헤더 암호·한글 암호) — 빈 파일을 뺀 선택 해제 + 전체 해제(예전 B1, 고침)를 따로 시험.</summary>
     public static readonly string[] SevenZipBandizip = { "7z_default", "7z_header_encrypted", "7z_header_encrypted_korean_pw" };
 
-    /// <summary>한글 암호 ZIP — 목록은 맞지만 해제는 B3.</summary>
+    /// <summary>한글 암호(CP949 바이트) ZIP — 예전 B3, W1-C 에서 해제도 고침(BandizipFixtureTests.반디집_한글암호_ZIP이_풀린다).</summary>
     public static readonly string[] KoreanPasswordZip = { "zip_zipcrypto_korean_pw", "zip_aes256_korean_pw" };
 
     /// <summary>NFD 이름 ZIP — 내용은 맞게 풀리지만 이름이 NFD 그대로(I2-10).</summary>

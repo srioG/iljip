@@ -411,10 +411,13 @@ public partial class MainViewModel : ObservableObject
                 // 비밀번호 프롬프트 뒤에 진행 창이 남지 않도록 먼저 닫는다.
                 // finally가 다시 Close()를 호출해도 WPF에서 이미 닫힌 창에 대한 Close()는 무동작이라 안전.
                 progressDlg.Close();
+                // 이유 한 줄: 일집 암호 예외는 그 문구('암호가 걸린 압축 파일이에요…' / '암호가 맞지 않아요…'), 엔진 예외는 예전 문구
                 var pw = new PasswordPromptDialog(
-                    attempt == 0
-                        ? "이 압축 파일은 비밀번호가 필요해요."
-                        : "비밀번호가 틀린 것 같아요. 다시 입력해주세요.")
+                    ex is ArchivePasswordException
+                        ? ex.Message
+                        : attempt == 0
+                            ? "이 압축 파일은 비밀번호가 필요해요."
+                            : "비밀번호가 틀린 것 같아요. 다시 입력해주세요.")
                 {
                     Owner = Application.Current.MainWindow
                 };
@@ -706,8 +709,16 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 해제 실패가 '암호 문제'(암호 창을 다시 띄울 일)인가. 서비스가 일집 예외로 바꿔 던지는 것은 타입으로만 판정한다(B5) —
+    /// 암호 예외면 예, 그 밖의 일집 예외(손상·CRC 오류 등)는 문구에 '암호'가 들어 있어도 아니오.
+    /// 엔진 예외가 그대로 올라온 경우(번역이 없는 경로)만 예전 문구 휴리스틱을 쓴다.
+    /// </summary>
     private static bool IsPasswordRelated(Exception ex)
     {
+        if (ex is ArchivePasswordException) return true;
+        if (ex is ArchiveException) return false;
+
         var name = ex.GetType().Name;
         var msg = ex.Message ?? string.Empty;
         return ex is System.Security.Cryptography.CryptographicException

@@ -120,8 +120,11 @@ public class BandizipFixtureTests
         TreeAssert.ExtractedTreeEquals(dest, fx.Expected, context: id);
     }
 
-    /// <summary>[B3] 반디집이 한글 암호(테스트암호)로 만든 ZipCrypto·AES ZIP 을 맞는 암호로 풀 수 있어야 한다.</summary>
-    [Theory(Skip = Known.B3)]
+    /// <summary>
+    /// [B3 고침] 반디집이 한글 암호(테스트암호)로 만든 ZipCrypto·AES ZIP 을 맞는 암호로 풀 수 있어야 한다.
+    /// 반디집은 암호를 CP949 바이트로 쓴다 — ZipPasswordProbe 가 CP949 로 판정하면 ZipCrypto 는 엔진에 바이트 그대로, AES 는 WinZipAes 가 직접 푼다.
+    /// </summary>
+    [Theory]
     [MemberData(nameof(KoreanPw))]
     public async Task 반디집_한글암호_ZIP이_풀린다(string id)
     {

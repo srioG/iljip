@@ -176,4 +176,114 @@ public class FixedBugTests
 
     // [B8] 손상 7z·egg·alz 열기 실패 후 파일 잠김 → FileLockTests.손상_7z_egg_alz도_열기_실패후_바로_지울_수_있다(같은 데이터)·분할 EGG 테스트.
     // [B10] ALZ CP949 한글 이름 깨짐 → EggAlzTests.ALZ_CP949_한글_이름이_바르게_보인다 + AlzNameScannerTests.
+
+    // ───── W1-C: B3·B4·B5 ─────
+
+    /// <summary>
+    /// [B3] 반디집 한글 암호 ZIP(ZipCrypto·AES)에 '비슷한 틀린 한글 암호'(테스트암오)를 주면 화면이 다시 묻는 틀린 암호 예외이고 파일이 하나도 안 생긴다.
+    /// 예전 근거: 맞는 암호로도 'The password did not match.'·'bad password'(맞는 암호 해제는 BandizipFixtureTests.반디집_한글암호_ZIP이_풀린다).
+    /// </summary>
+    [Theory]
+    [InlineData("zip_zipcrypto_korean_pw")]
+    [InlineData("zip_aes256_korean_pw")]
+    public async Task 반디집_한글암호_ZIP에_틀린_한글암호는_WrongPassword_그리고_파일없음(string id)
+    {
+        var fx = FixtureCatalog.Get(id);
+        using var tmp = new TempDir("b3w");
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(fx.FullPath).ExtractAsync(fx.FullPath, dest, "테스트암오"));
+        Assert.IsType<WrongPasswordException>(ex);
+        Assert.True(Internals.IsPasswordRelated(ex!));
+        TreeAssert.NoFiles(dest);
+        Assert.False(Directory.Exists(dest), "틀린 암호인데 대상 폴더가 생김(판정은 아무것도 만들기 전에)");
+    }
+
+    /// <summary>
+    /// [B4] CRC 가 틀린 ZIP(zip_store_l0 의 readme.txt 한 글자를 바꿈, 머리·CRC 값은 그대로): 예전엔 '성공'으로 풀고 틀린 내용을 남겼다.
+    /// 이제 <see cref="ChecksumMismatchException"/>(화면이 암호를 묻지 않음) — 깨진 readme.txt 는 없고, 앞서 끝난 파일은 원본과 같다.
+    /// </summary>
+    [Fact]
+    public async Task CRC가_틀린_ZIP은_ChecksumMismatch_그리고_깨진_파일은_없다()
+    {
+        using var tmp = new TempDir("b4");
+        string arc = CorruptArchiveTests.MakeCrcBroken(tmp);
+        string dest = tmp.P("out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest));
+        var crc = Assert.IsType<ChecksumMismatchException>(ex);
+        Assert.Equal("일집_샘플/readme.txt", crc.EntryPath);
+        Assert.Contains("CRC", crc.Message);
+        Assert.False(Internals.IsPasswordRelated(crc));
+        Assert.False(File.Exists(Path.Combine(dest, "일집_샘플", "readme.txt")), "CRC 가 틀린 파일이 남음");
+
+        var want = FixtureCatalog.Get("zip_store_l0").ExpectedFiles.ToDictionary(e => e.Path, e => e.Sha256!);
+        foreach (var f in TreeAssert.Files(dest))
+            Assert.True(want.TryGetValue(f, out var sha) && sha == TreeAssert.Sha256(Path.Combine(dest, f)), "원본과 다른 파일이 남음: " + f);
+    }
+
+    /// <summary>
+    /// [B4] 첫 항목의 1바이트 암호 검사를 우연히 통과한 틀린 ZipCrypto 암호: 예전엔 첫 파일을 쓰레기 내용으로 '풀어' 남긴 뒤 다음 파일에서 멈췄다.
+    /// 이제 그런 암호 200개 중 어느 것도 틀린 내용 파일을 남기지 않고, 첫 후보는 틀린 암호 예외 + 파일 없음
+    /// (ZipPasswordProbe 가 모든 항목의 확인 바이트를 보므로 둘째 항목에서 걸러짐).
+    /// </summary>
+    [Fact]
+    public async Task 검사통과_틀린_ZipCrypto_암호는_틀린_내용_파일을_남기지_않는다()
+    {
+        var fx = FixtureCatalog.Get("zip_zipcrypto");
+        var want = fx.ExpectedFiles.ToDictionary(e => e.Path, e => e.Sha256!);
+        using var tmp = new TempDir("b4z");
+        var hit = await ZipCryptoLucky.FindAsync(fx.FullPath, FixtureCatalog.DefaultPassword, tmp, (_, dest) =>
+            TreeAssert.Files(dest).Any(f => !want.TryGetValue(f, out var sha) || sha != TreeAssert.Sha256(Path.Combine(dest, f))));
+        Assert.True(hit is null, $"검사를 통과한 틀린 암호 '{hit?.Password}' 가 틀린 내용 파일을 남김");
+
+        string first = ZipCryptoLucky.FindWrongPasswordPassingCheck(fx.FullPath, FixtureCatalog.DefaultPassword);
+        string dest1 = tmp.P("first");
+        var ex = await Svc.Catch(() => Svc.For(fx.FullPath).ExtractAsync(fx.FullPath, dest1, first));
+        Assert.IsType<WrongPasswordException>(ex);
+        TreeAssert.NoFiles(dest1);
+    }
+
+    /// <summary>
+    /// [B5] 화면이 암호 문제로 못 알아보던 틀린 암호(7z 'Data Error', ZipCrypto 검사 우연 통과 → Deflate 'Bad state')가
+    /// 이제 타입으로 <see cref="WrongPasswordException"/> 이고 화면이 다시 묻는다(파일 없음은 PasswordTests.어떤_틀린_암호도_… 가 지킴).
+    /// </summary>
+    [Theory]
+    [InlineData("python/7z_pw_names_visible.7z", "wrong")]
+    [InlineData("bandizip/7z_header_encrypted.7z", "wrong")]
+    [InlineData("bandizip/zip_zipcrypto.zip", ZipCryptoLucky.Marker)]
+    public async Task 틀린_암호는_타입으로_WrongPassword(string rel, string password)
+    {
+        string arc = FixtureCatalog.PathOf(rel);
+        if (password == ZipCryptoLucky.Marker)
+            password = ZipCryptoLucky.FindWrongPasswordPassingCheck(arc, FixtureCatalog.DefaultPassword);
+        using var tmp = new TempDir("b5");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, tmp.P("out"), password));
+        Assert.IsType<WrongPasswordException>(ex);
+        Assert.True(Internals.IsPasswordRelated(ex!));
+    }
+
+    /// <summary>
+    /// [B4 마지막 방어선] 항목이 '하나뿐인' ZipCrypto ZIP 은 모든 항목을 봐도 1/256 로 틀린 암호가 판정을 통과한다.
+    /// 그래도 쓰레기 Deflate(또는 쓰레기 내용의 CRC 불일치)에서 틀린 암호 예외가 나고, 쓰다 만·틀린 파일과 대상 폴더가 남지 않는다(롤백 장부).
+    /// </summary>
+    [Fact]
+    public async Task 항목하나_ZipCrypto_우연통과_틀린암호도_파일을_남기지_않는다()
+    {
+        using var tmp = new TempDir("b4one");
+        string src = tmp.P("하나.txt");
+        File.WriteAllText(src, string.Concat(Enumerable.Repeat("한 항목 ZipCrypto 시험 0123456789\n", 3000)));
+        string arc = tmp.P("one.zip");
+        await new ZipArchiveService().CompressAsync(new[] { src }, arc,
+            new Iljip.Models.CompressionOptions { Password = FixtureCatalog.DefaultPassword, Encryption = Iljip.Models.ZipEncryption.ZipCrypto });
+
+        int tried = 0;
+        foreach (var wrong in ZipCryptoLucky.WrongPasswordsPassingCheck(arc, FixtureCatalog.DefaultPassword).Take(20))
+        {
+            Assert.Equal(PasswordBytes.Utf8, ZipPasswordProbe.Probe(arc, wrong).Match);   // 판정은 통과(항목 하나라 걸러지지 않음)
+            string dest = tmp.P($"out{tried++}");
+            var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, wrong));
+            Assert.IsType<WrongPasswordException>(ex);
+            Assert.False(Directory.Exists(dest), $"'{wrong}': 틀린 암호인데 대상 폴더(또는 파일)가 남음");
+        }
+        Assert.Equal(20, tried);
+    }
 }

@@ -7,33 +7,19 @@ using Iljip.Tests.TestSupport;
 namespace Iljip.Tests.Contract;
 
 /// <summary>
-/// 버그 근거(아직 안 고친 B3·B4·B5) — 이 묶음은 '지금 버그가 있다'는 사실을 그대로 고정한다(재현 근거).
+/// 버그 근거 — '지금 버그가 있다'는 사실을 그대로 고정하는 묶음(재현 근거).
 /// ★ 버그가 고쳐지면 여기 테스트가 실패하는 게 정상이다 → 해당 테스트를 <see cref="FixedBugTests"/>로 옮겨 올바른 기대로 뒤집고,
 /// 같은 번호의 Skip 테스트(Known.Bn)에서 Skip 을 지울 것. 사유 문구는 TestSupport/Known.cs.
-/// (B1·B2·B6·B7·B8·B9·B10 은 W1-A 에서 고쳐 FixedBugTests·각 계약 테스트로 옮겼다)
+/// 지금은 안 고친 버그가 없다(B1·B2·B6~B10 은 W1-A, B3·B4·B5 는 W1-C 에서 고쳐 FixedBugTests·각 계약 테스트로 옮김).
+/// 남은 것은 B3 의 '원인 사실 기록' 두 개 — 반디집 한글 암호가 CP949 바이트이고 일집 AES 는 UTF-8 이라는 것(고친 뒤에도 사실이라 그대로 통과).
 /// 전부 '현재 동작 기록'(Trait Kind=Record) — 계약만 볼 때(--filter "Kind!=Record")는 빠진다.
 /// </summary>
 [Trait(Kinds.Key, Kinds.Record)]
 public class BugEvidenceTests
 {
-    /// <summary>[B3] 반디집 한글 암호 ZIP: 맞는 암호를 줘도 지금은 암호 불일치 예외.</summary>
-    [Theory]
-    [InlineData("zip_zipcrypto_korean_pw", "SharpCompress.Common.CryptographicException", "The password did not match.")]
-    [InlineData("zip_aes256_korean_pw", "SharpCompress.Common.InvalidFormatException", "bad password")]
-    public async Task B3_반디집_한글암호_ZIP은_맞는_암호로도_못_푼다(string id, string exType, string msg)
-    {
-        var fx = FixtureCatalog.Get(id);
-        using var tmp = new TempDir("b3");
-        string dest = tmp.P("out");
-        var ex = await Svc.Catch(() => Svc.For(fx.FullPath).ExtractAsync(fx.FullPath, dest, FixtureCatalog.KoreanPassword));
-        Assert.Equal(exType, ex?.GetType().FullName);
-        Assert.Equal(msg, ex!.Message);
-        TreeAssert.NoFiles(dest);
-    }
-
     /// <summary>
     /// [B3 원인 — ZipCrypto] 같은 파일을 SharpCompress 로 직접, 암호를 'CP949 바이트 그대로'(Latin-1 문자열 + Latin-1 암호 인코딩)
-    /// 넘기면 풀린다 → 반디집 암호 바이트는 CP949, 일집이 못 푸는 원인은 암호 인코딩(UTF-8).
+    /// 넘기면 풀린다 → 반디집 암호 바이트는 CP949. 일집 ZIP 해제가 CP949 로 판정되면 이 방법을 쓴다(ZipArchiveService).
     /// (SharpCompress 를 엔진에서 빼면 이 테스트는 컴파일되지 않으니 같이 지울 것)
     /// </summary>
     [Fact]
@@ -63,7 +49,8 @@ public class BugEvidenceTests
     /// <summary>
     /// [B3 원인 — AES, 양방향] WinZip AES 의 암호 확인값(PBKDF2 결과 끝 2바이트)으로 암호 바이트를 판정:
     ///  - 반디집 AES ZIP 은 '테스트암호'의 CP949 바이트와 맞고 UTF-8 과는 안 맞는다.
-    ///  - 일집이 만든 AES ZIP 은 반대로 UTF-8 과 맞고 CP949 와는 안 맞는다 → 일집이 한글 암호로 만든 ZIP 은 반디집(한국어 Windows)이 못 엶.
+    ///  - 일집이 만든 AES ZIP 은 반대로 UTF-8 과 맞고 CP949 와는 안 맞는다 → 일집이 한글 암호로 만든 AES ZIP 은 반디집(한국어 Windows)이 못 엶.
+    ///    W1-C 결정: SharpZipLib AES 는 암호를 UTF-8 로만 써서 바꿀 수 없으므로 그대로 두고, 화면이 경고(ZipCrypto 로 만들면 CP949 로 써서 호환).
     /// </summary>
     [Fact]
     public async Task B3_원인_AES_한글암호는_반디집_CP949_일집_UTF8()
@@ -83,70 +70,15 @@ public class BugEvidenceTests
         Assert.False(AesPasswordVerifier.Matches(iljip, cp949), "일집 AES: CP949 와 맞음(예상 밖)");
     }
 
-    /// <summary>[B4] CRC 가 틀린 ZIP 을 지금은 '성공'으로 풀고, readme.txt 가 틀린 내용으로 남는다.</summary>
-    [Fact]
-    public async Task B4_CRC가_틀린_ZIP을_조용히_풀어낸다()
-    {
-        using var tmp = new TempDir("b4");
-        string arc = CorruptArchiveTests.MakeCrcBroken(tmp);
-        string dest = tmp.P("out");
-        await Svc.For(arc).ExtractAsync(arc, dest);   // 예외 없음
-        var fx = FixtureCatalog.Get("zip_store_l0");
-        string expectedSha = fx.Expected.Single(e => e.Path == "일집_샘플/readme.txt").Sha256!;
-        Assert.NotEqual(expectedSha, TreeAssert.Sha256(Path.Combine(dest, "일집_샘플", "readme.txt")));
-    }
-
-    /// <summary>
-    /// [B5] 틀린 암호인데 화면이 암호 문제로 못 알아보는 예외: 7z → DataErrorException('Data Error'),
-    /// ZipCrypto 1바이트 검사를 통과한 틀린 암호(<see cref="ZipCryptoLucky"/> 가 픽스처에서 계산) → ZlibException('Bad state …').
-    /// </summary>
-    [Theory]
-    [InlineData("python/7z_pw_names_visible.7z", "wrong", "SharpCompress.Compressors.LZMA.DataErrorException")]
-    [InlineData("bandizip/7z_header_encrypted.7z", "wrong", "SharpCompress.Compressors.LZMA.DataErrorException")]
-    [InlineData("bandizip/zip_zipcrypto.zip", ZipCryptoLuckyMarker, "SharpCompress.Compressors.Deflate.ZlibException")]
-    public async Task B5_틀린_암호를_화면이_암호문제로_못_알아본다(string rel, string password, string exType)
-    {
-        string arc = FixtureCatalog.PathOf(rel);
-        using var tmp = new TempDir("b5");
-        Exception? ex;
-        if (password == ZipCryptoLuckyMarker)
-        {
-            var hit = await ZipCryptoLucky.FindAsync(arc, FixtureCatalog.DefaultPassword, tmp, (e, _) => e?.GetType().FullName == exType);
-            Assert.True(hit is not null, $"1바이트 검사를 통과하는 틀린 암호 200개 중 {exType} 로 끝나는 것이 없음");
-            ex = hit!.Value.Ex;
-        }
-        else
-        {
-            ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, tmp.P("out"), password));
-        }
-        Assert.Equal(exType, ex?.GetType().FullName);
-        Assert.False(Internals.IsPasswordRelated(ex!));
-    }
-
-    /// <summary>InlineData 자리표시: 'ZipCrypto 1바이트 검사를 우연히 통과하는 틀린 암호'를 픽스처에서 계산해 쓴다.</summary>
-    internal const string ZipCryptoLuckyMarker = "<1바이트 검사 통과 틀린 암호>";
-
-    /// <summary>
-    /// [B4 결과] 1바이트 검사를 우연히 통과한 틀린 ZipCrypto 암호(약 1/256)는 첫 파일의 쓰레기 Deflate 를 오류 없이 '풀어' 써 버리고,
-    /// 다음 파일에서야 '암호 불일치'(CryptographicException)로 멈춘다 — 화면은 암호를 다시 묻지만 대상 폴더에는
-    /// 틀린 내용의 파일이 원래 이름으로 남는다(CRC 검사가 없어서, B4). 맞는 암호로 다시 풀면 진짜 파일은 '이름 (1)' 로 비켜 써진다.
-    /// </summary>
-    [Fact]
-    public async Task B4_검사통과_틀린_ZipCrypto_암호는_틀린_내용_파일을_남긴다()
-    {
-        var fx = FixtureCatalog.Get("zip_zipcrypto");
-        var want = fx.ExpectedFiles.ToDictionary(e => e.Path, e => e.Sha256!);
-        using var tmp = new TempDir("b4z");
-        var hit = await ZipCryptoLucky.FindAsync(fx.FullPath, FixtureCatalog.DefaultPassword, tmp, (e, dest) =>
-            e is not null && Internals.IsPasswordRelated(e)
-            && TreeAssert.Files(dest).Any(f => !want.TryGetValue(f, out var sha) || sha != TreeAssert.Sha256(Path.Combine(dest, f))));
-        Assert.True(hit is not null, "검사를 통과한 틀린 암호 200개 중 '암호 예외 + 틀린 내용 파일 남음' 인 것이 없음(고쳐졌으면 정상)");
-    }
+    // [B3] '맞는 암호로도 못 푼다' 근거는 지웠다 — BandizipFixtureTests.반디집_한글암호_ZIP이_풀린다(Skip 해제)와
+    //      FixedBugTests.반디집_한글암호_ZIP에_틀린_한글암호는_WrongPassword_그리고_파일없음 이 같은 픽스처로 지킨다.
+    // [B4]·[B5] 근거는 FixedBugTests 로 옮겨 기대를 뒤집었다.
 }
 
 /// <summary>
 /// WinZip AES 암호 확인값 검사기: 첫 AES 항목의 salt 와 2바이트 확인값(PV)을 읽고
 /// PBKDF2-HMAC-SHA1(암호 바이트, salt, 1000회)로 만든 값의 마지막 2바이트와 비교한다(AE-1/AE-2 규격).
+/// 본체 ZipPasswordProbe 와 같은 규격을 따로 구현한 '독립 검증용'이다(본체 코드를 쓰지 않음).
 /// </summary>
 public static class AesPasswordVerifier
 {

@@ -1,0 +1,110 @@
+namespace Iljip.Services;
+
+// 일집 자체 예외 체계. 엔진(SharpCompress·EggDotNet)마다 제각각인 예외를 서비스 경계에서 이 타입들로 바꿔 던진다
+// (EngineErrorTranslator, 각 서비스의 TranslateError). Message 가 곧 화면에 보일 쉬운 한국어 문구라 기존 'ex.Message 표시'도
+// 그대로 맞고, 엔진의 원래 예외는 InnerException 에 넣어 Logger 로 남긴다.
+// 화면(MainViewModel.IsPasswordRelated)은 문구가 아니라 타입으로 '암호 문제'를 판정한다(B5) — ArchivePasswordException 이면 암호를 다시 묻는다.
+// W1-C 에는 암호·무결성에 필요한 것만 있다. 설계표의 나머지(분할 조각 없음·형식 미지원·7z.dll 없음·원본 못 읽음)는 W1-B(7z.dll)와 같이 들어온다.
+// ★ 손상 문구에 '압축 파일이 아닌'·'not archive' 를 넣지 말 것 — 재사용장치가 그 문자열로 '압축 아님'을 분류한다(재사용장치_processor.py 491행).
+
+/// <summary>일집 압축 예외의 공통 부모. <see cref="EntryPath"/> 는 문제가 난 항목(알 때만).</summary>
+public abstract class ArchiveException : Exception
+{
+    protected ArchiveException(string message, Exception? inner = null, string? entryPath = null)
+        : base(message, inner)
+    {
+        EntryPath = entryPath;
+    }
+
+    /// <summary>문제가 난 압축 안 항목 경로('/' 구분). 모르면 null.</summary>
+    public string? EntryPath { get; }
+}
+
+/// <summary>암호 때문에 못 연 경우(화면은 이 타입이면 암호를 다시 묻는다). 해제 서비스는 이 예외면 이번에 만든 파일·폴더를 모두 지운다.</summary>
+public abstract class ArchivePasswordException : ArchiveException
+{
+    protected ArchivePasswordException(string message, bool isHeaderEncrypted, Exception? inner = null, string? entryPath = null)
+        : base(message, inner, entryPath)
+    {
+        IsHeaderEncrypted = isHeaderEncrypted;
+    }
+
+    /// <summary>파일 이름(머리)까지 암호가 걸린 압축(7z 헤더 암호)인지.</summary>
+    public bool IsHeaderEncrypted { get; }
+}
+
+/// <summary>암호가 걸렸는데 암호를 주지 않았다.</summary>
+public sealed class PasswordRequiredException : ArchivePasswordException
+{
+    public const string DefaultMessage = "암호가 걸린 압축 파일이에요. 암호를 넣어 주세요.";
+    public const string HeaderMessage = "파일 이름까지 암호가 걸려 있어요. 암호를 넣어 주세요.";
+
+    public PasswordRequiredException(bool isHeaderEncrypted = false, Exception? inner = null, string? entryPath = null)
+        : base(isHeaderEncrypted ? HeaderMessage : DefaultMessage, isHeaderEncrypted, inner, entryPath)
+    {
+    }
+}
+
+/// <summary>
+/// 준 암호가 맞지 않다. 헤더 암호이거나 손상과 구분이 안 되는 경우(<paramref name="mayBeCorrupt"/> — 7z 처럼 암호 확인값이 없거나,
+/// 확인값을 통과한 뒤 데이터·CRC 가 틀린 경우)에는 그 말을 덧붙인다. 맞는 암호를 넣고도 되풀이되면 손상을 떠올리게.
+/// </summary>
+public sealed class WrongPasswordException : ArchivePasswordException
+{
+    public const string DefaultMessage = "암호가 맞지 않아요. 다시 넣어 주세요.";
+    public const string HeaderNote = " (파일이 손상된 경우에도 이렇게 보일 수 있어요)";
+
+    public WrongPasswordException(bool isHeaderEncrypted = false, Exception? inner = null, string? entryPath = null, bool mayBeCorrupt = false)
+        : base(isHeaderEncrypted || mayBeCorrupt ? DefaultMessage + HeaderNote : DefaultMessage, isHeaderEncrypted, inner, entryPath)
+    {
+        MayBeCorrupt = mayBeCorrupt;
+    }
+
+    /// <summary>
+    /// 암호 확인값은 통과했는데 풀린 데이터(Deflate·CRC·AES 인증값)가 틀려서 '틀린 암호'로 본 경우 — 손상일 수도 있다.
+    /// ZIP 은 판정(<see cref="ZipPasswordProbe"/>)이 암호를 이미 충분히 확인했으면 이 예외 대신 손상 예외로 바꾼다.
+    /// </summary>
+    public bool MayBeCorrupt { get; }
+}
+
+/// <summary>압축 파일이 손상됐다(머리 손상·잘림·데이터 오류).</summary>
+public class CorruptArchiveException : ArchiveException
+{
+    public const string DefaultMessage = "압축 파일이 손상됐어요. 다시 받아 보세요.";
+
+    public CorruptArchiveException(Exception? inner = null, string? entryPath = null)
+        : base(entryPath is null ? DefaultMessage : $"{DefaultMessage} (문제 위치: {entryPath})", inner, entryPath)
+    {
+    }
+
+    /// <summary>파생 예외가 자기 문구를 쓸 때.</summary>
+    protected CorruptArchiveException(string message, Exception? inner, string? entryPath)
+        : base(message, inner, entryPath)
+    {
+    }
+}
+
+/// <summary>
+/// 풀린 내용의 CRC-32 가 압축 파일에 적힌 값과 다르다(B4). 깨진 그 파일은 지우고, 앞서 맞게 끝난 파일은 남긴다.
+/// 암호 항목은 판정이 암호를 충분히 확인했을 때만 이 예외다. 확인이 약하면(ZipCrypto 항목 하나뿐 등) 틀린 암호가 1바이트 검사를
+/// 우연히 통과한 경우일 수 있어 <see cref="WrongPasswordException"/>(손상일 수도)으로 알린다.
+/// </summary>
+public sealed class ChecksumMismatchException : CorruptArchiveException
+{
+    public ChecksumMismatchException(string entryPath, Exception? inner = null)
+        : base($"'{entryPath}' 파일 내용이 원본과 달라요(CRC 오류). 압축 파일이 손상됐을 수 있어요.", inner, entryPath)
+    {
+    }
+}
+
+/// <summary>형식은 알지만 그 안의 압축 방식을 풀 수 없다.</summary>
+public sealed class UnsupportedMethodException : ArchiveException
+{
+    public UnsupportedMethodException(string method, Exception? inner = null, string? entryPath = null)
+        : base($"이 압축 방식({method})은 아직 풀 수 없어요.", inner, entryPath)
+    {
+        Method = method;
+    }
+
+    public string Method { get; }
+}

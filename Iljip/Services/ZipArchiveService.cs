@@ -1,17 +1,88 @@
 using System.IO;
+using System.Text;
 using ICSharpCode.SharpZipLib.Zip;
 using Iljip.Models;
+using SharpCompress.Archives;
 
 namespace Iljip.Services;
 
 /// <summary>
 /// ZIP 포맷.
-/// - 해제/목록: 베이스(SharpCompress, ArchiveFactory)에서 처리. 한글 파일명 자동 디코딩 포함.
-/// - 압축: SharpZipLib로 처리. ZipCrypto + AES-256 암호 압축 지원.
+/// - 해제/목록: 베이스(SharpCompress)에서 처리. 한글 파일명 자동 디코딩 포함.
+///   해제 전에 <see cref="ZipPasswordProbe"/> 로 암호를 판정한다(아무것도 만들기 전): 암호 없음·틀림은 바로 예외,
+///   반디집의 CP949 한글 암호(B3)는 ZipCrypto 면 엔진에 암호 바이트를 그대로 넘기고, WinZip AES 항목은 <see cref="WinZipAes"/> 가 직접 푼다
+///   (인증값 HMAC 까지 확인 — AE-2 는 CRC 칸이 0 이라 이것이 유일한 무결성 확인). 풀린 내용의 CRC-32 도 맞춰 본다(B4).
+///   두 후보가 다 통과해 못 가리면 다른 후보로 다시 풀 계획을 함께 넘기고, 판정이 암호를 충분히 확인했으면(<see cref="ZipPasswordProbeResult.Confirmed"/>)
+///   풀다가 나는 데이터 오류를 틀린 암호가 아니라 손상으로 알린다.
+/// - 압축: SharpZipLib로 처리. AES-256(기본) 또는 ZipCrypto(호환, I2-11). ZipCrypto 암호는 CP949 로 바꿀 수 있으면 CP949 바이트로 쓴다
+///   (한국어 Windows 반디집과 양방향 호환 실측). AES 암호는 SharpZipLib 가 늘 UTF-8 로 쓴다(바꿀 수 없음 — 한글이면 화면이 경고).
 /// </summary>
 public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
 {
     public override IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".zip" };
+
+    protected override ExtractPlan PrepareExtract(string archivePath, string? password, Func<string, bool> shouldExtract)
+    {
+        var probe = ZipPasswordProbe.Probe(archivePath, password, shouldExtract);
+        if (!probe.AnyEncrypted || probe.Match is PasswordBytes.Unknown or PasswordBytes.NotApplicable)
+            return new ExtractPlan(BuildReaderOptions(password)) { VerifyCrc = true };   // 판정 못 함 → 엔진이 확인(+ CRC·번역·장부)
+
+        if (string.IsNullOrEmpty(password)) throw new PasswordRequiredException();
+        if (probe.Match == PasswordBytes.None || probe.MatchedPasswordBytes is not { } bytes) throw new WrongPasswordException();
+
+        // 두 후보(UTF-8·CP949)가 모두 검사를 통과해 못 가렸으면, 먼저 쓴 후보로 데이터가 틀릴 때 다른 후보로 처음부터 다시 푼다(B3).
+        var alternate = probe.AlternatePasswordBytes is { } alt
+            ? PlanFor(archivePath, password, probe, probe.AlternateMatch, alt, alternate: null)
+            : null;
+        return PlanFor(archivePath, password, probe, probe.Match, bytes, alternate);
+    }
+
+    private static ExtractPlan PlanFor(
+        string archivePath, string password, ZipPasswordProbeResult probe, PasswordBytes kind, byte[] bytes, ExtractPlan? alternate)
+    {
+        // 엔진에 암호 '문자열'을 그대로 줘도 되는가: UTF-8 로 맞았고, ASCII 이거나 ZipCrypto 항목이 없을 때(AES 는 엔진도 UTF-8 로 키를 만듦).
+        // 아니면 맞은 '바이트'를 그대로 넘긴다 — CP949 는 물론, SharpCompress 는 ZipCrypto 암호를 글자 단위로 바꿔서
+        // 이모지(서로게이트 쌍) 같은 UTF-8 암호도 문자열로는 안 맞는다(W1-C 실측).
+        bool asIs = kind == PasswordBytes.Utf8 && (IsAscii(password) || !probe.HasZipCrypto);
+        return new ExtractPlan(asIs ? BuildReaderOptions(password) : BuildReaderOptions(password, bytes))
+        {
+            VerifyCrc = true,
+            PasswordConfirmed = probe.Confirmed,
+            Alternate = alternate,
+            OpenOverride = probe.HasAes ? AesOpener(archivePath, probe.Entries, bytes, engineFallback: asIs) : null,
+        };
+    }
+
+    private static bool IsAscii(string s)
+    {
+        foreach (char c in s)
+            if (c > 0x7F) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// WinZip AES 항목을 <see cref="WinZipAes"/> 로 푸는 여닫이. 엔진 항목과 중앙 디렉터리 항목은 순번으로 짝짓고(크기·CRC·암호 여부로 확인),
+    /// 어긋나면 이름으로 한 번 더 찾는다. 짝을 못 찾거나 안쪽 방식을 직접 못 풀면: 엔진에 암호 문자열을 그대로 준 경우(<paramref name="engineFallback"/>)는
+    /// 엔진(SharpCompress)에 맡기고, 바이트로 넘긴 경우(CP949 등)는 엔진이 AES 키를 못 만들므로 '못 푸는 방식'으로 알린다.
+    /// </summary>
+    private static Func<int, IArchiveEntry, Stream?> AesOpener(
+        string archivePath, IReadOnlyList<ZipCentralEntry> central, byte[] passwordBytes, bool engineFallback) => (index, entry) =>
+    {
+        if (!IsEncrypted(entry)) return null;
+        var cd = FindCentral(central, index, entry);
+        if (cd is { IsAes: true } && WinZipAes.CanDecompress(cd))
+            return WinZipAes.OpenEntry(archivePath, cd, passwordBytes);
+        if (cd is { IsAes: false } || engineFallback) return null;
+        throw new UnsupportedMethodException(cd is null ? "한글 암호 AES" : $"한글 암호 AES + 방식 {cd.AesMethod}", entryPath: entry.Key);
+    };
+
+    private static ZipCentralEntry? FindCentral(IReadOnlyList<ZipCentralEntry> central, int index, IArchiveEntry entry)
+    {
+        bool Same(ZipCentralEntry c) => c.UncompressedSize == entry.Size && c.Crc == unchecked((uint)entry.Crc) && c.IsEncrypted;
+        if (index < central.Count && Same(central[index])) return central[index];
+        var byName = central.Where(c => c.Name == entry.Key && Same(c)).Take(2).ToList();
+        return byName.Count == 1 ? byName[0] : null;
+    }
 
     public override Task CompressAsync(
         IEnumerable<string> sourcePaths,
@@ -35,8 +106,11 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
             if (!string.IsNullOrEmpty(archiveDir))
                 Directory.CreateDirectory(archiveDir);
 
+            // 암호 방식(I2-11): AES-256(기본, 안전) 또는 ZipCrypto(호환 — 탐색기·오래된 프로그램).
+            bool zipCrypto = options.HasPassword && options.Encryption == ZipEncryption.ZipCrypto;
+
             using var fs = File.Create(archivePath);
-            using var zipStream = new ZipOutputStream(fs)
+            using var zipStream = new ZipOutputStream(fs, ZipCryptoCodec(zipCrypto ? options.Password : null))
             {
                 IsStreamOwner = false,
                 UseZip64 = UseZip64.Dynamic
@@ -62,8 +136,8 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
                     // 파일명을 UTF-8 + EFS(General Purpose Bit 11) 플래그로 기록.
                     // 한글 파일명이 일집/탐색기/macOS 등 어디서든 올바르게 보이게 함.
                     IsUnicodeText = true,
-                    // AES-256 (WinZip 호환). 암호 없으면 무시됨.
-                    AESKeySize = options.HasPassword ? 256 : 0
+                    // AES-256 (WinZip 호환). 0 이면 암호가 있을 때 ZipCrypto. 암호 없으면 무시됨.
+                    AESKeySize = options.HasPassword && !zipCrypto ? 256 : 0
                 };
 
                 zipStream.PutNextEntry(entry);
@@ -126,6 +200,17 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
                 TotalFiles = totalFiles
             });
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// ZipCrypto 암호를 쓸 바이트 인코딩. CP949 로 바꿀 수 있는 암호면 CP949(한국어 Windows 의 반디집·알집이 쓰는 방식 — 반디집 7.46
+    /// bz.exe 로 양방향 실측), 이모지처럼 못 바꾸는 글자가 있으면 UTF-8(화면이 '다른 프로그램에서 안 풀릴 수 있어요' 경고 후 고른 경우).
+    /// 이름은 항목마다 IsUnicodeText(UTF-8 + EFS 플래그)라 이 코덱의 이름 인코딩은 쓰이지 않는다.
+    /// </summary>
+    private static StringCodec ZipCryptoCodec(string? zipCryptoPassword)
+    {
+        bool cp949 = zipCryptoPassword is not null && ZipPasswordProbe.TryCp949Bytes(zipCryptoPassword) is not null;
+        return StringCodec.Default.WithZipCryptoEncoding(cp949 ? Encoding.GetEncoding(949) : Encoding.UTF8);
     }
 
     private static int ToSharpZipLevel(CompressionLevelOption opt) => opt switch

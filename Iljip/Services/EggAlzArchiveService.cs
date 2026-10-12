@@ -33,22 +33,29 @@ public sealed class EggAlzArchiveService : IArchiveService
     {
         return Task.Run<IReadOnlyList<ArchiveEntry>>(() =>
         {
-            using var archive = OpenArchive(archivePath, password);
-            var entries = new List<ArchiveEntry>();
-            foreach (var n in NamedEntries(archive, archivePath))
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var e = n.Entry;
-                entries.Add(new ArchiveEntry
+                using var archive = OpenArchive(archivePath, password);
+                var entries = new List<ArchiveEntry>();
+                foreach (var n in NamedEntries(archive, archivePath))
                 {
-                    Path = n.Path,
-                    Size = e.UncompressedLength,
-                    CompressedSize = SafeLen(e, n.IsDirectory, () => e.CompressedLength),   // B9: 크기 0 항목은 NRE → 0
-                    IsDirectory = n.IsDirectory,
-                    LastModified = e.LastWriteTime
-                });
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var e = n.Entry;
+                    entries.Add(new ArchiveEntry
+                    {
+                        Path = n.Path,
+                        Size = e.UncompressedLength,
+                        CompressedSize = SafeLen(e, n.IsDirectory, () => e.CompressedLength),   // B9: 크기 0 항목은 NRE → 0
+                        IsDirectory = n.IsDirectory,
+                        LastModified = e.LastWriteTime
+                    });
+                }
+                return entries;
             }
-            return entries;
+            catch (Exception ex) when (Translate(ex, password, null, null) is { } translated)
+            {
+                throw translated;
+            }
         }, cancellationToken);
     }
 
@@ -97,124 +104,154 @@ public sealed class EggAlzArchiveService : IArchiveService
     {
         return Task.Run(() =>
         {
-            Directory.CreateDirectory(destinationFolder);
-            using var archive = OpenArchive(archivePath, password);
-            // 이름(ALZ 는 CP949 복구 이름)과 항목을 한 번에 짝지어 둔다 — 화면이 넘긴 '복구된 이름'으로 고른 항목을 다시 찾기 위함.
-            var named = NamedEntries(archive, archivePath);
-
-            // 진행률 총량 선계산 (디렉터리·필터제외·암호화 제외분은 빼고 파일만)
-            long totalBytes = 0;
-            int totalFiles = 0;
-            foreach (var n in named)
+            var ledger = new ExtractionLedger();
+            EggArchiveEntry? current = null;   // 지금 풀고 있는 항목(오류 번역에 씀 — 열기 단계면 null)
+            string? currentPath = null;
+            try
             {
-                if (n.IsDirectory) continue;
-                if (!shouldExtract(n.Path)) continue;
-                totalBytes += n.Entry.UncompressedLength;
-                totalFiles++;
-            }
+                ledger.EnsureDirectory(destinationFolder);
+                using var archive = OpenArchive(archivePath, password);
+                // 이름(ALZ 는 CP949 복구 이름)과 항목을 한 번에 짝지어 둔다 — 화면이 넘긴 '복구된 이름'으로 고른 항목을 다시 찾기 위함.
+                var named = NamedEntries(archive, archivePath);
 
-            long bytesProcessed = 0;
-            int filesProcessed = 0;
-            string fullDestRoot = Path.GetFullPath(destinationFolder + Path.DirectorySeparatorChar);
-
-            foreach (var (entry, decodedPath, isDirectory) in named)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (decodedPath.Length == 0) continue;
-                if (!shouldExtract(decodedPath)) continue;
-
-                string outputPath = Path.Combine(destinationFolder, decodedPath);
-                string fullOutputPath = Path.GetFullPath(outputPath);
-
-                // Zip Slip 방어: 해제 경로가 대상 폴더 밖으로 나가면 거부.
-                if (!fullOutputPath.StartsWith(fullDestRoot, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException($"안전하지 않은 경로: {decodedPath}");
-
-                if (isDirectory)
+                // 진행률 총량 선계산 (디렉터리·필터제외·암호화 제외분은 빼고 파일만)
+                long totalBytes = 0;
+                int totalFiles = 0;
+                foreach (var n in named)
                 {
-                    Directory.CreateDirectory(fullOutputPath);
-                    continue;
+                    if (n.IsDirectory) continue;
+                    if (!shouldExtract(n.Path)) continue;
+                    totalBytes += n.Entry.UncompressedLength;
+                    totalFiles++;
                 }
 
-                string? parent = Path.GetDirectoryName(fullOutputPath);
-                if (!string.IsNullOrEmpty(parent))
-                    Directory.CreateDirectory(parent);
+                long bytesProcessed = 0;
+                int filesProcessed = 0;
+                string fullDestRoot = Path.GetFullPath(destinationFolder + Path.DirectorySeparatorChar);
+
+                foreach (var (entry, decodedPath, isDirectory) in named)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (decodedPath.Length == 0) continue;
+                    if (!shouldExtract(decodedPath)) continue;
+                    current = entry;
+                    currentPath = decodedPath;
+
+                    string outputPath = Path.Combine(destinationFolder, decodedPath);
+                    string fullOutputPath = Path.GetFullPath(outputPath);
+
+                    // Zip Slip 방어: 해제 경로가 대상 폴더 밖으로 나가면 거부.
+                    if (!fullOutputPath.StartsWith(fullDestRoot, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException($"안전하지 않은 경로: {decodedPath}");
+
+                    if (isDirectory)
+                    {
+                        ledger.EnsureDirectory(fullOutputPath);
+                        continue;
+                    }
+
+                    string? parent = Path.GetDirectoryName(fullOutputPath);
+                    if (!string.IsNullOrEmpty(parent))
+                        ledger.EnsureDirectory(parent);
+
+                    progress?.Report(new ArchiveProgress
+                    {
+                        CurrentFile = decodedPath,
+                        BytesProcessed = bytesProcessed,
+                        TotalBytes = totalBytes,
+                        FilesProcessed = filesProcessed,
+                        TotalFiles = totalFiles
+                    });
+
+                    // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 → 원본 유실 방지(OutputFiles).
+                    var output = OutputFiles.CreateNew(fullOutputPath, out string writePath);
+                    ledger.AddFile(writePath);
+
+                    // entry.Open()이 store/deflate/bzip2/lzma/AZO·암호화를 알아서 해제해 평문 스트림을 준다.
+                    // 암호화인데 비번이 없으면 여기서 예외 → 해제 전체 실패(부분 추출로 위장하지 않음).
+                    try
+                    {
+                        using (output)
+                        {
+                            // B9: 크기 0 항목은 EggDotNet 에 블록 머리가 없어 Open()이 NullReferenceException —
+                            // 열지 않고 빈 파일만 둔다(읽을 내용도, 맞춰 볼 CRC 도 없음).
+                            if (entry.UncompressedLength != 0)
+                            {
+                                using var input = entry.Open();
+                                var crc = new Crc32();
+                                long written = 0;
+                                var buffer = new byte[81920];
+                                int read;
+                                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                                {
+                                    cancellationToken.ThrowIfCancellationRequested();
+                                    output.Write(buffer, 0, read);
+                                    crc.Update(new ArraySegment<byte>(buffer, 0, read));
+                                    written += read;
+                                    bytesProcessed += read;
+
+                                    progress?.Report(new ArchiveProgress
+                                    {
+                                        CurrentFile = decodedPath,
+                                        BytesProcessed = bytesProcessed,
+                                        TotalBytes = totalBytes,
+                                        FilesProcessed = filesProcessed,
+                                        TotalFiles = totalFiles
+                                    });
+                                }
+                                VerifyWritten(archive, entry, decodedPath, written, (uint)crc.Value);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // 취소/오류/확인값 불일치로 중단되면 절반만 기록된 writePath(정상 이름이라 완전한 파일로 오인됨)를
+                        // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존 — 암호 오류면 바깥에서 장부로 모두 지움).
+                        try { File.Delete(writePath); } catch { /* 정리 실패는 무시 */ }
+                        ledger.ForgetFile(writePath);
+                        throw;
+                    }
+
+                    if (entry.LastWriteTime is { } lwt)
+                    {
+                        try { File.SetLastWriteTime(writePath, lwt); }
+                        catch { /* 일부 값/파일에서 실패 가능 — 무시 */ }
+                    }
+
+                    filesProcessed++;
+                    current = null;
+                    currentPath = null;
+                }
 
                 progress?.Report(new ArchiveProgress
                 {
-                    CurrentFile = decodedPath,
-                    BytesProcessed = bytesProcessed,
+                    CurrentFile = string.Empty,
+                    BytesProcessed = totalBytes,
                     TotalBytes = totalBytes,
                     FilesProcessed = filesProcessed,
                     TotalFiles = totalFiles
                 });
-
-                // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 → 원본 유실 방지(OutputFiles).
-                var output = OutputFiles.CreateNew(fullOutputPath, out string writePath);
-
-                // entry.Open()이 store/deflate/bzip2/lzma/AZO·암호화를 알아서 해제해 평문 스트림을 준다.
-                // 암호화인데 비번이 없으면 여기서 예외 → 해제 전체 실패(부분 추출로 위장하지 않음).
-                try
-                {
-                    using (output)
-                    {
-                        // B9: 크기 0 항목은 EggDotNet 에 블록 머리가 없어 Open()이 NullReferenceException —
-                        // 열지 않고 빈 파일만 둔다(읽을 내용도, 맞춰 볼 CRC 도 없음).
-                        if (entry.UncompressedLength != 0)
-                        {
-                            using var input = entry.Open();
-                            var crc = new Crc32();
-                            long written = 0;
-                            var buffer = new byte[81920];
-                            int read;
-                            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                            {
-                                cancellationToken.ThrowIfCancellationRequested();
-                                output.Write(buffer, 0, read);
-                                crc.Update(new ArraySegment<byte>(buffer, 0, read));
-                                written += read;
-                                bytesProcessed += read;
-
-                                progress?.Report(new ArchiveProgress
-                                {
-                                    CurrentFile = decodedPath,
-                                    BytesProcessed = bytesProcessed,
-                                    TotalBytes = totalBytes,
-                                    FilesProcessed = filesProcessed,
-                                    TotalFiles = totalFiles
-                                });
-                            }
-                            VerifyWritten(archive, entry, decodedPath, written, (uint)crc.Value);
-                        }
-                    }
-                }
-                catch
-                {
-                    // 취소/오류/확인값 불일치로 중단되면 절반만 기록된 writePath(정상 이름이라 완전한 파일로 오인됨)를
-                    // 지우고 예외를 그대로 전파한다(이미 완료된 앞 파일들은 보존).
-                    try { File.Delete(writePath); } catch { /* 정리 실패는 무시 */ }
-                    throw;
-                }
-
-                if (entry.LastWriteTime is { } lwt)
-                {
-                    try { File.SetLastWriteTime(writePath, lwt); }
-                    catch { /* 일부 값/파일에서 실패 가능 — 무시 */ }
-                }
-
-                filesProcessed++;
             }
-
-            progress?.Report(new ArchiveProgress
+            catch (Exception ex)
             {
-                CurrentFile = string.Empty,
-                BytesProcessed = totalBytes,
-                TotalBytes = totalBytes,
-                FilesProcessed = filesProcessed,
-                TotalFiles = totalFiles
-            });
+                var translated = ex as ArchiveException ?? Translate(ex, password, current, currentPath);
+                if (translated is ArchivePasswordException)
+                    ledger.Rollback();   // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다
+                if (translated is null || ReferenceEquals(translated, ex)) throw;
+                throw translated;
+            }
         }, cancellationToken);
+    }
+
+    /// <summary>EggDotNet 예외 → 일집 암호 예외(아니면 null). DecryptFailedException 은 암호가 없으면 '필요', 있으면 '틀림'.</summary>
+    private static ArchivePasswordException? Translate(Exception ex, string? password, EggArchiveEntry? entry, string? entryPath)
+    {
+        bool encrypted;
+        try { encrypted = entry?.IsEncrypted == true; }
+        catch { encrypted = false; }
+        return EngineErrorTranslator.Translate(ex, new EngineErrorTranslator.Context(
+            PasswordGiven: !string.IsNullOrEmpty(password), EntryEncrypted: encrypted, EntryPath: entryPath));
     }
 
     /// <summary>
@@ -233,14 +270,17 @@ public sealed class EggAlzArchiveService : IArchiveService
 
     /// <summary>
     /// 확인 실패를 알리는 예외. 화면에 '압축 해제 실패:' 뒤에 그대로 보인다.
-    /// 암호 걸린 항목이면 '암호가 틀렸을 수도' 를 넣는다 — 화면(IsPasswordRelated)이 '암호'를 보고 암호를 다시 묻는다
-    /// (EGG 의 옛 ZIP 방식 암호는 틀린 암호도 검사를 우연히 통과할 수 있어, 그때는 내용 확인값만 틀린다).
-    /// 암호가 없는 항목에는 '암호'라는 말을 넣지 않는다(넣으면 엉뚱하게 암호 창이 뜸).
+    /// 암호 걸린 항목이면 <see cref="WrongPasswordException"/>(손상일 수도 있다는 말 포함) — 화면이 암호를 다시 묻고, 해제는 이번에 만든 것을
+    /// 모두 지운다(EGG 의 옛 ZIP 방식 암호는 틀린 암호도 1바이트 검사를 우연히 통과할 수 있어, 그때는 내용 확인값만 틀린다 — ZIP 의 B4 와 같은 규칙).
+    /// 자세한 이유는 InnerException(로그용). 암호가 없는 항목은 손상 문구(InvalidDataException — '암호'라는 말 없음, 암호 창 안 뜸).
     /// </summary>
-    internal static InvalidDataException DamagedEntry(string path, bool encrypted, string why) =>
-        new(encrypted
+    internal static Exception DamagedEntry(string path, bool encrypted, string why)
+    {
+        var detail = new InvalidDataException(encrypted
             ? $"'{path}' 을(를) 풀다가 멈췄어요({why}). 암호가 틀렸거나 압축 파일이 손상된 것 같아요."
             : $"'{path}' 을(를) 풀다가 멈췄어요({why}). 압축 파일이 손상되었거나 끝까지 받아지지 않은 것 같아요. 원본 파일을 다시 받아 보세요.");
+        return encrypted ? new WrongPasswordException(inner: detail, entryPath: path, mayBeCorrupt: true) : detail;
+    }
 
     /// <summary>
     /// EGG/ALZ 아카이브를 연다(암호 유무와 관계없이 한 경로).

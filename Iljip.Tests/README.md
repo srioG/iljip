@@ -12,10 +12,13 @@
     (`Contract/EggAlzTests.cs`). 진짜 알집 산출물로는 확인하지 못했으니 MANUAL_CHECKLIST 6절도 같이 보세요.
 - 처음(사전점검 ②)에는 본체 코드를 고치지 않고 버그를 'Skip 목록'에 보고만 했습니다. 이후 **W1-A(2026-10-12)** 에서 SharpCompress 를
   0.38.0 → 0.50.5 로 올리고 B1·B2·B6·B7·B8·B9·B10·TAR-빈폴더를 고쳤습니다 — 근거 테스트는 `Contract/FixedBugTests.cs` 로 옮겨
-  기대를 뒤집었고(다시 생기면 실패), 같은 번호의 Skip 은 지웠습니다. 남은 버그는 B3·B4·B5 입니다.
+  기대를 뒤집었고(다시 생기면 실패), 같은 번호의 Skip 은 지웠습니다.
   이어서 **W1-A 1차 검증 지적**(같은 날)으로 잘린·손상 .gz/.egg/.alz 를 '완료'로 끝내던 문제, 끝 구분자 없는 EGG/ALZ 폴더 항목,
   ALZ 한자·기호 이름·잘린 ALZ 이름, 점뿐인 .gz 이름, 서명 뒤가 쓰레기인 RAR5, 같은 폴더 동시 해제 충돌, 분할 EGG 형제 파일 전부 열기를 고쳤습니다
   (아래 '고친 버그' 표 아래쪽).
+  **W1-C(같은 날)** 에서 암호·무결성 버그 B3(반디집 한글 암호)·B4(ZIP CRC 미검사)·B5(틀린 암호를 화면이 못 알아봄)와 빈틈 I2-11(ZipCrypto 선택)을
+  고쳤습니다(아래 'W1-C 에서 고친 것', 그 1차 검증 지적도 같은 절). 이제 안 고친 버그(Bn Skip)는 없습니다. ※ W1-B(7z.dll) 는 검증에서 되돌려져 이 판에 없습니다 —
+  I1-7·I2-1·I2-2·I2-9 는 그대로 Skip/수동입니다.
 
 ## 실행 방법
 
@@ -25,11 +28,12 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-12 W1-A 1차 검증 지적 반영 후): `통과!  - 실패: 0, 통과: 478, 건너뜀: 10, 전체: 488` — **건너뜀(Skip)은 정상**입니다(아래 설명).
-  (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440)
-- 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe` 를 띄우는 테스트(각 5~10초).
+- 결과(2026-10-12 W1-C 후): `통과!  - 실패: 0, 통과: 562, 건너뜀: 6, 전체: 568` — **건너뜀(Skip)은 정상**입니다(아래 설명).
+  (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488)
+  반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
+- 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe`·반디집 `bz.exe` 를 띄우는 테스트(각 1~10초).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
-- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (357개) — 아래 '계약 테스트와 기록 테스트'.
+- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (443개) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
   (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC` 다시 통과).
   ```powershell
@@ -59,10 +63,14 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/AlzNameScannerTests.cs` | ALZ 머리 원본 바이트 스캐너(B10 우회·폴더 속성): 맞게 읽기, 잘리면 온전한 항목까지만, 서명 깨짐·항목 수 불일치·분할이면 예외 없이 포기, 이름 바이트 풀기(UTF-8→CP949→CP437) |
 | `Contract/CollisionTests.cs` | 같은 이름이 있으면 덮지 않고 `이름 (1).txt` 로 비켜 쓰기, **같은 폴더에 동시에 여러 번 풀어도** 모두 다른 이름으로(gz·zip·egg) |
 | `Contract/FileLockTests.cs` | 열기 실패 후 원본 파일을 잠그지 않는지(B8 고침) + 분할 EGG 조각들도 바로 지울 수 있는지 |
-| `Contract/BugEvidenceTests.cs` | 아직 안 고친 버그 B3·B4·B5 '지금 이렇다' 근거(고쳐지면 실패하는 게 정상) |
-| `Contract/FixedBugTests.cs` | 고친 버그 B1·B2(점뿐인 이름 포함)·B6·B7·B9 — 다시 생기면 안 됨(예전 근거 테스트를 올바른 기대로 뒤집은 것, 계약) |
+| `Contract/BugEvidenceTests.cs` | 버그 '지금 이렇다' 근거(고쳐지면 실패하는 게 정상). 지금은 안 고친 버그가 없어 B3 원인 사실 기록 2개만(반디집 한글 암호 = CP949, 일집 AES = UTF-8) |
+| `Contract/FixedBugTests.cs` | 고친 버그 B1·B2(점뿐인 이름 포함)·B6·B7·B9, **B3·B4·B5(W1-C)** — 다시 생기면 안 됨(예전 근거 테스트를 올바른 기대로 뒤집은 것, 계약) |
+| `Contract/ZipPasswordProbeTests.cs` | (W1-C) ZIP 암호 판정 — 반디집 한글 암호 = CP949, 일집 AES = UTF-8, 첫 항목만 통과하는 틀린 암호 = None, 판정 못 하는 모양(잘림·분할·SFX·쓰레기) = 예외 없이 Unknown, 두 후보가 다 통과할 때 가려내기·대안, '확인됨'(근거 16비트) |
+| `Contract/ZipEncryptionTests.cs` | (W1-C) ZipCrypto·AES 만들기(영문·한글·이모지 암호) 왕복, 반디집 한글 AES 선택 해제, **맞는 암호 + 깨진 AES·ZipCrypto 데이터는 손상으로 알리고 앞 파일은 남김**, 잘린 AES ZIP, 두 후보가 다 통과하는 한글 ZipCrypto 도 풀림(`TestSupport/RawArchives.cs` 의 `RawZipCrypto` 로 결정적으로 만듦) |
+| `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
+| `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀 |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할 포함)/ALZ 작성기, ZipCrypto 검사 계산기 |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`) |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -74,7 +82,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 - **계약 테스트**(이름에 `기록_` 없음, Trait 없음): 엔진과 무관하게 지켜야 할 것 — 해제 내용 sha256, 한글 이름, zip-slip 방어(대상 폴더 밖 무사),
   예외가 나면 대상 폴더 오염 없음, 취소 시 부분 파일 정리, 동명 파일 비켜 쓰기, 진행률 끝 '완료', `IsPasswordRelated` 판정.
   목록은 '파일 항목은 정확히, 폴더 항목은 있어도 없어도(있다면 기대 목록 안의 것)' 만 봅니다(`TreeAssert.ListFilesEqual`).
-- **기록 테스트**(이름이 `기록_` 으로 시작하거나 근거 테스트, `[Trait("Kind","Record")]`, 131개): 지금 엔진의 예외 타입·문구,
+- **기록 테스트**(이름이 `기록_` 으로 시작하거나 근거 테스트, `[Trait("Kind","Record")]`, 125개): 지금 엔진의 예외 타입·문구,
   목록 모양(일집 ZIP·TAR 모두 빈 폴더만 폴더 항목), ZIP 방식 번호(Store 도 8), EFS 플래그, 라우팅 표, 버그 근거.
   엔진이 바뀌면 **달라지는 게 당연**하니 새 값으로 고치면 됩니다. 단, 고치기 전에 같은 동작의 계약 테스트가 통과하는지 먼저 보세요.
 
@@ -112,8 +120,8 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 
 - **`known gap …`** — 기능 대조표(`D:\Python\_기능대조_알PDF_반디집.md`)의 알려진 빈틈. 테스트 본문은 '반디집처럼 됐을 때의 올바른 기대'입니다.
   엔진을 바꾼 뒤 **Skip 만 지우고** 돌려 보면 고쳐졌는지 바로 압니다.
-- **`bug Bn …`** — 테스트를 쓰다 찾은 본체 버그 중 **아직 안 고친 것**(B3·B4·B5). 본문은 역시 '고쳐졌을 때의 기대'입니다.
-  고친 버그(B1·B2·B6~B10)와 TAR-빈폴더는 아래 '고친 버그' 표로 옮겼습니다.
+- **`bug Bn …`** — 테스트를 쓰다 찾은 본체 버그 중 **아직 안 고친 것**. 본문은 역시 '고쳐졌을 때의 기대'입니다.
+  지금은 하나도 없습니다 — 고친 버그(B1~B10)와 TAR-빈폴더·I2-11 은 아래 '고친 버그' 표로 옮겼습니다.
 
 | 사유 | 무엇 | 지금 실제 동작(관찰) |
 |---|---|---|
@@ -122,10 +130,6 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | `.7z.001`·`.zip.001` | 확장자 미등록(Resolve=null). SharpCompress 로 억지로 열면 둘 다 정상 — 등록만 하면 될 가능성 큼. `.zip`+`.z01` 분할은 **이미 됨** |
 | I2-9 | zipx·tgz·tar.gz·txz·xz·tbz2·iso·lzh·SFX exe | 미등록(.tar.gz 만 마지막 확장자 .gz 로 GZ 처리기). 기대값은 '반디집 7.46 과 같게': zipx·tgz·tar.gz·iso·lzh 는 안 내용을 바로, **.tar.xz·.tbz2 는 안쪽 `.tar` 하나만**(반디집 실측, 7z.dll 기본도 같음). tar 까지 한 번에 펼치는 건 '반디집보다 나은' 선택 목표라 시험하지 않음. 지금(SharpCompress 0.50.5): **.tar.gz 는 GZ 처리기가 안쪽 `이름.tar` 하나로 보여 주고 꺼냄**(기록 테스트 `기록_tar_gz는_안쪽_tar_하나로_보이고_풀린다`). 억지로 `ArchiveFactory.OpenArchive` 하면 zipx(일반)·SFX 는 정상, zipx(AES+XZ)는 목록은 되지만 해제가 'Specified method is not supported', tgz·tar.gz·xz·txz·tbz2·lzh 는 'Cannot determine compressed stream type'(tgz·tar.gz 는 `GZipArchive.OpenArchive` 로 직접 열면 이름 빈 항목 하나), iso 는 **항목 0개로 조용히 성공** |
 | I2-10 | 맥 NFD 이름 | 목록·풀린 이름이 자모 분리 그대로(내용은 정확) |
-| I2-11 | ZIP 암호 방식 선택 | 항상 AES-256(방식 99). 고르는 옵션 없음 |
-| B3 | 한글 암호 ZIP | 반디집은 암호를 CP949 로, 일집(SharpCompress·SharpZipLib)은 UTF-8 로 씀 → 서로 못 엶(반디집 `bz.exe` 로도 확인) |
-| B4 | ZIP CRC 검사 없음 | 데이터가 깨진 ZIP 을 오류 없이 틀린 내용으로 풀어 냄. **ZipCrypto 1바이트 검사를 우연히 통과한 틀린 암호(약 1/256)는 첫 파일을 쓰레기 내용으로 원래 이름에 남긴 채** 다음 파일에서 '암호 불일치'로 멈춤 → 맞는 암호로 다시 풀면 진짜 파일은 `이름 (1)` 로 비켜 써짐 |
-| B5 | 틀린 암호 판정 | 7z 틀린 암호(`DataErrorException 'Data Error'`)와 ZipCrypto 검사를 통과한 틀린 암호 중 Deflate 가 바로 깨지는 경우(`ZlibException 'Bad state'`)를 화면이 암호 문제로 못 알아봐 다시 묻지 않음 |
 
 ### 고친 버그(W1-A, 2026-10-12) — Skip 해제·근거 테스트는 `FixedBugTests` 로
 
@@ -155,6 +159,45 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 | 같은 폴더에 동시에 여러 개를 풀면 일부가 '사용 중' 오류 | '있는지 확인 → 만들기' 사이 경쟁 | 만들기를 `FileMode.CreateNew` 로 한 번에, 그새 생겼으면 다음 이름(`OutputFiles`, 모든 서비스 공용) | `같은_폴더에_동시에_여러번_풀어도_…` |
 | 분할 EGG 를 열 때 폴더의 모든 파일을 열어 봄 | 수천 개 폴더에서 느리고, OneDrive '온라인 전용' 파일을 내려받게 할 수 있음 | 같은 폴더의 다른 `.egg` 만 후보로(`SplitVolumeCandidates`) | `분할_EGG_조각_후보는_같은_폴더의_다른_egg_파일만`, `FileLockTests` 분할 사례 |
 
+### W1-C 에서 고친 것(2026-10-12) — 암호·무결성
+
+| 사유 | 무엇 | 어떻게 고쳤나 | 지키는 테스트 |
+|---|---|---|---|
+| B3 | 반디집(한국어 Windows)이 한글 암호로 만든 ZIP 을 맞는 암호로도 못 풂(반디집은 암호를 CP949 바이트로 씀) | 풀기 전에 `Services/ZipPasswordProbe.cs` 가 중앙 디렉터리를 읽어 암호의 UTF-8·CP949 바이트 중 맞는 것을 판정. CP949 면 ZipCrypto 는 엔진에 바이트 그대로(Latin-1 요령), WinZip AES 는 `Services/WinZipAes.cs` 가 직접 품(7z.dll 없이 — 한국어가 아닌 Windows 에서도 됨). 만들 때 ZipCrypto 한글 암호는 CP949 로 씀(반디집 `bz.exe` 양방향 실측), AES 한글 암호는 SharpZipLib 가 UTF-8 로만 써서 화면이 경고 | `반디집_한글암호_ZIP이_풀린다`(Skip 해제), `FixedBugTests.반디집_한글암호_ZIP에_틀린_한글암호는_…`, `ZipPasswordProbeTests`, `ZipEncryptionTests`, `BandizipCliTests` |
+| B4 | ZIP 해제 때 CRC-32 를 안 봄 — 깨진 데이터를 틀린 내용으로 풂, 1바이트 검사를 우연히 통과한 틀린 ZipCrypto 암호가 쓰레기 파일을 남김 | 풀린 내용의 CRC 를 항목 값과 비교(암호 없는 항목 → `ChecksumMismatchException`, 깨진 그 파일만 지움 / 암호 항목 → 판정이 암호를 충분히 확인했으면 손상, 아니면 틀린 암호 — 아래 1차 검증 지적). 판정이 모든 ZipCrypto 항목의 확인 바이트를 보므로 우연 통과는 둘째 항목에서 걸러짐. 항목이 하나뿐이어도 CRC·Deflate 오류에서 걸리고 `Services/ExtractionLedger.cs` 가 이번에 만든 것을 모두 지움. 덤: AE-2(일집 AES, CRC 칸 0)는 SharpCompress 가 인증값을 안 봐 깨져도 조용히 풀었는데 `WinZipAes` 가 HMAC 을 확인 | `CRC가_틀린_ZIP은_오류로_알려야_한다`(Skip 해제), `FixedBugTests` B4 세 개, `AES_데이터가_깨지면_…` |
+| B5 | 7z 틀린 암호(Data Error)·ZipCrypto 우연 통과(Deflate 'Bad state')를 화면이 암호 문제로 못 알아봄 | 일집 예외 체계(`Services/ArchiveExceptions.cs`: `PasswordRequiredException`·`WrongPasswordException`·`ChecksumMismatchException` …)와 `Services/EngineErrorTranslator.cs` — 서비스 경계에서 엔진 예외를 바꿈(암호 항목에서 암호를 넣었는데 데이터 오류면 틀린 암호, 7z 헤더 암호는 `SevenZipArchiveService` 가 확인). 화면 `IsPasswordRelated` 는 `ArchivePasswordException` 이면 예, 다른 일집 예외면 아니오, 엔진 예외만 예전 문구 판정. EGG 도 `DecryptFailedException`·암호 항목 CRC 불일치를 같은 예외로 | `어떤_틀린_암호도_화면이_암호문제로_알아본다`(Skip 해제), `FixedBugTests.틀린_암호는_타입으로_WrongPassword`, `EggAlzTests.암호_EGG…` |
+| I2-11 | ZIP 암호 방식 선택 불가(AES 고정) | `CompressionOptions.Encryption`(`ZipEncryption.Aes256` 기본 / `ZipCrypto`), 옵션 창에 라디오 | `KnownGapTests.ZIP_암호를_ZipCrypto로_고를_수_있다`(Skip 해제), `ZipCrypto_왕복이_원본과_같다` |
+| I0-3 | 암호 입력 | 옵션 창·풀 때 암호 창에 '암호 보이기', '8자 이상 권장' 안내(짧으면 주황), 두 번 입력 일치 확인 유지. 판정은 `Services/PasswordPolicy.cs`(순수 함수) | `PasswordPolicyTests`(창은 MANUAL_CHECKLIST 2절) |
+
+암호 오류면 **이번 해제가 새로 만든 파일·폴더를 모두 지운다**(없던 대상 폴더 포함, 원래 있던 것은 안 건드림 — `PasswordTests.암호_오류면_대상폴더도_남지_않는다`·`…롤백은_원래_있던_것을_건드리지_않는다`).
+손상·CRC 오류·취소는 예전대로 쓰다 만 그 파일만 지운다. 기록 테스트 변경: `PasswordTests.CurrentFailures`(엔진 예외 → 일집 예외, 한국어 문구), `기록_헤더암호_7z_목록_예외_타입`.
+
+#### W1-C 1차 검증 지적으로 고친 것(2026-10-12)
+
+| 무엇 | 예전 동작 | 어떻게 고쳤나 | 지키는 테스트 |
+|---|---|---|---|
+| 맞는 한글 암호로도 못 푸는 ZipCrypto ZIP(B3 빈틈) | 판정이 UTF-8 바이트부터 보고 통과하면 멈춤. 확인 바이트가 하나뿐인 경우(항목 하나짜리 ZIP, 또는 큰 ZIP 에서 한 파일만 골라 풀기·더블클릭 열기)에 CP949 로 쓴 암호의 UTF-8 바이트가 약 1/128 로 우연히 통과 → 쓰레기를 풀다 '암호가 맞지 않아요', 같은 압축은 영영 못 엶(반디집 `bz t` 는 통과). 검증 하네스: 항목 하나 478개 중 3개, 400개 ZIP 의 한 파일 골라 풀기 400번 중 6번 | `ZipPasswordProbe` 가 두 후보를 다 봄. 둘 다 맞으면 **고르지 않은 암호 항목**(최대 64+3개)으로 가리고, 그래도 못 가리면 ZipCrypto 는 CP949 먼저(반디집·알집·일집 방식) + UTF-8 을 대안(`AlternateMatch`)으로. 해제는 먼저 쓴 후보로 데이터·CRC 가 틀리면 만든 것을 모두 지우고 대안으로 처음부터 다시(`ExtractPlan.Alternate`, 같은 이름 그대로) | `ZipPasswordProbeTests.두_후보가_모두_통과하고_…`·`고른_항목이_모호하면_…`, `ZipEncryptionTests.두_후보가_모두_통과하는_한글암호_ZipCrypto도_…`(UTF-8·CP949 로 쓴 것 × 저장·Deflate, `RawZipCrypto` 로 결정적으로 만듦)·`일집이_만든_항목하나_…`·`여러_항목에서_한_파일만_골라도_…`·`두_후보가_모두_통과하는데_데이터가_깨지면_…` |
+| 맞는 암호 + 깨진 데이터를 '틀린 암호'로 알림 | 암호 항목의 CRC·Deflate·AES 인증값 오류는 모두 `WrongPasswordException`(손상일 수도) → 화면이 3번까지 다시 묻고, 앞서 맞게 풀린 파일까지 모두 지움 | 판정 근거가 16비트 이상(틀린 암호가 우연히 통과할 확률 1/65536 이하 — ZipCrypto 확인 바이트 둘 이상, AES 확인값 하나, 골라 풀기면 고르지 않은 항목까지)이고 후보가 하나면 `Confirmed` → 그때의 데이터 오류는 `CorruptArchiveException`(CRC 는 `ChecksumMismatchException`): 다시 묻지 않고, 깨진 그 파일만 지우고 앞 파일은 남김. 근거가 약하면(항목 하나짜리 ZipCrypto 등) 예전대로 틀린 암호(손상일 수도) + 모두 지움 | `ZipEncryptionTests.AES_데이터가_깨지면_…`(기대 바뀜: 틀린 암호·폴더 없음 → 손상·앞 파일 남음), `맞는_암호인데_ZipCrypto_데이터가_깨지면_…`, `ZipPasswordProbeTests.근거가_16비트_이상이면_확인됨`. 항목 하나짜리 우연 통과는 그대로 `FixedBugTests.항목하나_ZipCrypto_우연통과_…` |
+| 이모지 암호 + AES → 'ZipCrypto(반디집·알집과 호환)'를 고르면 경고 없이 UTF-8 ZipCrypto | 옵션 창이 방식을 바꾼 뒤 다시 판정하지 않음 | `PasswordPolicy.CheckCompat` 가 CP949 로 못 바꾸는 암호면 방식과 상관없이 `NotCp949Encodable`(이모지 경고 — ZipCrypto 로 바꾸라고 권하지 않음). 옵션 창은 방식을 바꾸면 다시 판정 | `PasswordPolicyTests.호환_판정`(AES + 이모지 2건 추가), 창은 MANUAL_CHECKLIST 2절 |
+| 테스트 주석이 없는 클래스(`ZipPasswordCreateTests`)를 가리킴 | — | `ZipEncryptionTests` 로 고침(`RoundTripTests`) | — |
+
+#### W1-C 에서 확인하지 못한 위험
+
+- 'CP949 = 반디집 호환'은 한국어 Windows 의 반디집 7.46 기준. 알집·Windows 탐색기 내장 ZIP·맥/리눅스 도구의 한글 암호는 확인 못 함.
+- `ZipPasswordProbe` 가 Unknown 을 내는 파일(.z01 분할·앞에 다른 것이 붙은 SFX·중앙 디렉터리 손상)은 엔진의 암호 확인 + CRC + 번역 + 롤백 장부만 남는다.
+  이런 파일의 AES 항목은 예전처럼 SharpCompress 가 풀어 인증값(HMAC)을 보지 않는다.
+- 판정은 ZipCrypto 64개·AES 3개 항목까지만 본다(그 뒤 AES 항목은 풀 때 확인값으로 거름). AES 확인값은 항목당 2바이트라 항목이 하나뿐이면 틀린 암호가 1/65536 로 통과 —
+  그때는 (확인됨으로 보므로) 인증값 불일치가 '틀린 암호'가 아니라 '손상'으로 보인다. 같은 확률로 ZipCrypto 확인 바이트 둘(16비트)도 그렇다.
+- '확인됨' 기준 16비트는 정한 값이다. 일집 ZipCrypto 는 데이터 설명자를 써서 항목당 약 7비트라 **항목 둘짜리는 14비트 = 확인 안 됨** →
+  맞는 암호 + 깨진 데이터도 '틀린 암호(손상일 수도)'로 다시 묻고 모두 지운다(셋부터 손상으로 알림). 항목 하나짜리 ZipCrypto 는 늘 그렇다.
+- 판정은 '같은 압축 파일은 한 암호'를 가정해 골라 풀 때 고르지 않은 항목을 근거로 쓴다. 항목마다 암호가 다른 ZIP 은 근거에서 빠질 뿐(후보를 버리지 않음).
+- 확인 바이트·salt·PV 가 깨지면(암호 머리 12바이트 등) 맞는 암호도 판정에서 '틀린 암호'다 — 판정 단계에선 손상과 구분할 수 없다.
+- ZIP 이름·머리(로컬·중앙 디렉터리)는 CRC 가 없어, 그 바이트가 깨지면 이름이 바뀐 채 풀리거나 항목이 빠질 수 있다(검증 하네스 비트 뒤집기 120번 중 몇 번, 암호와 무관한 예전 동작).
+- `WinZipAes` 는 안쪽 방식 저장·Deflate·BZip2 만 직접 푼다. 그 밖(LZMA·PPMd 등)은 UTF-8 영문 암호면 SharpCompress 에 맡기고, CP949 암호면 '이 압축 방식은 아직 풀 수 없어요'.
+- 엔진 항목과 중앙 디렉터리 항목의 짝은 순번(+크기·CRC)으로 맞춘다. 어긋나면 이름으로 한 번 더 찾고, 그래도 없으면 위와 같이 엔진/못 푸는 방식.
+- EGG 한글 암호: EggDotNet 은 암호 글자의 아랫바이트만 써서(0.4.0 IL 확인) 알집이 만든 한글 암호 EGG 와 맞는지 모름(범위 밖).
+- 화면 흐름(암호 창 반복·경고 창 버튼)은 창이 필요해 자동 테스트가 없다 — W1-B 의 `IUserInteraction`(가짜 창 주입)이 들어오면 '반디집 한글 AES 를 열고 테스트암호로 15개 트리' VM 테스트를 붙일 것.
+
 ### 확인하지 못한 위험(테스트 없음)
 
 - **솔리드 EGG 의 잘림**: 솔리드 EGG 는 항목별 CRC 가 없고 EggDotNet 이 풀린 묶음을 미리 잡아 둔 크기의 0 채움 버퍼에 담아서,
@@ -172,7 +215,7 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 
 ### '근거' 테스트 (고쳐지면 실패하는 게 정상)
 
-`BugEvidenceTests` 는 '지금 버그가 있다'를 그대로 고정합니다(재현 근거, Trait Kind=Record — 지금은 B3·B4·B5).
+`BugEvidenceTests` 는 '지금 버그가 있다'를 그대로 고정합니다(재현 근거, Trait Kind=Record — 지금은 안 고친 버그가 없어 B3 원인 기록만).
 버그를 고치면 이 테스트가 **실패하는 게 정상**이니, 그때는 해당 근거 테스트를 `FixedBugTests`(Trait 없음, 계약)로 옮겨
 '올바른 기대'로 뒤집고, 같은 번호의 Skip 테스트에서 `Skip = …` 을 지우세요(같은 데이터·계약을 이미 지키는 테스트가 있으면 근거 테스트는 지우고 주석만 남김).
 (`B3_원인_ZipCrypto…` 는 SharpCompress 를 직접 쓰므로, 엔진에서 SharpCompress 를 빼면 컴파일이 안 됩니다 — 그때 같이 지우면 됩니다.)
@@ -213,7 +256,7 @@ B9·B10 은 합성 EGG/ALZ 로만 확인했습니다(진짜 알집 산출물은 
 - 암호 없는 일집 ZIP 도 한글 이름에 EFS(UTF-8) 플래그를 켬(계약은 '한국어 탐색기 방식으로 읽어도 이름이 맞음').
 - 7z 항목의 압축 크기는 모두 0(SharpCompress) — 화면 압축률이 의미 없음. zip·tar 는 항목별 값.
 - 순수 .bz2 목록의 크기는 0(풀기 전엔 모름), 이름은 파일명에서 `.bz2` 를 뗀 것. FNAME 없는 .gz 도 같은 규칙(`.gz` 를 뗀 것, 크기는 gzip 끝의 원래 크기). 뗀 이름이 비거나 점·공백뿐이면 '압축풀림'.
-- 해제 실패 시 '파일'은 안 남지만 먼저 만든 '폴더'는 남을 수 있음.
+- 해제 실패 시 '파일'은 안 남지만 먼저 만든 '폴더'는 남을 수 있음(암호 오류만은 W1-C 부터 이번에 만든 폴더까지 지움).
 - 압축 도중 취소 시 서비스는 쓰다 만 ZIP·TAR 를 지우지 않음 — 지우는 건 `MainViewModel.CompressAsync` 의 몫.
 - TAR 압축 도중 원본 파일이 줄어들면(머리에 적은 크기와 실제 읽은 양이 다름) `IOException`('…파일이 압축하는 도중에 바뀌었어요') — 조용히 깨진 tar 를 만들지 않음.
 - 이미 취소된 토큰이면 대상 폴더도 만들지 않음.

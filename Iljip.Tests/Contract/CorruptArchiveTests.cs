@@ -220,8 +220,8 @@ public class CorruptArchiveTests
         Assert.Equal(listReadable, ex is null);
     }
 
-    /// <summary>[B4] Store 방식 데이터 1바이트가 깨진 ZIP — CRC 불일치로 예외가 나고 틀린 내용 파일이 남지 않아야 한다.</summary>
-    [Fact(Skip = Known.B4)]
+    /// <summary>[B4 고침] Store 방식 데이터 1바이트가 깨진 ZIP — CRC 불일치로 예외가 나고 틀린 내용 파일이 남지 않아야 한다.</summary>
+    [Fact]
     public async Task CRC가_틀린_ZIP은_오류로_알려야_한다()
     {
         using var tmp = new TempDir("crc");

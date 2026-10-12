@@ -7,8 +7,9 @@ namespace Iljip.Tests.Contract;
 /// <summary>
 /// [범위 3] 틀린 암호·암호 없음 → 예외가 나고, 대상 폴더에 (부분)파일이 남지 않는다.
 /// 화면(MainViewModel)은 예외를 IsPasswordRelated 로 보고 암호 창을 다시 띄우므로, 그 판정도 함께 고정한다.
-/// 예외 '타입·문구'는 지금 엔진(SharpCompress) 기준 기록('기록_' 테스트, Trait Kind=Record) — 엔진을 바꾸면 달라져도 되지만
-/// 계약 테스트의 '예외 + 파일 안 남음 + 암호 문제로 알아봄'은 지켜야 한다. 두 가지를 다른 테스트로 나눠
+/// 예외 '타입·문구'는 기록('기록_' 테스트, Trait Kind=Record) — W1-C 부터 서비스가 엔진 예외를 일집 암호 예외
+/// (PasswordRequiredException·WrongPasswordException, 문구는 쉬운 한국어)로 바꿔 던지고 화면은 타입으로 판정한다(B5).
+/// 계약 테스트의 '예외 + 파일 안 남음 + 암호 문제로 알아봄'은 엔진이 바뀌어도 지켜야 한다. 두 가지를 다른 테스트로 나눠
 /// 기록이 먼저 실패해서 계약 결과가 가려지는 일이 없게 했다.
 /// </summary>
 public class PasswordTests
@@ -16,14 +17,15 @@ public class PasswordTests
     /// <summary>(픽스처, 넣는 암호, 지금 예외 타입 전체 이름, 문구 핵심)</summary>
     public static TheoryData<string, string?, string, string> CurrentFailures => new()
     {
-        { "bandizip/zip_zipcrypto.zip", "wrong", "SharpCompress.Common.CryptographicException", "The password did not match." },
-        { "bandizip/zip_zipcrypto.zip", null, "SharpCompress.Common.CryptographicException", "No password supplied for encrypted zip." },
-        { "bandizip/zip_aes256.zip", "wrong", "SharpCompress.Common.InvalidFormatException", "bad password" },
-        { "bandizip/zip_aes256.zip", null, "SharpCompress.Common.CryptographicException", "No password supplied for encrypted zip." },
-        { "python/7z_pw_names_visible.7z", "wrong", "SharpCompress.Compressors.LZMA.DataErrorException", "Data Error" },
-        { "python/7z_pw_names_visible.7z", null, "SharpCompress.Common.CryptographicException", "Encrypted 7Zip archive has no password specified." },
-        { "bandizip/7z_header_encrypted.7z", "wrong", "SharpCompress.Compressors.LZMA.DataErrorException", "Data Error" },
-        { "bandizip/7z_header_encrypted.7z", null, "SharpCompress.Common.CryptographicException", "Encrypted 7Zip archive has no password specified." },
+        { "bandizip/zip_zipcrypto.zip", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage },
+        { "bandizip/zip_zipcrypto.zip", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
+        { "bandizip/zip_aes256.zip", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage },
+        { "bandizip/zip_aes256.zip", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
+        // 7z 는 암호 확인값이 없어 틀린 암호가 'Data Error' 로만 드러난다 → 손상과 구분이 안 된다는 말을 덧붙임
+        { "python/7z_pw_names_visible.7z", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote },
+        { "python/7z_pw_names_visible.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
+        { "bandizip/7z_header_encrypted.7z", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote },
+        { "bandizip/7z_header_encrypted.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.HeaderMessage },
     };
 
     /// <summary>계약: 틀린 암호·암호 없음이면 예외가 나고, 대상 폴더에 파일이 하나도 남지 않는다.</summary>
@@ -39,7 +41,7 @@ public class PasswordTests
         TreeAssert.NoFiles(dest, rel);
     }
 
-    /// <summary>현재 동작 기록: 지금 엔진(SharpCompress)이 내는 예외 타입·문구.</summary>
+    /// <summary>현재 동작 기록: 서비스가 내는 예외 타입·문구(엔진 예외는 InnerException 에).</summary>
     [Theory, Trait(Kinds.Key, Kinds.Record)]
     [MemberData(nameof(CurrentFailures))]
     public async Task 기록_암호실패_예외_타입과_문구(string rel, string? password, string exType, string msg)
@@ -49,12 +51,45 @@ public class PasswordTests
         var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, tmp.P("out"), password));
         Assert.NotNull(ex);
         Assert.Equal(exType, ex!.GetType().FullName);
-        Assert.Contains(msg, ex.Message);
+        Assert.Equal(msg, ex.Message);
+    }
+
+    /// <summary>
+    /// 계약(W1-C): 암호 오류면 이번 해제가 새로 만든 것은 폴더까지 하나도 남지 않는다 — 없던 대상 폴더도 지운다(롤백 장부).
+    /// ZIP 은 아무것도 만들기 전에 암호를 판정하고, 7z(이름 보임)는 폴더 항목을 만든 뒤 첫 파일에서야 틀린 암호가 드러난다.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CurrentFailures))]
+    public async Task 암호_오류면_대상폴더도_남지_않는다(string rel, string? password, string _, string _1)
+    {
+        string arc = FixtureCatalog.PathOf(rel);
+        using var tmp = new TempDir("pwl");
+        string dest = tmp.P("새 폴더", "out");
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, password));
+        Assert.IsAssignableFrom<ArchivePasswordException>(ex);
+        Assert.False(Directory.Exists(tmp.P("새 폴더")), $"{rel}: 암호 오류인데 새로 만든 폴더가 남음");
+    }
+
+    /// <summary>계약: 원래 있던 대상 폴더와 그 안의 파일은 암호 오류 롤백이 건드리지 않는다.</summary>
+    [Theory]
+    [InlineData("python/7z_pw_names_visible.7z")]
+    [InlineData("bandizip/zip_zipcrypto.zip")]
+    public async Task 암호_오류_롤백은_원래_있던_것을_건드리지_않는다(string rel)
+    {
+        string arc = FixtureCatalog.PathOf(rel);
+        using var tmp = new TempDir("pwk");
+        string dest = tmp.Dir("out");
+        File.WriteAllText(Path.Combine(dest, "원래 파일.txt"), "keep");
+        Directory.CreateDirectory(Path.Combine(dest, "일집_샘플"));   // 압축 안 폴더와 이름이 같은, 원래 있던 빈 폴더
+        var ex = await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, dest, "wrong"));
+        Assert.IsType<WrongPasswordException>(ex);
+        Assert.Equal(new[] { "원래 파일.txt" }, TreeAssert.Files(dest));
+        Assert.True(Directory.Exists(Path.Combine(dest, "일집_샘플")), "원래 있던 빈 폴더가 지워짐");
     }
 
     /// <summary>
     /// 화면이 '암호 다시 묻기'로 넘어가는 경우들: 암호 없음(전부), ZIP 의 틀린 암호.
-    /// (7z 틀린 암호는 B5 — 아래 Skip 테스트)
+    /// (7z 틀린 암호·ZipCrypto 검사를 우연히 통과한 틀린 암호는 아래 '어떤_틀린_암호도…' — 예전 B5)
     /// </summary>
     [Theory]
     [InlineData("bandizip/zip_zipcrypto.zip", "wrong")]
@@ -73,17 +108,17 @@ public class PasswordTests
     }
 
     /// <summary>
-    /// [B5] 틀린 암호는 어떤 경우든 화면이 암호 문제로 알아보고 다시 물어야 한다:
+    /// [B5 고침] 틀린 암호는 어떤 경우든 화면이 암호 문제로 알아보고 다시 물어야 한다:
     /// 7z 의 틀린 암호, 그리고 ZipCrypto 의 1바이트 암호 검사를 우연히 통과하는 틀린 암호(약 1/256 확률 — 픽스처에서 계산).
     /// </summary>
-    [Theory(Skip = Known.B5 + " / ZipCrypto 행은 B4(CRC 미검사)도 고쳐야 통과")]
+    [Theory]
     [InlineData("python/7z_pw_names_visible.7z", "wrong")]
     [InlineData("bandizip/7z_header_encrypted.7z", "wrong")]
-    [InlineData("bandizip/zip_zipcrypto.zip", BugEvidenceTests.ZipCryptoLuckyMarker)]
+    [InlineData("bandizip/zip_zipcrypto.zip", ZipCryptoLucky.Marker)]
     public async Task 어떤_틀린_암호도_화면이_암호문제로_알아본다(string rel, string password)
     {
         string arc = FixtureCatalog.PathOf(rel);
-        if (password == BugEvidenceTests.ZipCryptoLuckyMarker)   // 검사를 통과하는 틀린 암호 중 첫 번째(지금은 쓰레기 파일을 남기는 B4 경우일 수 있음)
+        if (password == ZipCryptoLucky.Marker)   // 첫 항목의 1바이트 검사를 통과하는 틀린 암호 중 첫 번째
             password = ZipCryptoLucky.FindWrongPasswordPassingCheck(arc, FixtureCatalog.DefaultPassword);
         using var tmp = new TempDir("pw5");
         string dest = tmp.P("out");
@@ -108,7 +143,7 @@ public class PasswordTests
     }
 
     /// <summary>
-    /// [I1-7 서비스 쪽] 헤더 암호 7z: 암호 없이 목록 → 화면이 '암호 문제'로 알아볼 수 있는 예외, 틀린 암호 → 예외.
+    /// [I1-7 서비스 쪽] 헤더 암호 7z: 암호 없이 목록 → 화면이 '암호 문제'로 알아볼 수 있는 예외, 틀린 암호 → 역시 암호 예외(W1-C, B5).
     /// 맞는 암호면 목록이 맞다(BandizipFixtureTests.목록이_반디집_기대값과_같다 에서 확인).
     /// 빈틈은 화면이 이 예외를 받아도 '열기' 단계에서는 암호를 묻지 않는다는 것(MANUAL_CHECKLIST 2절, 자동 테스트 없음).
     /// </summary>
@@ -123,18 +158,20 @@ public class PasswordTests
 
         var wrong = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, "wrong"));
         Assert.True(wrong is not null, "틀린 암호인데 목록이 읽힘");
+        Assert.True(Internals.IsPasswordRelated(wrong!), $"{wrong!.GetType().Name}('{wrong.Message}') 를 암호 문제로 못 알아봄");
     }
 
-    /// <summary>현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호).</summary>
+    /// <summary>현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호) — 둘 다 '헤더 암호' 표시.</summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public async Task 기록_헤더암호_7z_목록_예외_타입()
     {
         var fx = FixtureCatalog.Get("7z_header_encrypted");
         var svc = Svc.For(fx.FullPath);
         var noPw = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, null));
-        Assert.Equal("SharpCompress.Common.CryptographicException", noPw?.GetType().FullName);
+        Assert.True(Assert.IsType<PasswordRequiredException>(noPw).IsHeaderEncrypted);
         var wrong = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, "wrong"));
-        Assert.Equal("SharpCompress.Compressors.LZMA.DataErrorException", wrong?.GetType().FullName);
+        Assert.True(Assert.IsType<WrongPasswordException>(wrong).IsHeaderEncrypted);
+        Assert.Equal("SharpCompress.Compressors.LZMA.DataErrorException", wrong!.InnerException?.GetType().FullName);
     }
 
     /// <summary>일집이 만든 AES ZIP 도 틀린 암호·암호 없음에서 같은 계약(예외 + 파일 없음 + 암호 문제로 알아봄).</summary>
