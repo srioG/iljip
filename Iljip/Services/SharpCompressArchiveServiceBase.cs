@@ -46,7 +46,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                         Size = e.Size,
                         CompressedSize = e.CompressedSize,
                         IsDirectory = e.IsDirectory,
-                        LastModified = e.LastModifiedTime
+                        LastModified = AsLocalTime(e.LastModifiedTime)
                     });
                 }
                 return entries;
@@ -152,6 +152,35 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     }
 
     /// <summary>
+    /// 목록에 보일 수정 시각을 현지 시각으로 맞춘다. 엔진은 형식에 따라 UTC(Kind=Utc — RAR5 의 유닉스 시각, gzip 머리 시각)로 주기도 하는데,
+    /// 화면은 받은 값을 그대로 찍으므로 그대로 두면 그 형식만 9시간 이르게 보였다(통합 점검 2026-10-12). 현지·미지정 시각은 그대로.
+    /// </summary>
+    internal static DateTime? AsLocalTime(DateTime? t) =>
+        t is { Kind: DateTimeKind.Utc } utc ? utc.ToLocalTime() : t;
+
+    /// <summary>
+    /// 암호 없이 목록을 읽으면 엔진이 '암호 없음'으로 멈추는가 = 파일 이름까지 암호가 걸린 압축(7z 헤더 암호·RAR 머리 암호)인가.
+    /// 열기·목록 단계의 실패를 번역할 때만 부른다(성공 경로에서는 읽지 않음).
+    /// </summary>
+    protected static bool NeedsPasswordToList(string archivePath)
+    {
+        try
+        {
+            using var archive = OpenTyped(archivePath, new ReaderOptions());
+            foreach (var _ in archive.Entries) { }
+            return false;
+        }
+        catch (SharpCompress.Common.CryptographicException)
+        {
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 해제 공통 구현. <paramref name="shouldExtract"/>로 항목을 필터링한다.
     /// 암호 오류(<see cref="ArchivePasswordException"/>, 엔진 예외는 <see cref="TranslateError"/> 로 바꿈)면 이번에 만든 파일·폴더를
     /// 모두 지운다(<see cref="ExtractionLedger"/>). 손상·CRC 오류·취소는 쓰다 만 그 파일만 지우고 앞서 끝난 파일은 남긴다(기존 계약).
@@ -249,6 +278,12 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                     ledger.EnsureDirectory(fullOutputPath);
                     continue;
                 }
+
+                // 암호 항목인데 암호를 안 줬으면 풀기 전에 멈춰 화면이 암호를 묻게 한다(형식과 상관없이 같은 길).
+                // RAR4(RAR 3.x 암호)는 엔진이 암호 없이도 멈추지 않고 암호화된 바이트를 그대로 내보내 '완료'로 끝났다(통합 점검 2026-10-12).
+                // 크기 0 항목은 풀 것이 없어 묻지 않는다 — SharpCompress 는 암호 없는 7z 의 빈 파일도 IsEncrypted = true 로 준다(실측).
+                if (string.IsNullOrEmpty(plan.Options.Password) && entry.Size > 0 && IsEncrypted(entry))
+                    throw new PasswordRequiredException(entryPath: decodedPath);
 
                 string? parent = Path.GetDirectoryName(fullOutputPath);
                 if (!string.IsNullOrEmpty(parent))

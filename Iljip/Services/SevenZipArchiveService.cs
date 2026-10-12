@@ -1,6 +1,5 @@
 using Iljip.Models;
 using SharpCompress.Archives;
-using SharpCompress.Readers;
 
 namespace Iljip.Services;
 
@@ -23,32 +22,13 @@ public sealed class SevenZipArchiveService : SharpCompressArchiveServiceBase
     {
         if (entry is null && ex is not ArchiveException and not OperationCanceledException
             && (ex is SharpCompress.Common.CryptographicException || EngineErrorTranslator.IsDataError(ex))
-            && IsHeaderEncrypted(archivePath))
+            && NeedsPasswordToList(archivePath))   // 암호 없이 머리를 읽으면 'Encrypted 7Zip archive has no password specified'
         {
             return string.IsNullOrEmpty(password)
                 ? new PasswordRequiredException(isHeaderEncrypted: true, inner: ex)
                 : new WrongPasswordException(isHeaderEncrypted: true, inner: ex);
         }
         return base.TranslateError(ex, archivePath, password, entry, entryPath);
-    }
-
-    /// <summary>암호 없이 머리를 읽어 보면 SharpCompress 가 'Encrypted 7Zip archive has no password specified' 로 멈추는가(실패 경로에서만 부름).</summary>
-    private static bool IsHeaderEncrypted(string archivePath)
-    {
-        try
-        {
-            using var archive = SharpCompress.Archives.SevenZip.SevenZipArchive.OpenArchive(archivePath, new ReaderOptions());
-            foreach (var _ in archive.Entries) { }
-            return false;
-        }
-        catch (SharpCompress.Common.CryptographicException)
-        {
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     public override Task<CompressResult> CompressAsync(

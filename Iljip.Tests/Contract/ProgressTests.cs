@@ -138,6 +138,39 @@ public class ProgressTests
         Assert.Equal(2464, rec.Reports[^1].TotalBytes);
     }
 
+    /// <summary>
+    /// 통합(2026-10-12): 실제 해제의 진행률이 진행 창 앞의 솎아내기(<see cref="ThrottledArchiveProgress"/>)를 지나 화면 쪽까지 '도중 값'으로 간다 —
+    /// B7(시작값 오버플로로 중간 보고가 하나도 안 감)이 서비스와 함께 다시 생기지 않게. 실제 창은 40ms 간격이고(초당 약 25번),
+    /// 여기서는 PC 속도와 상관없이 확인하려고 1ms 간격으로 32 MiB 파일을 푼다. 화면 갱신(진행 막대 값 = Percentage)은 ProgressDialog.UpdateProgress 한 줄.
+    /// </summary>
+    [Fact]
+    public async Task 실제_해제의_진행률이_솎아내기를_지나_화면까지_간다()
+    {
+        using var tmp = new TempDir("pgt");
+        string src = CancellationTests.MakeSource(tmp);
+        string zip = tmp.P("big.zip");
+        await new ZipArchiveService().CompressAsync(new[] { src }, zip, new CompressionOptions { Level = CompressionLevelOption.Store });
+
+        var seen = new List<ArchiveProgress>();
+        ThrottledArchiveProgress throttled;
+        var prev = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);   // 화면 스레드 대신 그 자리에서 바로(기록만)
+        try
+        {
+            throttled = new ThrottledArchiveProgress(p => { lock (seen) seen.Add(p); }, intervalMs: 1);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(prev);
+        }
+
+        await Svc.For(zip).ExtractAsync(zip, tmp.P("out"), null, throttled);
+
+        Assert.Contains(seen, p => p.Percentage > 0 && p.Percentage < 100);   // 막대가 중간에서 움직임
+        Assert.Equal(100.0, seen[^1].Percentage);
+        Assert.Equal(string.Empty, seen[^1].CurrentFile);
+    }
+
     /// <summary>ThrottledArchiveProgress 를 '컨텍스트 없음'(그 자리에서 바로 호출) 상태로 돌려 본다.</summary>
     internal static List<ArchiveProgress> RunThrottled(long intervalMs, int intermediateCount)
     {
