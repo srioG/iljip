@@ -9,6 +9,8 @@ public enum PasswordPromptReason
     Required,
     /// <summary>넣은 암호가 맞지 않다.</summary>
     Wrong,
+    /// <summary>파일 목록까지 암호로 잠겨 있어 열기 전에 암호가 필요하다(W2-02 — 7z '파일 이름도 암호화'·RAR 머리 암호, I1-7).</summary>
+    ListLocked,
 }
 
 /// <summary>진행 창 하나(해제·압축 한 번). <see cref="Close"/> 는 여러 번 불러도 된다.</summary>

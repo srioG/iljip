@@ -13,7 +13,8 @@ namespace Iljip.Tests.Contract;
 /// <see cref="CompressResult.Skipped"/> 에 적는다. 하나도 못 담으면 빈 압축을 만들지 않고 <see cref="NothingToCompressException"/>.
 /// GZ·BZ2(단일 파일): 그 파일을 못 읽으면 만들 것이 없으므로 <see cref="SourceUnreadableException"/>, 압축 파일은 만들지 않는다.
 /// 화면은 '건너뛴 파일 N개'를 알리고 결과 압축 파일은 지우지 않는다.
-/// (7z 만들기는 W1-B(7z.dll)가 들어오면 같은 테스트에 '.7z' 행을 더할 것 — 7z.dll 은 잠긴 파일이 하나라도 있으면 통째로 실패해 미리 걸러야 함)
+/// W2-02(I2-1): 7z 만들기도 같은 규칙 — '.7z' 행. 7z.dll 은 원본 하나라도 못 읽으면 통째로 실패하므로 미리 열어 보아 거르고,
+/// 읽는 도중 막힌 파일은 그 파일을 뺀 채 임시 파일에 처음부터 다시 쓴다(빈 폴더는 파일을 담은 뒤 덧붙임 — 빈 폴더까지 같은지 본다).
 /// </summary>
 public class CompressSkipTests
 {
@@ -27,6 +28,7 @@ public class CompressSkipTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 공유를_막은_파일_하나는_건너뛰고_나머지는_그대로_압축된다(string ext)
     {
         using var tmp = new TempDir("skip");
@@ -53,6 +55,7 @@ public class CompressSkipTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 쓰기_공유로_열린_파일도_담긴다(string ext)
     {
         using var tmp = new TempDir("skipw");
@@ -103,6 +106,7 @@ public class CompressSkipTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 통째로_잠긴_파일은_건너뛰고_나머지는_그대로_압축된다(string ext)
     {
         using var tmp = new TempDir("skipl");
@@ -131,6 +135,7 @@ public class CompressSkipTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 읽는_도중_막힌_파일은_빼고_다시_써서_나머지는_그대로_압축된다(string ext)
     {
         using var tmp = new TempDir("skipr");
@@ -187,6 +192,8 @@ public class CompressSkipTests
     [InlineData(".zip", true)]
     [InlineData(".tar", false)]
     [InlineData(".tar", true)]
+    [InlineData(".7z", false)]
+    [InlineData(".7z", true)]
     public async Task 모두_못_읽으면_빈_압축을_만들지_않는다(string ext, bool existedBefore)
     {
         using var tmp = new TempDir("skipall");
@@ -207,18 +214,21 @@ public class CompressSkipTests
             Assert.Equal("예전에 만든 압축", File.ReadAllText(arc));
         else
             Assert.False(File.Exists(arc), "하나도 못 담았는데 빈 압축 파일이 생김");
+        Assert.Empty(Directory.EnumerateFileSystemEntries(tmp.Root, ".~*"));   // 7z 임시 파일도 안 남김
     }
 
     /// <summary>파일은 모두 못 읽고 빈 하위 폴더만 남는 경우도 '하나도 못 담음'이다(빈 폴더뿐인 압축을 만들지 않음).</summary>
-    [Fact]
-    public async Task 빈_폴더만_남으면_못_담은_것으로_본다()
+    [Theory]
+    [InlineData(".zip")]
+    [InlineData(".7z")]
+    public async Task 빈_폴더만_남으면_못_담은_것으로_본다(string ext)
     {
         using var tmp = new TempDir("skipall2");
         string src = tmp.Dir("보낼 자료");
         Directory.CreateDirectory(Path.Combine(src, "빈 폴더"));
         string pst = Path.Combine(src, "메일함.pst");
         File.WriteAllText(pst, "잠긴 내용");
-        string arc = tmp.P("결과.zip");
+        string arc = tmp.P("결과" + ext);
 
         Exception? ex;
         using (new FileStream(pst, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -247,6 +257,7 @@ public class CompressSkipTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]
     public async Task 못_들어가는_하위폴더는_건너뛴다(string ext)
     {
         using var tmp = new TempDir("skipd");
@@ -297,14 +308,16 @@ public class CompressSkipTests
     }
 
     /// <summary>담아 둔 뒤에 지워진 원본은 말없이 빠지지 않고 '파일이 없어졌어요'로 적힌다.</summary>
-    [Fact]
-    public async Task 없어진_원본은_건너뜀으로_적힌다()
+    [Theory]
+    [InlineData(".zip")]
+    [InlineData(".7z")]
+    public async Task 없어진_원본은_건너뜀으로_적힌다(string ext)
     {
         using var tmp = new TempDir("skipm");
         string a = tmp.P("있음.txt");
         File.WriteAllText(a, "있음");
         string gone = tmp.P("없어짐.txt");
-        string arc = tmp.P("결과.zip");
+        string arc = tmp.P("결과" + ext);
 
         var result = await Svc.For(arc).CompressAsync(new[] { a, gone }, arc);
 
@@ -381,13 +394,15 @@ public class CompressSkipTests
 
     // ───────────── 화면(VM): 안내 문구·결과 파일 ─────────────
 
-    /// <summary>건너뛴 파일이 있으면 '압축을 마쳤어요. 건너뛴 파일 1개' 안내, 결과 압축은 남고 열린다.</summary>
-    [Fact]
-    public async Task 화면은_건너뛴_파일을_알리고_결과를_남긴다()
+    /// <summary>건너뛴 파일이 있으면 '압축을 마쳤어요. 건너뛴 파일 1개' 안내, 결과 압축은 남고 열린다(7z 도 같음 — W2-02).</summary>
+    [Theory]
+    [InlineData(".zip")]
+    [InlineData(".7z")]
+    public async Task 화면은_건너뛴_파일을_알리고_결과를_남긴다(string ext)
     {
         using var tmp = new TempDir("skipvm");
         string src = SampleTree.Create(tmp.Dir("src"));
-        string save = tmp.P("결과.zip");
+        string save = tmp.P("결과" + ext);
         var ui = new FakeUserInteraction { SavePath = save, CompressionOptions = CompressionOptions.Default };
         var vm = new MainViewModel(ui);
         vm.AddToStaging(new[] { src });

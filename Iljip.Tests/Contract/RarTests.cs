@@ -94,7 +94,9 @@ public class RarTests
         var svc = Svc.For(b.Path);
 
         var none = await Svc.Catch(() => svc.ExtractAsync(b.Path, tmp.P("새 폴더", "없음"), null));
-        var req = Assert.IsType<PasswordRequiredException>(none);
+        var req = Assert.IsAssignableFrom<PasswordRequiredException>(none);
+        // W2-02(I1-7): 머리 암호면 전용 하위 형식(목록까지 잠김 — 화면이 열 때 묻는 신호), 파일만 암호면 그냥 '암호 필요'
+        Assert.Equal(b.HeaderEncrypted ? typeof(ListPasswordRequiredException) : typeof(PasswordRequiredException), none!.GetType());
         Assert.Equal(b.HeaderEncrypted, req.IsHeaderEncrypted);
         Assert.Equal(b.HeaderEncrypted ? PasswordRequiredException.HeaderMessage : PasswordRequiredException.DefaultMessage, req.Message);
         Assert.True(Internals.IsPasswordRelated(none!));
@@ -108,7 +110,10 @@ public class RarTests
         Assert.False(Directory.Exists(tmp.P("새 폴더")), $"{kind}: 암호 오류인데 새로 만든 폴더가 남음");
     }
 
-    /// <summary>계약: 머리 암호 RAR 은 암호 없이 목록을 읽으면 '파일 이름까지 암호' 예외, 틀린 암호도 암호 예외(화면이 열기 단계에서 암호를 묻는 근거).</summary>
+    /// <summary>
+    /// 계약: 머리 암호 RAR 은 암호 없이 목록을 읽으면 '파일 이름까지 암호' 예외(W2-02 부터 <see cref="ListPasswordRequiredException"/>), 틀린 암호도 암호 예외
+    /// (화면이 열기 단계에서 암호를 묻는 근거).
+    /// </summary>
     [Theory]
     [InlineData("rar5_hdr")]
     [InlineData("rar4_hdr")]
@@ -117,7 +122,9 @@ public class RarTests
         using var tmp = new TempDir("rarh");
         var b = SyntheticArchives.Build(kind, tmp.Root);
         var svc = Svc.For(b.Path);
-        Assert.True(Assert.IsType<PasswordRequiredException>(await Svc.Catch(() => svc.ListEntriesAsync(b.Path, null))).IsHeaderEncrypted);
+        var none = Assert.IsType<ListPasswordRequiredException>(await Svc.Catch(() => svc.ListEntriesAsync(b.Path, null)));
+        Assert.True(none.IsHeaderEncrypted);
+        Assert.Equal(ListPasswordRequiredException.ListMessage, ErrorMessages.ToUserMessage(none));
         Assert.True(Assert.IsType<WrongPasswordException>(await Svc.Catch(() => svc.ListEntriesAsync(b.Path, "wrong-password"))).IsHeaderEncrypted);
     }
 

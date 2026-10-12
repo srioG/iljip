@@ -127,8 +127,16 @@ public partial class MainViewModel : ObservableObject
     /// 파일 이름까지 암호가 걸린 7z(헤더 암호 — 반디집 '파일 이름 암호화')는 목록부터 암호가 필요해 여기서 암호를 묻고 다시 연다(I1-7 의 화면 쪽).
     /// 틀리면 다시 묻고, 취소하면 아무것도 바꾸지 않는다(false). 맞은 암호는 같은 압축을 풀 때 다시 묻지 않게 기억한다.
     /// (W1-D 1차 검증: 우클릭 풀기를 '열기에 성공해야 푼다'로 바꾸며 헤더 암호 7z 를 어느 경로로도 못 풀게 된 회귀를 이것으로 고침)
+    /// W2-02(I1-7): 목록까지 잠긴 7z·RAR(<see cref="ListPasswordRequiredException"/>)은 '파일 목록까지 암호로 잠긴…'(<see cref="PasswordPromptReason.ListLocked"/>)으로 묻고,
+    /// 틀리면 '암호가 맞지 않아요' 경고 뒤 다시 묻는다(<see cref="AskListPassword"/>).
     /// </summary>
-    public async Task<bool> OpenArchiveAsync(string archivePath)
+    public Task<bool> OpenArchiveAsync(string archivePath) => OpenArchiveAsync(archivePath, null);
+
+    /// <param name="archivePath">열 압축 파일.</param>
+    /// <param name="knownPassword">
+    /// 이미 아는 암호(W2-02 — 방금 만든 7z 를 열 때 그 암호). 이것으로 먼저 열어 보고, 맞으면 기억해 풀 때도 묻지 않는다. 없으면 null.
+    /// </param>
+    public async Task<bool> OpenArchiveAsync(string archivePath, string? knownPassword)
     {
         // W2-01: 확장자로 먼저, 모르는 확장자면 내용(서명)으로 — 이름이 바뀐 압축(.bin 이 된 7z 등)·자동 풀림 exe 도 연다(B-086)
         var service = _locator.ResolveByContent(archivePath);
@@ -138,7 +146,7 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        string? password = null;
+        string? password = string.IsNullOrEmpty(knownPassword) ? null : knownPassword;
         StatusText = "압축 파일을 읽는 중...";
         while (true)
         {
@@ -158,9 +166,8 @@ public partial class MainViewModel : ObservableObject
             }
             catch (Exception ex) when (IsPasswordRelated(ex))
             {
-                // 암호는 [취소]할 때까지 다시 묻는다(풀 때와 같음)
-                var reason = string.IsNullOrEmpty(password) ? PasswordPromptReason.Required : PasswordPromptReason.Wrong;
-                var pw = _ui.AskPassword(Path.GetFileName(archivePath), reason, PasswordPromptMessage(ex, reason));
+                // 암호는 [취소]할 때까지 다시 묻는다(풀 때와 같음). 취소하면 보던 압축·목록·기억한 암호는 그대로.
+                var pw = AskListPassword(archivePath, ex, password);
                 if (pw is null)
                 {
                     StatusText = "열기를 취소했어요";
@@ -368,8 +375,9 @@ public partial class MainViewModel : ObservableObject
         // 건너뛴 파일이 있어도 성공이다 — 결과물은 지우지 않고, 연 뒤에 무엇이 빠졌는지 알린다(I0-2)
         StatusText = $"압축 완료: {savePath}";
 
-        // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환)
-        await OpenArchiveAsync(savePath);
+        // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환).
+        // 방금 넣은 암호를 넘긴다 — 파일 이름까지 암호화한 7z 도 다시 묻지 않고 열리고, 이어서 풀 때도 묻지 않는다(W2-02).
+        await OpenArchiveAsync(savePath, compressionOptions.HasPassword ? compressionOptions.Password : null);
 
         if (result.Skipped.Count > 0)
             _ui.ShowInfo(SkippedMessage(result.Skipped));
@@ -522,9 +530,9 @@ public partial class MainViewModel : ObservableObject
             {
                 // 비밀번호 프롬프트 뒤에 진행 창이 남지 않도록 먼저 닫는다(finally 가 다시 닫아도 안전).
                 session.Close();
-                // 이유 한 줄: 일집 암호 예외는 그 문구('암호가 걸린 압축 파일이에요…' / '암호가 맞지 않아요…'), 엔진 예외는 예전 문구
-                var reason = string.IsNullOrEmpty(password) ? PasswordPromptReason.Required : PasswordPromptReason.Wrong;
-                var pw = _ui.AskPassword(Path.GetFileName(archivePath), reason, PasswordPromptMessage(ex, reason));
+                // 이유 한 줄: 일집 암호 예외는 그 문구('암호가 걸린 압축 파일이에요…' / '파일 목록까지…' / '암호가 맞지 않아요…'), 엔진 예외는 예전 문구
+                var (reason, message) = PasswordPrompt(ex, password);
+                var pw = _ui.AskPassword(Path.GetFileName(archivePath), reason, message);
                 if (pw is null)
                 {
                     StatusText = "압축 해제 취소됨";

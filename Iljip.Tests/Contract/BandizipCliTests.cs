@@ -6,7 +6,7 @@ namespace Iljip.Tests.Contract;
 
 /// <summary>
 /// [W1-C, B3 양방향] 일집이 한글 암호로 만든 압축을 이 PC 의 반디집 콘솔(bz.exe t — 시험만)이 푸는가.
-/// 반디집이 없으면 자동으로 건너뛴다. 2026-10-12 반디집 7.46 실측: ZipCrypto(CP949) 0, AES(UTF-8) 14, 7z 헤더 암호(일집이 만들 수 있을 때) 0.
+/// 반디집이 없으면 자동으로 건너뛴다. 2026-10-12 반디집 7.46 실측: ZipCrypto(CP949) 0, AES(UTF-8) 14, 7z 헤더 암호(W2-02 부터 일집이 만듦) 0.
 /// ('반디집이 만든 것 → 일집'은 BandizipFixtureTests.반디집_한글암호_ZIP이_풀린다 가 반디집 픽스처로 지킨다)
 /// </summary>
 public class BandizipCliTests
@@ -43,7 +43,23 @@ public class BandizipCliTests
         Assert.Equal(0, await BandizipCli.TestAsync(arc, FixtureCatalog.DefaultPassword));
     }
 
-    // 7z 한글 암호 + 헤더 암호(실측 0)는 일집이 7z 를 만들 수 있게 되는 W1-B(7z.dll) 이후 시험한다 — 지금 일집은 7z 를 만들 수 없다(I2-1).
+    /// <summary>
+    /// 계약(W2-02, I2-1): 일집이 만든 7z — AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더(덧붙이기로 넣음) — 를 반디집이 맞는 암호로 푼다(종료 코드 0).
+    /// 7z 는 암호를 UTF-16 으로 쓰는 규격이라 ZIP AES 와 달리 한글 암호도 반디집과 맞는다(그래서 7z 는 옵션 창이 한글 암호 경고를 내지 않는다).
+    /// 틀린 암호로는 반디집도 못 푼다(일집이 암호를 실제로 걸었다는 대조).
+    /// </summary>
+    [BandizipCliFact]
+    public async Task 일집_7z_한글암호_파일이름_암호화는_반디집이_푼다()
+    {
+        using var tmp = new TempDir("bz7z");
+        string src = SampleTree.Create(tmp.Dir("src"));
+        string arc = tmp.P("korean_hdr.7z");
+        await new SevenZipArchiveService().CompressAsync(new[] { src }, arc,
+            new CompressionOptions { Password = FixtureCatalog.KoreanPassword, EncryptFileNames = true });
+        Assert.True(ArchiveHeaderProbe.IsSevenZipHeaderEncrypted(arc), "파일 이름이 암호화되지 않음");
+        Assert.Equal(0, await BandizipCli.TestAsync(arc, FixtureCatalog.KoreanPassword));
+        Assert.NotEqual(0, await BandizipCli.TestAsync(arc, "틀린암호"));
+    }
 
     private static async Task<string> Make(TempDir tmp, ZipEncryption encryption)
     {

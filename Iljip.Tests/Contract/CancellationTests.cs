@@ -39,7 +39,7 @@ public class CancellationTests
         string arc = tmp.P("big" + ext);
         var svc = Svc.For(arc);
         if (ext == ".7z")
-            SevenZipTestArchives.SevenZip(src, arc, store: true);   // 일집의 7z 만들기는 W2-02 — 재료는 7z.dll 로 직접
+            SevenZipTestArchives.SevenZip(src, arc, store: true);   // 풀기 시험 재료는 7z.dll 로 직접(일집의 7z 만들기 취소는 SevenZipCreateTests·SevenZipCreateLargeTests)
         else
             await svc.CompressAsync(new[] { src }, arc, new CompressionOptions { Level = CompressionLevelOption.Store });
         string smallSha = TreeAssert.Sha256(Path.Combine(src, "a_작은.txt"));

@@ -93,14 +93,14 @@ public class RoutingTests
     }
 
     /// <summary>
-    /// 저장 창 필터: 만들 수 있는 형식(ZIP·TAR·GZ·BZ2)만, 이 순서. W2-01 에서 풀 수 있는 형식이 늘었지만(zipx·iso·압축된 tar 등) 만들기는 아니라 넣지 않는다.
-    /// 7z 생성이 생기면(I2-1, W2-02 — 7z.dll 을 쓸 수 있을 때만) 여기에 추가돼야 함.
+    /// 저장 창 필터: 만들 수 있는 형식(ZIP·7Z·TAR·GZ·BZ2)만, 이 순서. W2-01 에서 풀 수 있는 형식이 늘었지만(zipx·iso·압축된 tar 등) 만들기는 아니라 넣지 않는다.
+    /// 7Z 는 W2-02(I2-1) 에서 더함 — 7z.dll 을 쓸 수 있을 때만(못 쓰는 PC 는 LocatorTests.저장_형식의_7Z는_7z_dll을_쓸_수_있을_때만).
     /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public void 저장_필터는_만들_수_있는_형식만()
     {
         Assert.Equal(
-            "ZIP 압축 파일 (*.zip)|*.zip|TAR 묶음 파일 (*.tar)|*.tar|GZIP 압축 파일 (*.gz)|*.gz|BZIP2 압축 파일 (*.bz2)|*.bz2",
+            "ZIP 압축 파일 (*.zip)|*.zip|7Z 압축 파일 (*.7z)|*.7z|TAR 묶음 파일 (*.tar)|*.tar|GZIP 압축 파일 (*.gz)|*.gz|BZIP2 압축 파일 (*.bz2)|*.bz2",
             Locator.BuildSaveFilter());
     }
 

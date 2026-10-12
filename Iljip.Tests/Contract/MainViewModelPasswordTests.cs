@@ -27,13 +27,14 @@ public class MainViewModelPasswordTests
         await vm.OpenArchiveAsync(fx.FullPath).WaitAsync(Limit);
 
         var ask = Assert.Single(ui.PasswordPrompts);
-        Assert.Equal(PasswordPromptReason.Required, ask.Reason);
+        Assert.Equal(PasswordPromptReason.ListLocked, ask.Reason);   // W2-02(I1-7): 목록까지 잠긴 압축 전용 이유
         Assert.Equal(PasswordRequiredException.HeaderMessage, ask.Message);
         Assert.Equal(Path.GetFileName(fx.FullPath), ask.ArchiveName);
         Assert.Equal(fx.FullPath, vm.CurrentArchivePath);
         Assert.Equal(15, vm.Entries.Count);
         Assert.Equal("15개 항목", vm.StatusText);
         Assert.Empty(ui.Errors);
+        Assert.Empty(ui.Warnings);
     }
 
     [Fact]
@@ -44,8 +45,11 @@ public class MainViewModelPasswordTests
         var vm = new MainViewModel(ui);
         await vm.OpenArchiveAsync(fx.FullPath).WaitAsync(Limit);
 
-        Assert.Equal(new[] { PasswordPromptReason.Required, PasswordPromptReason.Wrong }, ui.PasswordPrompts.Select(p => p.Reason));
+        Assert.Equal(new[] { PasswordPromptReason.ListLocked, PasswordPromptReason.Wrong }, ui.PasswordPrompts.Select(p => p.Reason));
         Assert.Equal(WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote, ui.PasswordPrompts[1].Message);
+        // W2-02(I1-7): 틀리면 '암호가 맞지 않아요' 경고를 한 번 보이고 다시 묻는다
+        Assert.Contains("맞지 않아요", Assert.Single(ui.Warnings));
+        Assert.Empty(ui.Errors);
         Assert.Equal(15, vm.Entries.Count);
     }
 
@@ -198,5 +202,64 @@ public class MainViewModelPasswordTests
         await vm.ExtractToFolderAsync(bad, tmp.P("out")).WaitAsync(Limit);
         Assert.Single(ui.PasswordPrompts);
         Assert.Contains("손상", Assert.Single(ui.Errors));
+    }
+
+    /// <summary>
+    /// 화면의 7z 만들기 흐름(W2-02 — 1차 W1-B 보관분을 되살림): 저장 경로 .7z + 암호·파일 이름 암호화 → 만든 뒤 자동으로 열 때 방금 넣은 암호를 써서
+    /// 다시 묻지 않고 목록을 보여 주고, 이어서 풀 때도 묻지 않는다(1차 W1-B 검증 지적 — 예전엔 열 때 같은 암호를 곧바로 다시 물었다).
+    /// 진행 막대는 도중 보고가 있고 '완료'로 끝난다.
+    /// </summary>
+    [Fact]
+    public async Task 화면에서_파일이름까지_암호화한_7z를_만들고_다시_연다()
+    {
+        using var tmp = new TempDir("vm7z");
+        string src = SampleTree.Create(tmp.Dir("src"));
+        string arc = tmp.P("결과.7z");
+        var ui = new FakeUserInteraction()
+        {
+            SavePath = arc,
+            CompressionOptions = new CompressionOptions { Password = FixtureCatalog.KoreanPassword, EncryptFileNames = true },
+        };
+        var vm = new MainViewModel(ui);
+        vm.AddToStaging(new[] { src });
+        await vm.CompressCommand.ExecuteAsync(null).WaitAsync(Limit);
+
+        Assert.Empty(ui.Errors);
+        Assert.Empty(ui.Warnings);
+        Assert.True(ArchiveHeaderProbe.IsSevenZipHeaderEncrypted(arc));
+        Assert.Empty(ui.PasswordPrompts);
+        Assert.Equal(arc, vm.CurrentArchivePath);
+        TreeAssert.ListEquals(vm.Entries.ToList(), SampleTree.ExpectedOf(src));
+        ProgressTests.AssertWellFormed(ui.ProgressSessions[0].Reports, "화면 7z 압축", expectIntermediate: true);
+
+        string dest = tmp.P("out");
+        await vm.ExtractToFolderAsync(arc, dest).WaitAsync(Limit);
+        Assert.Empty(ui.PasswordPrompts);
+        Assert.Empty(ui.Errors);
+        TreeAssert.ExtractedTreeEquals(dest, SampleTree.ExpectedOf(src));
+    }
+
+    /// <summary>
+    /// 화면의 7z 만들기를 진행 창 [취소]로 멈추면(처음 바이트를 읽자마자) '압축 취소됨'이고 오류 창이 없으며,
+    /// 덮어쓰려던 기존 파일은 바이트 그대로, 임시 파일도 남지 않는다(W2-02 — 7z 는 임시 파일에 쓰고 끝에 바꿔 넣음).
+    /// </summary>
+    [Fact]
+    public async Task 화면에서_7z_만들기를_취소하면_기존_파일이_그대로다()
+    {
+        using var tmp = new TempDir("vm7zc");
+        string src = CancellationTests.MakeSource(tmp);
+        string arc = tmp.P("결과.7z");
+        var old = new byte[] { 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, 9, 9, 9 };
+        File.WriteAllBytes(arc, old);
+        var ui = new FakeUserInteraction { SavePath = arc, CompressionOptions = CompressionOptions.Default, CancelOnFirstBytes = true };
+        var vm = new MainViewModel(ui);
+        vm.AddToStaging(new[] { src });
+        await vm.CompressCommand.ExecuteAsync(null).WaitAsync(Limit);
+
+        Assert.Equal("압축 취소됨", vm.StatusText);
+        Assert.Empty(ui.Errors);
+        Assert.Equal(old, File.ReadAllBytes(arc));
+        SevenZipCreateTests.AssertNoLeftovers(tmp.Root);
+        Assert.True(vm.IsStagingMode, "취소했는데 모으던 목록이 비워짐");
     }
 }

@@ -4,8 +4,8 @@ using SharpSevenZip;
 namespace Iljip.Tests.TestSupport;
 
 /// <summary>
-/// 시험 재료 만들기: 7z·xz 를 7z.dll 로 직접 만든다. 일집 자신의 7z 만들기는 W2-02 일이라 지금은 NotSupported 이고
-/// (<c>_보류_W2-02/SevenZipCreateTests.cs.txt</c>), 여기서는 '풀기' 시험에 쓸 압축만 만든다.
+/// 시험 재료 만들기: 7z·xz 를 7z.dll 로 직접 만든다 — '풀기' 시험에 쓸 압축만(일집과 다른 길로 만든 재료라 풀기 시험이 만들기 버그에 흔들리지 않게).
+/// 일집 자신의 7z 만들기(W2-02)는 SevenZipCreateTests 가 본다.
 /// </summary>
 public static class SevenZipTestArchives
 {

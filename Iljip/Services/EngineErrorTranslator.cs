@@ -33,13 +33,13 @@ internal static class EngineErrorTranslator
         if (type == "EggDotNet.Exceptions.DecryptFailedException")
             return ctx.PasswordGiven
                 ? new WrongPasswordException(ctx.HeaderEncrypted, ex, ctx.EntryPath)
-                : new PasswordRequiredException(ctx.HeaderEncrypted, ex, ctx.EntryPath);
+                : PasswordRequiredException.For(ctx.HeaderEncrypted, ex, ctx.EntryPath);
 
         // SharpCompress: 'No password supplied for encrypted zip.' / 'Encrypted 7Zip archive has no password specified.' / 'The password did not match.'
         if (ex is SharpCompress.Common.CryptographicException)
         {
             if (!ctx.PasswordGiven || Has(msg, "no password"))
-                return new PasswordRequiredException(ctx.HeaderEncrypted, ex, ctx.EntryPath);
+                return PasswordRequiredException.For(ctx.HeaderEncrypted, ex, ctx.EntryPath);
             return new WrongPasswordException(ctx.HeaderEncrypted, ex, ctx.EntryPath);
         }
 
@@ -47,7 +47,7 @@ internal static class EngineErrorTranslator
         if (Has(msg, "bad password") || Has(msg, "did not match"))
             return ctx.PasswordGiven
                 ? new WrongPasswordException(ctx.HeaderEncrypted, ex, ctx.EntryPath)
-                : new PasswordRequiredException(ctx.HeaderEncrypted, ex, ctx.EntryPath);
+                : PasswordRequiredException.For(ctx.HeaderEncrypted, ex, ctx.EntryPath);
 
         // 암호 항목(또는 헤더 암호)에서 암호를 넣었는데 데이터가 깨짐 → 틀린 암호(또는 손상)
         if (ctx.PasswordGiven && (ctx.EntryEncrypted || ctx.HeaderEncrypted) && IsDataError(ex))

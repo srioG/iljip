@@ -37,7 +37,7 @@ public class SevenZipLibraryTests
 
     /// <summary>
     /// 계약: 7z.dll 을 못 불러온 PC(보안 정책이 막음 — 이 흐름에서만 흉내)에서도 7z(숫자 분할 포함)는 SharpCompress 로 열고 풀린다.
-    /// 7z.dll 전용 형식(ISO·zipx·LZH·XZ·.tar.xz 등)은 쉬운 안내(EngineUnavailableException)로 끝난다. 7z 만들기는 W2-02 전까지 NotSupported.
+    /// 7z.dll 전용 형식(ISO·zipx·LZH·XZ·.tar.xz 등)은 쉬운 안내(EngineUnavailableException)로 끝난다. 7z 만들기(W2-02)도 쉬운 안내(EngineUnavailableException)로 끝나고 파일을 만들지 않는다.
     /// </summary>
     [Fact]
     public async Task 막힌_PC에서도_7z는_SharpCompress로_대신_풀린다()
@@ -79,11 +79,12 @@ public class SevenZipLibraryTests
             Assert.Equal(EngineUnavailableException.DefaultMessage, ErrorMessages.ToUserMessage(ex!));
             Assert.False(Directory.Exists(dest), name + ": 대상 폴더가 생김");
         }
-        // 저장 형식에 7Z 가 없다(만들기는 W2-02 — 7z.dll 이 있든 없든 NotSupported)
+        // 저장 형식에 7Z 가 없다(W2-02 부터 7z 만들기는 7z.dll 로만 — 못 쓰는 PC 에서는 고를 수 없고, 불러도 쉬운 안내로 끝나며 파일을 안 만든다)
         Assert.DoesNotContain("7z", new ArchiveServiceLocator().BuildSaveFilter(), StringComparison.OrdinalIgnoreCase);
         var make = await Svc.Catch(() => new SevenZipArchiveService().CompressAsync(new[] { iso.FullPath }, tmp.P("x.7z")));
-        Assert.IsType<NotSupportedException>(make);
+        Assert.Equal(EngineUnavailableException.DefaultMessage, ErrorMessages.ToUserMessage(Assert.IsType<EngineUnavailableException>(make)));
         Assert.False(File.Exists(tmp.P("x.7z")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(tmp.Root, ".~*"));   // 임시 파일도 안 남김
     }
 
     /// <summary>
@@ -122,7 +123,8 @@ public class SevenZipLibraryTests
 
         var header = FixtureCatalog.Get("7z_header_encrypted");
         var svc = Svc.For(header.FullPath);
-        var none = Assert.IsType<PasswordRequiredException>(await Svc.Catch(() => svc.ListEntriesAsync(header.FullPath)));
+        // W2-02(I1-7): 목록까지 잠긴 7z 는 전용 하위 형식(화면이 열 때 묻는 신호) — SharpCompress 로 대신 열어도 같다
+        var none = Assert.IsType<ListPasswordRequiredException>(await Svc.Catch(() => svc.ListEntriesAsync(header.FullPath)));
         Assert.True(none.IsHeaderEncrypted);
         Assert.Equal(PasswordRequiredException.HeaderMessage, ErrorMessages.ToUserMessage(none));
         var wrong = Assert.IsType<WrongPasswordException>(await Svc.Catch(() => svc.ListEntriesAsync(header.FullPath, "틀린암호")));
@@ -155,7 +157,7 @@ public class SevenZipLibraryTests
         string hp = tmp.P("머리암호.rar");
         File.WriteAllBytes(hp, RawRar.Rar5HeaderEncrypted(items, "Iljip-Test-1234"));
         var svc = Svc.For(hp);
-        var none = Assert.IsType<PasswordRequiredException>(await Svc.Catch(() => svc.ExtractAsync(hp, tmp.P("none"))));
+        var none = Assert.IsType<ListPasswordRequiredException>(await Svc.Catch(() => svc.ExtractAsync(hp, tmp.P("none"))));   // W2-02(I1-7)
         Assert.True(none.IsHeaderEncrypted);
         Assert.IsType<WrongPasswordException>(await Svc.Catch(() => svc.ExtractAsync(hp, tmp.P("wrong"), "틀린암호")));
         string ok = tmp.P("ok");

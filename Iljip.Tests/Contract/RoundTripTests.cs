@@ -379,7 +379,7 @@ public class RoundTripTests
 
     /// <summary>
     /// 현재 동작 기록: 단일 파일 형식·해제 전용 형식의 '못 하는 압축'은 정해진 예외로 거절되고 압축 파일이 생기지 않는다.
-    /// (7z 생성이 생기면(I2-1, W2-02) '.7z' 행은 지울 것. W2-01 에서 해제 전용 형식 zipx·iso·압축된 tar 행을 더했다)
+    /// (W2-01 에서 해제 전용 형식 zipx·iso·압축된 tar 행을 더했다. W2-02 에서 7z 만들기가 생겨(I2-1) '.7z' 미지원 행을 지우고 원본 없음 행으로 바꿈)
     /// </summary>
     [Theory, Trait(Kinds.Key, Kinds.Record)]
     [InlineData(".gz", "folder", typeof(InvalidOperationException), "단일 파일만")]
@@ -390,7 +390,7 @@ public class RoundTripTests
     [InlineData(".bz2", "two", typeof(InvalidOperationException), "파일 하나만")]
     [InlineData(".bz2", "password", typeof(NotSupportedException), "암호화를 지원하지")]
     [InlineData(".tar", "password", typeof(NotSupportedException), "암호화를 지원하지")]
-    [InlineData(".7z", "one", typeof(NotSupportedException), "7Z 압축 생성은")]
+    [InlineData(".7z", "none", typeof(InvalidOperationException), "압축할 파일이 없습니다")]
     [InlineData(".rar", "one", typeof(NotSupportedException), "RAR 압축은")]
     [InlineData(".egg", "one", typeof(NotSupportedException), "EGG/ALZ 압축")]
     [InlineData(".alz", "one", typeof(NotSupportedException), "EGG/ALZ 압축")]

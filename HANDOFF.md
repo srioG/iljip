@@ -14,9 +14,9 @@
   - SharpCompress 0.50.5 (다중 포맷 해제 + ZIP 외 압축) — 2026-10-12 0.38.0(보안 권고 GHSA-6c8g-7p36-r338)에서 올림
   - SharpZipLib 1.4.2 (ZIP AES-256·ZipCrypto 암호 압축, CRC-32 계산)
   - EggDotNet 0.4.0 (EGG/ALZ 해제)
-  - SharpSevenZip 2.0.128 (LGPL-3.0) + 그 안의 7z.dll 7-Zip 26.03 x64 (풀기 전용: 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·자동 풀림 exe —
-    2026-10-13 W2-01, 7Z 만들기는 W2-02). `x64\7z.dll` 은 단일 파일 발행에서도 따로 두는 파일(LGPL), 못 불러오면 7Z·RAR 는 SharpCompress 로 대신
-    (나머지 형식은 쉬운 안내)
+  - SharpSevenZip 2.0.128 (LGPL-3.0) + 그 안의 7z.dll 7-Zip 26.03 x64 (풀기: 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·자동 풀림 exe —
+    2026-10-13 W2-01, **7Z 만들기 — W2-02**). `x64\7z.dll` 은 단일 파일 발행에서도 따로 두는 파일(LGPL), 못 불러오면 7Z·RAR 풀기는 SharpCompress 로 대신
+    (나머지 형식·7Z 만들기는 쉬운 안내, 저장 형식에서 7Z 를 뺌)
   - System.Text.Encoding.CodePages (CP949 한글 자동 디코딩)
 - **셸 확장 (Iljip.ShellExtension)**: C++/WRL, IExplorerCommand DLL
 - **packaging**: MSIX Sparse Package, 자체 서명 인증서
@@ -42,7 +42,7 @@
 
 - ZIP/7Z/TAR/GZ/BZ2/RAR(RAR4·RAR5)/EGG/ALZ 해제, ZIP/TAR/GZ/BZ2 압축 (7Z/RAR은 SharpCompress 미지원)
   → W2-01(2026-10-13, 7z.dll): RAR(여러 조각)·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할(`.7z.001`·`.zip.001`)·압축된 TAR(`.tgz` 등 — tar 안 내용까지 바로)·
-  자동 풀림 exe 해제 추가. 7Z 만들기는 W2-02(아래 변경 이력)
+  자동 풀림 exe 해제 추가. → **W2-02(2026-10-13): 7Z 만들기**(수준 저장만·빠름·보통·최대, 솔리드, AES-256, 파일 이름도 암호로 숨기기 — 7z.dll)
 - 암호: ZIP(ZipCrypto·AES)·7z(이름 보임·파일 이름까지 암호)·RAR4·RAR5(파일 암호·머리 암호)·EGG 모두 같은 암호 창 길
   (없으면 '암호가 걸린…', 머리 암호면 '파일 이름까지…', 틀리면 '암호가 맞지 않아요…', [취소]할 때까지 다시 물음)
 - 한글 파일명 CP949/UTF-8 자동 판별
@@ -51,11 +51,15 @@
 - 드래그앤드롭: 빈 창에 압축 파일 → 열기 / 일반 파일·폴더 → 스테이징 추가. 압축을 보는 중·모으는 중에 끌어 놓으면 선택 창(보던 압축을 말없이 닫지 않음)
 - 스테이징 모드 (반디집 스타일: 파일 모았다가 "압축 실행" 버튼). 다른 프로그램이 잠근 파일은 건너뛰고 끝에 '건너뛴 파일 N개' 안내
 - 목록 열 머리 클릭 정렬(폴더 먼저, 폴더를 옮겨도 유지, 이름은 탐색기와 같은 자연 정렬)·열 폭 끌기
-- 파일 이름까지 암호가 걸린 7z 는 열 때 암호를 물음(받은 암호로 이어서 풂). 암호 창은 [취소]할 때까지 다시 물음
+- 파일 이름까지 암호가 걸린 7z·RAR 는 열 때 암호를 물음('파일 목록까지 암호로 잠긴…' — 틀리면 '암호가 맞지 않아요' 경고 뒤 다시, 취소면 보던 것 그대로,
+  받은 암호로 이어서 풂 — W2-02). 암호 창은 [취소]할 때까지 다시 물음
 - CLI 인자: `--open`, `--extract`, `--extract-here`(그 자리에), `--extract-to-folder`(이름 폴더에, 있으면 '이름 (2)'), `--extract-to`, `--compress` — 해석은 `Services/CommandLineParser.cs`
 - C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
 
-## 현재 진행 단계 (2026-10-13 W2-01 후)
+## 현재 진행 단계 (2026-10-13 W2-02 후)
+
+**W2-02(7z 만들기 I2-1·목록까지 잠긴 7z·RAR 열기 I1-7) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`stash` 안 함).
+계약 테스트 실패 0(전체 1201 — 통과 1200·건너뜀 1: I2-10, 계약만 `Kind!=Record` 1044 — 통과 1043·건너뜀 1, 기록 157). 아래 변경 이력 'W2-02'. 그 전(W2-01) 기록:
 
 **W2-01(7z.dll 해제 쪽 — 1차 W1-B 재작업) 작업 끝, 커밋 전**(커밋·`git stash` 정리는 오케스트레이터 몫 — stash 는 drop 하지 않았고 인덱스에 UU 표시가 남아 있음).
 계약 테스트 실패 0(전체 1099 — 통과 1097·건너뜀 2: I2-1·I2-10, 계약만 `Kind!=Record` 944 — 통과 942·건너뜀 2, 기록 155. 통합 점검 후 840 — 통과 834·건너뜀 6 에서). 7z 만들기는 W2-02(아래 '향후 작업'). 아래는 그 전 상태 기록.
@@ -67,8 +71,8 @@
 **다음 단계**:
 1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
 2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
-3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함). 남은 것: W2-02 7z 만들기(I2-1)·W2-03 분할 만들기(I2-2)
-   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)도 볼 것
+3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함), W2-02 에서 7z 만들기(I2-1) 끝. 남은 것: W2-03 분할 만들기(I2-2)
+   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)도 볼 것
 
 ### MSIX 셸 확장(예전 진행 상황 — 그대로)
 
@@ -160,9 +164,8 @@ dotnet run --project Iljip
 - [ ] **일집-dist 재배포** (위 '일집-dist 재배포' 절 — MANUAL_CHECKLIST 확인 뒤)
 - [ ] **폴더 우클릭 메뉴 복원** (desktop6 namespace 적용)
 - [x] W1-B 다시 → **W2-01(해제 쪽) 끝**: 7z.dll 로 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할·압축된 TAR·자동 풀림 exe 풀기(아래 변경 이력)
-- [ ] **W2-02(다음 묶음)**: 7z 만들기(I2-1)·헤더 암호 7z 만들기·솔리드 — 보류해 둔 시험 `Iljip.Tests/_보류_W2-02/SevenZipCreateTests.cs.txt`·
-      `MainViewModel7zCreateTests.cs.txt` 를 `.cs` 로 되살려 W2-02 기준까지 통과시킬 것(잊지 말 것 — 지금은 컴파일에서 빠져 있음).
-      `CompressionOptions.Solid·EncryptFileNames`·옵션 창 7Z 칸, 저장 형식의 7Z(`ArchiveServiceLocator.BuildSaveFilter`)도 그때
+- [x] **W2-02**: 7z 만들기(I2-1)·파일 이름 암호화·솔리드·옵션 창 7Z 칸·저장 형식 7Z, 목록까지 잠긴 7z·RAR 열기(I1-7) — 보관 시험 되살림(아래 변경 이력)
+- [ ] W2-02 남은 확인: MANUAL_CHECKLIST 10절(옵션 창 모양, 반디집·7-Zip 으로 일집 7z 열기, 작업 관리자 메모리, 진짜 7-Zip -mhe·WinRAR 머리 암호 파일)
 - [ ] **재배포 전 필수(보류)**: 7-Zip `License.txt` 원문을 받아 `Iljip/licenses/7-Zip-*.txt`·`THIRD-PARTY-NOTICES.txt` 와 대조(내려받기는 사용자 확인 필요).
       GPL-3·LGPL-2.1 전문은 이 PC 의 Git for Windows 사본(FSF 원문)으로 넣음, BSD 3·2조항 전문의 저작권 줄(연도 등)은 원문 없이 적음
 - [x] ALZ / EGG 지원 (EggDotNet 0.4.0, W1-A 에서 빈 항목·ALZ 한글 이름·잠김·내용 확인까지)
@@ -279,6 +282,42 @@ dotnet run --project Iljip
   모두 MANUAL_CHECKLIST 9절. 7-Zip 26.04 의 미공개 수정은 26.03 에 없다(XZ 원격 실행 취약점 CVE-2026-14266 은 26.02 에서 고쳐져 26.03 에는 들어 있음 —
   26.04 패키지가 나오면 판 올림 검토). 7-Zip `License.txt` 원문 대조는 보류(위 '향후 작업'). 계약 테스트 실패 0(전체 1099 — 통과 1097·건너뜀 2: I2-1·I2-10, 계약만 `Kind!=Record` 944 — 통과 942·건너뜀 2, 기록 155. 통합 점검 후 840 — 통과 834·건너뜀 6 에서).
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
+- **2026-10-13 W2-02 — 7z 만들기(I2-1)·목록까지 잠긴 7z·RAR 열기(I1-7)(커밋 전, 배포 안 함)**: `SevenZipArchiveService.CompressAsync` 를 7z.dll 로 새로 씀 —
+  원본은 ZIP·TAR 와 같은 `SourceCollector`(잠긴·없어진 원본·못 들어간 폴더는 건너뜀 안내, 하나도 못 담으면 `NothingToCompressException`, 만들 7z 자신·임시 파일 제외),
+  파일은 `CompressStreamDictionary` + `LazySourceStream`(`Services/EngineStreams.cs` — 처음 읽을 때 열고 끝까지 읽으면 닫음, 읽기마다 취소 확인, 길이가 바뀌면
+  '압축하는 동안 파일이 바뀌었어요'로 그 파일만 빼고 처음부터 다시 씀). 쓰기는 대상 옆 숨김 임시 파일 `.~이름.8글자.tmp` → 다 맞을 때만 `File.Move`(덮어쓰기는 시작할 때
+  대상이 있었을 때만), 실패·취소면 임시 파일·임시 폴더를 지워 반쪽 파일이 없고 덮어쓰려던 기존 파일은 바이트 그대로. 7z.dll 이 콜백 예외를 결과 코드(0x8013153B)로만
+  돌려주므로 토큰·원본 실패 기록·출력 쓰기 실패 기록으로 원인을 가름(`Classify`). 수준 저장만=None·빠름=Fast·보통=Normal·최대=Ultra, 추가 설정 `s`(솔리드, 기본 켬)·
+  빠름 `mt;d=4m;c=4m`·보통 `mt;d=16m;c=8m`·최대 `mt=2;d=32m;c=16m`(mt=min(4, 논리 CPU)), 파일 이름 암호화(`he`)는 암호가 있을 때만. **실측(이 PC 논리 CPU 8·RAM 7.8GB,
+  원본 160MB = 무작위 4×30MB + 글자 2×20MB, 보통)**: 19.9~25.0초(4회), 결과 124.9MB, 프로세스 전용 메모리 증가 204~205MB(최대 248~284MB, 한도 700MB), 진행률 100% 도달
+  17.7/19.9초·22.2/25.0초, 30% 지점 취소 1.1~1.7초, 처음 바이트에서 취소 13~36ms(화면 명령 전체 41~90ms). **설정을 7-Zip 기본(`s` 만)으로 잠깐 되돌려 확인**: 메모리 증가
+  1,167~1,169MB·100% 도달 0.2~0.3초/26~29초로 메모리·진행률 시험이 실패하고, '시작 3초·30% 뒤 취소' 시험도 '3초 뒤 이미 100%'로 실패(그 뒤 압축이 끝날 때까지 취소가 안 먹음)
+  — 시험이 1차 지적을 잡아냄을 확인하고 되돌림(`SevenZipCreateLargeTests`, 테스트 출력 `기록_7z_보통_160MB`). **설계와 다르게 한 것**: 이름표 방식(`CompressStreamDictionary`)은
+  폴더 항목을 못 받아(SharpSevenZip 2.0.128 — 폴더면 시각 속성에서 NullReferenceException, 디컴파일로 확인) 처음엔 파일 뒤에 빈 폴더만 덧붙였는데, 그러면 파일이 든 폴더가
+  목록에 없어 `KnownGapTests.압축_7z_왕복이_원본과_같다`(모든 폴더를 비교 — 약화 금지)가 실패했다. 파일 뒤에 모든 폴더를 덧붙이면 큰 압축을 통째로 한 번 더 쓰고(취소 불가),
+  그래서 **폴더가 있으면 폴더만 든 작은 7z 를 경로 방식으로 먼저(우리 `CancellableWriteStream` 으로) 만들고 파일을 덧붙인다**(`CompressionMode.Append` + 이름표 방식 —
+  옮겨 담을 옛 데이터가 없음, 같은 암호·파일 이름 암호화). 이때 출력은 SharpSevenZip 이 대상 폴더 안 숨김 임시 폴더(`StagingFolder`, 같은 볼륨)에 직접 쓰고 우리 임시 파일
+  자리로 옮김 — 그래서 폴더가 있는 압축은 출력 쓰기에서 취소를 못 보고(읽기에서 봄 — 원본을 다 읽은 뒤 남은 블록 압축 몇 초는 못 멈춤), 디스크 가득은 7z.dll 결과 코드
+  (0x80070070) 문구로 알아봐 '디스크 공간이 모자라요'로 바꿈(실제 디스크 가득은 시험 못 함). 파일만 고르면 덧붙이기 없이 우리 스트림에 바로 씀. 모든 폴더가 항목이라
+  일집 ZIP(빈 폴더만)과 목록 모양이 다르고(7-Zip·반디집 7z 와 같음, 폴더 시각 보존), 서로 다른 곳의 같은 이름 폴더 둘을 고르면 7-Zip 처럼 '같은 이름이 여러 개라…'로 거절(ZIP 은 합침).
+  화면: 옵션 창 .7z 칸(솔리드 기본 켬·'파일 이름도 암호로 숨기기'는 암호가 있을 때만·ZIP 암호 방식 칸 숨김·한글 암호 경고 없음 — 7z 암호는 UTF-16 이라 반디집과 맞음,
+  bz.exe 실측), 수준 글자 저장만·빠름·보통·최대(규칙은 `Views/CompressionOptionsRules.cs`), 저장 형식 7Z 는 7z.dll 을 쓸 수 있을 때만(`BuildSaveFilter`), 만든 7z 는 방금 넣은
+  암호로 열어 다시 묻지 않음(`OpenArchiveAsync(path, knownPassword)`). 진행 창 문구 '압축하는 중' → '폴더 넣는 중' → 원본 이름 → '마무리하는 중'.
+  I1-7: `PasswordRequiredException` 을 봉인 해제하고(공개 API 변화) 하위 형식 `ListPasswordRequiredException`(늘 머리 암호, 문구 '파일 목록까지 암호로 잠긴 압축 파일이에요.
+  암호를 넣어 주세요.' — `HeaderMessage` 값도 이것으로 바뀜, 기존 멤버의 이름·시그니처는 그대로)과 `PasswordRequiredException.For` 공장, `PasswordPromptReason.ListLocked` 를 더함.
+  판별은 머리 바이트(`ArchiveHeaderProbe` — 7z kEncodedHeader+AES, RAR5 머리 종류 4, RAR4 MAIN_HEAD 0x0080) 먼저, 그다음 7z.dll `EncryptedHeadersError`·SharpCompress 대신 경로.
+  7z·RAR·자동 풀림 exe 안쪽 7z·RAR(7z.dll·대신 경로 둘 다) 모두 같은 예외. 화면(`ViewModels/MainViewModel.ListPassword.cs`)은 열 때 `ListLocked` 로 묻고, 틀리면
+  '암호가 맞지 않아요. 다시 넣어 주세요.' 경고 뒤 다시, 취소면 보던 압축·목록·기억한 암호 그대로(오류 창 없음), 열 때 받은 암호로 풀면 다시 안 묻고 우클릭 풀기도 한 번만.
+  창 없이 풀기(`--extract-to`)는 묻지 않고 종료 코드 1·'파일 목록까지…'(재사용장치 '압축 아님' 표지 없음 → 반디집 재시도 유지). 시험: `_보류_W2-02/*.cs.txt` 를
+  `Contract/SevenZipCreateTests.cs`·`MainViewModelPasswordTests` 로 되살리고(보관분의 '잠긴 원본이면 실패'는 I0-2 건너뛰기 규칙으로, 블록 기록은 새 설정 표로, 큰 입력 시험은
+  더 엄격한 `SevenZipCreateLargeTests` 로), `ListPasswordFlowTests`(일집 7z·py7zr 헤더 암호 7z 두 개 — `TestSupport/Py7zrSamples.cs` base64·머리 암호 RAR5·RAR4)·
+  `CompressionOptionsRulesTests` 를 새로, `CompressSkipTests`·`ProgressTests`·`BandizipCliTests`(일집 7z 를 bz.exe 가 한글 암호로 풂)·`ReuseDeviceContractTests` 에 7z 행.
+  `KnownGapTests.압축_7z_왕복이_원본과_같다` Skip 해제(`Known.I2_1` 삭제). 기대가 바뀐 기존 테스트(머리 암호 '암호 없음'의 정확한 형식이 하위 형식으로, 첫 창 이유 `ListLocked`,
+  틀린 암호 뒤 경고 한 번, 저장 필터에 7Z, 막힌 PC 7z 만들기 `EngineUnavailableException`, RoundTrip 의 '.7z 미지원' 행 → '원본 없음' 행)는 약화가 아니라 새 동작을
+  단언한 것 — 목록은 `Iljip.Tests/README.md` 'W2-02 에서 고친 것'. 위험: 덧붙이기(Append) 경로가 폴더 압축의 주 경로가 됨(헤더 암호·솔리드·한글 이름은 시험으로 확인),
+  `EngineUnavailableException` 문구가 '여는 부품'이라 만들 때도 같은 말, 메모리·시간은 PC 마다 다름(시험 한도 700MB·취소 3초는 이 PC 기준), 다른 프로그램의 -mhe 7z 는
+  py7zr 로만·WinRAR 머리 암호 RAR 은 합성으로만 확인(MANUAL_CHECKLIST 10절). 계약 테스트 실패 0(전체 1201 — 통과 1200·건너뜀 1: I2-10, 계약만 1044 — 통과 1043·건너뜀 1,
+  기록 157. W2-01 후 1099 — 통과 1097·건너뜀 2 에서). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
 
 ## 사용자 선호
 

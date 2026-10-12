@@ -128,7 +128,7 @@ internal static class SevenZipEngine
 
         // 암호 사전 검사: 암호 걸린 파일을 골랐는데 암호가 없으면 7z.dll 을 부르지 않는다(py7zr 는 폴더에도 암호 표시를 해서 파일만 본다).
         if (string.IsNullOrEmpty(password) && selected.Any(i => !i.IsDirectory && i.Encrypted && i.Size > 0))
-            throw new PasswordRequiredException(src.HeaderEncrypted);
+            throw PasswordRequiredException.For(src.HeaderEncrypted);
 
         var files = selected.Where(i => !i.IsDirectory).ToList();
         tracker.SetTotals(files.Sum(f => f.Size), files.Count);
@@ -341,9 +341,9 @@ internal static class SevenZipEngine
         public static Session Open(Source src, string? password, CancellationToken ct, Action<long, long>? onPosition)
         {
             SevenZipLibrary.ThrowIfUnavailable();
-            // 헤더 암호인데 암호가 없으면 7z.dll 을 부르지 않는다(부르면 손상과 같은 오류만 돌아옴).
+            // 헤더 암호인데 암호가 없으면 7z.dll 을 부르지 않는다(부르면 손상과 같은 오류만 돌아옴). 목록까지 잠긴 압축 — 화면이 열기 단계에서 묻는다(I1-7, W2-02).
             if (src.HeaderEncrypted && string.IsNullOrEmpty(password))
-                throw new PasswordRequiredException(isHeaderEncrypted: true);
+                throw new ListPasswordRequiredException();
             CheckStructure(src);
             try
             {
@@ -411,7 +411,7 @@ internal static class SevenZipEngine
                 // WinRAR 은 빈 RAR 을 만들지 않는다(7z.dll 을 못 쓸 때의 RarArchiveService.OpenForRead 와 같은 규칙).
                 if (data.Count == 0 && format is InArchiveFormat.Rar or InArchiveFormat.Rar4)
                     throw new CorruptArchiveException();
-                if (ArchiveProblem(src, extractor, format) is { } problem) throw problem;
+                if (ArchiveProblem(src, extractor, format, hasPassword) is { } problem) throw problem;
                 return new Session(extractor, input, BuildItems(src, data, from, to), format);
             }
             catch (Exception ex)
@@ -428,7 +428,7 @@ internal static class SevenZipEngine
         /// - 끝 잘림(UnexpectedEnd) → 잘림, 머리 손상 등 → 손상. 여러 조각이면 먼저 '조각 없음'인지 본다.
         ///   ISO·UDF 는 정상 이미지에도 끝 잘림 표시가 떠서(반디집 iso_default 실측) 그 표시는 보지 않는다(구조 검사가 PVD·AVDP 로 대신 봄).
         /// </summary>
-        private static ArchiveException? ArchiveProblem(Source src, SharpSevenZipExtractor extractor, InArchiveFormat format)
+        private static ArchiveException? ArchiveProblem(Source src, SharpSevenZipExtractor extractor, InArchiveFormat format, bool hasPassword)
         {
             ArchiveErrorFlags flags;
             string? message;
@@ -448,6 +448,10 @@ internal static class SevenZipEngine
                 string name = firstLine.IndexOf(':') is var c and >= 0 ? Path.GetFileName(firstLine[(c + 1)..].Trim()) : string.Empty;
                 return src.VolumeCheck?.Invoke() ?? new VolumeMissingException(name.Length > 0 ? name : "다음");
             }
+            // 머리 바이트로 못 알아본 '목록까지 잠긴' 압축(W2-02 — 판정 2단계): 7z.dll 이 머리 암호 오류를 알리면 암호 문제로 본다
+            // (7z 는 이때 열기부터 실패해 여기까지 오지 않는다 — 머리 바이트 판정이 1단계로 막는다, 실측).
+            if ((flags & ArchiveErrorFlags.EncryptedHeadersError) != 0)
+                return hasPassword ? new WrongPasswordException(isHeaderEncrypted: true) : new ListPasswordRequiredException();
             if (format is InArchiveFormat.Iso or InArchiveFormat.Udf)
                 flags &= ~ArchiveErrorFlags.UnexpectedEnd;
             if ((flags & ArchiveErrorFlags.UnexpectedEnd) != 0)

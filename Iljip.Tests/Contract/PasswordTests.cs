@@ -26,7 +26,8 @@ public class PasswordTests
         { "python/7z_pw_names_visible.7z", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote },
         { "python/7z_pw_names_visible.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
         { "bandizip/7z_header_encrypted.7z", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage + WrongPasswordException.HeaderNote },
-        { "bandizip/7z_header_encrypted.7z", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.HeaderMessage },
+        // W2-02(I1-7): 목록까지 잠긴 압축의 '암호 없음'은 전용 하위 형식(ListPasswordRequiredException — 화면이 열 때 묻는다)
+        { "bandizip/7z_header_encrypted.7z", null, "Iljip.Services.ListPasswordRequiredException", PasswordRequiredException.HeaderMessage },
         // W2-01: zipx 는 7z.dll — ZIP AES 는 암호 확인값이 있어 7z.dll 이 '틀린 암호'로 딱 잘라 알린다(덧말 없음)
         { "bandizip/zipx_aes.zipx", "wrong", "Iljip.Services.WrongPasswordException", WrongPasswordException.DefaultMessage },
         { "bandizip/zipx_aes.zipx", null, "Iljip.Services.PasswordRequiredException", PasswordRequiredException.DefaultMessage },
@@ -168,14 +169,17 @@ public class PasswordTests
         Assert.True(Internals.IsPasswordRelated(wrong!), $"{wrong!.GetType().Name}('{wrong.Message}') 를 암호 문제로 못 알아봄");
     }
 
-    /// <summary>현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호) — 둘 다 '헤더 암호' 표시. W2-01 부터 7z.dll(머리 바이트로 헤더 암호 탐지).</summary>
+    /// <summary>
+    /// 현재 동작 기록: 헤더 암호 7z 목록의 예외 타입(암호 없음 / 틀린 암호) — 둘 다 '헤더 암호' 표시. W2-01 부터 7z.dll(머리 바이트로 헤더 암호 탐지).
+    /// W2-02(I1-7) 부터 암호 없음은 <see cref="ListPasswordRequiredException"/>(PasswordRequiredException 의 하위 형식).
+    /// </summary>
     [Fact, Trait(Kinds.Key, Kinds.Record)]
     public async Task 기록_헤더암호_7z_목록_예외_타입()
     {
         var fx = FixtureCatalog.Get("7z_header_encrypted");
         var svc = Svc.For(fx.FullPath);
         var noPw = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, null));
-        Assert.True(Assert.IsType<PasswordRequiredException>(noPw).IsHeaderEncrypted);
+        Assert.True(Assert.IsType<ListPasswordRequiredException>(noPw).IsHeaderEncrypted);
         var wrong = await Svc.Catch(() => svc.ListEntriesAsync(fx.FullPath, "wrong"));
         Assert.True(Assert.IsType<WrongPasswordException>(wrong).IsHeaderEncrypted);
         // W2-01: 7z.dll 이 '열기 실패'로 알린 것을 머리 바이트(ArchiveHeaderProbe)로 헤더 암호라고 알아 바꾼 것

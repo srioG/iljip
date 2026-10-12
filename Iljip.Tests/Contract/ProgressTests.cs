@@ -79,6 +79,7 @@ public class ProgressTests
     [Theory]
     [InlineData(".zip")]
     [InlineData(".tar")]
+    [InlineData(".7z")]   // W2-02: 7z.dll 이 실제로 읽은 바이트(빈 폴더 덧붙이기 포함)
     public async Task 압축_진행률이_0에서_100으로_끝난다(string ext)
     {
         using var tmp = new TempDir("pc");
@@ -98,14 +99,23 @@ public class ProgressTests
     /// 큰 파일 하나면 진행 막대가 멈춰 있었다(B6 수정 때 같이 고침).
     /// </summary>
     [Fact]
-    public async Task TAR_압축은_큰파일_안에서도_진행률이_오른다()
+    public Task TAR_압축은_큰파일_안에서도_진행률이_오른다() => BigFileProgress(".tar", null);
+
+    /// <summary>
+    /// W2-02(I2-1): 7z 압축도 큰 파일을 7z.dll 이 읽는 '도중'에 진행률이 오른다(<c>LazySourceStream</c> 이 읽은 바이트) —
+    /// 1차 W1-B 는 7z.dll 이 원본을 몇 초 만에 메모리로 다 읽어 진행 막대가 바로 100% 였다. (무작위 160MB·보통 수준은 SevenZipCreateLargeTests)
+    /// </summary>
+    [Fact]
+    public Task 압축_7z도_큰파일_안에서_진행률이_오른다() => BigFileProgress(".7z", new CompressionOptions { Level = CompressionLevelOption.Store });
+
+    private static async Task BigFileProgress(string ext, CompressionOptions? options)
     {
         using var tmp = new TempDir("pct");
         string src = CancellationTests.MakeSource(tmp);
-        string arc = tmp.P("big.tar");
+        string arc = tmp.P("big" + ext);
         var rec = new ProgressRecorder();
-        await Svc.For(arc).CompressAsync(new[] { src }, arc, null, rec);
-        AssertWellFormed(rec.Reports, "tar 큰 파일", expectIntermediate: true);
+        await Svc.For(arc).CompressAsync(new[] { src }, arc, options, rec);
+        AssertWellFormed(rec.Reports, ext + " 큰 파일", expectIntermediate: true);
         var big = rec.Reports.Where(r => r.CurrentFile.EndsWith("z_큰.bin", StringComparison.Ordinal)).Select(r => r.BytesProcessed).Distinct().ToList();
         Assert.True(big.Count >= 2, $"큰 파일을 쓰는 동안 진행 보고(서로 다른 처리량)가 {big.Count}번뿐");
         long smallSize = new FileInfo(Path.Combine(src, "a_작은.txt")).Length;

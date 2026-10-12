@@ -34,5 +34,15 @@ public sealed class CompressionOptions
     /// <summary>ZIP 암호 방식. 암호가 있을 때만 의미가 있음. ZIP 만 씀. 기본 AES-256.</summary>
     public ZipEncryption Encryption { get; init; } = ZipEncryption.Aes256;
 
+    /// <summary>
+    /// 7Z 솔리드 압축(여러 파일을 한 덩어리로 — 더 작아지지만 일부만 꺼낼 때는 느림). 7Z 만 씀. 기본 켬(7-Zip·반디집 기본과 같음) — W2-02.
+    /// </summary>
+    public bool Solid { get; init; } = true;
+
+    /// <summary>
+    /// 7Z 파일 이름도 암호로 숨기기(헤더 암호 — 암호 없이는 목록도 안 보임). 7Z 이고 암호가 있을 때만 의미가 있음. 기본 끔 — W2-02.
+    /// </summary>
+    public bool EncryptFileNames { get; init; }
+
     public static CompressionOptions Default => new();
 }

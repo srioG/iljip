@@ -173,14 +173,15 @@ public sealed class ArchiveServiceLocator
 
     /// <summary>
     /// SaveFileDialog용 필터 문자열 (압축 가능 포맷만). RAR·EGG/ALZ·zipx·iso 등은 해제만 가능하므로 제외.
-    /// 7Z 만들기는 W2-02 몫이라 아직 넣지 않는다(7z.dll 을 쓸 수 있을 때만 넣을 것 — 못 쓰는 PC 에서 옵션 창까지 지난 뒤에야 오류가 나지 않게).
+    /// 7Z(W2-02)는 7z.dll 로만 만든다 — 7z.dll 을 쓸 수 있을 때만 넣는다(보안 프로그램이 막은 PC 에서 옵션 창까지 지난 뒤에야 오류가 나지 않게).
     /// </summary>
     public string BuildSaveFilter()
     {
-        return string.Join("|",
-            "ZIP 압축 파일 (*.zip)|*.zip",
-            "TAR 묶음 파일 (*.tar)|*.tar",
-            "GZIP 압축 파일 (*.gz)|*.gz",
-            "BZIP2 압축 파일 (*.bz2)|*.bz2");
+        var filters = new List<string> { "ZIP 압축 파일 (*.zip)|*.zip" };
+        if (SevenZipLibrary.IsAvailable) filters.Add("7Z 압축 파일 (*.7z)|*.7z");
+        filters.Add("TAR 묶음 파일 (*.tar)|*.tar");
+        filters.Add("GZIP 압축 파일 (*.gz)|*.gz");
+        filters.Add("BZIP2 압축 파일 (*.bz2)|*.bz2");
+        return string.Join("|", filters);
     }
 }

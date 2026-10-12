@@ -81,6 +81,36 @@ public class ReuseDeviceContractTests
     }
 
     /// <summary>
+    /// 계약(W2-02, I1-7): 목록까지 잠긴 압축(일집·py7zr 이 만든 헤더 암호 7z, 머리 암호 RAR5)을 창 없이 풀면 암호를 묻지 않고(창 없음 — 60초 안에 끝남)
+    /// 종료 코드 1, 실패 문구는 '파일 목록까지 암호로 잠긴…'(한국어 한 줄)이며 '압축 파일 아님' 표지가 없고, 임시 폴더에 아무것도 남지 않는다.
+    /// (헤드리스는 설정을 읽지 않고 암호를 명령줄로 받지 않는다 — 재사용장치는 실패면 반디집으로 다시 푼다)
+    /// </summary>
+    [IljipExeFact]
+    public async Task 창없이_풀기는_목록까지_잠긴_압축이면_묻지_않고_1로_끝난다()
+    {
+        using var tmp = new TempDir("rdlist");
+        var cases = new List<(string Name, string Path)>();
+        string src = SampleTree.Create(tmp.Dir("원본"));
+        string iljip = tmp.P("일집_이름암호.7z");
+        await new Iljip.Services.SevenZipArchiveService().CompressAsync(new[] { src }, iljip,
+            new Iljip.Models.CompressionOptions { Password = FixtureCatalog.KoreanPassword, EncryptFileNames = true });
+        cases.Add(("iljip7z", iljip));
+        cases.Add(("py7z", Py7zrSamples.Write(tmp.Dir("in_py7z"), koreanPassword: false).Path));
+        cases.Add(("rar5_hdr", SyntheticArchives.Build("rar5_hdr", tmp.Dir("in_rar5_hdr")).Path));
+
+        foreach (var (name, path) in cases)
+        {
+            string dest = tmp.Dir("out_" + name);
+            var (code, err) = await RunIljip(path, dest);
+            Assert.True(code == 1, $"{name}: 종료 코드 {code}(1 이어야 함) — {err}");
+            Assert.Contains(Iljip.Services.ListPasswordRequiredException.ListMessage, err);
+            foreach (var m in NotArchiveMarkers)
+                Assert.False(err.Contains(m, StringComparison.OrdinalIgnoreCase), $"{name}: 실패 문구에 '{m}': {err}");
+            TreeAssert.NoFiles(dest, name);
+        }
+    }
+
+    /// <summary>
     /// 계약(소스): 본체의 문구에 재사용장치가 '압축 파일 아님'으로 읽는 말이 없다 — ArchiveExceptions.cs 머리 주석의 약속을 테스트로.
     /// 예외: App.xaml.cs 의 'Unsupported archive type'(종료 코드 2, 확장자 자체를 모를 때 — 재사용장치가 일집에 넘기는 egg·alz·rar·7z 는 모두 등록됨).
     /// </summary>

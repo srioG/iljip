@@ -7,8 +7,8 @@ namespace Iljip.Tests.Contract;
 
 /// <summary>
 /// [범위 11] 알려진 빈틈 — 남은 것은 Skip. 본문은 '고쳐지면 반디집처럼 돼야 할 올바른 기대'다.
-/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C, I2-2 의 풀기·I2-9 W2-01)은 Skip 을 지운 채 여기 둔다.
-/// 남은 Skip: I2-1(7z 만들기 — W2-02 몫), I2-10(NFD). 목록은 README 의 Skip 목록.
+/// 엔진 교체 후 Skip 만 지우고 돌려 보면 된다. 메운 빈틈(TAR-빈폴더 W1-A, I2-11 W1-C, I2-2 의 풀기·I2-9 W2-01, I2-1 W2-02)은 Skip 을 지운 채 여기 둔다.
+/// 남은 Skip: I2-10(NFD — BandizipFixtureTests). 목록은 README 의 Skip 목록.
 /// </summary>
 public class KnownGapTests
 {
@@ -56,8 +56,11 @@ public class KnownGapTests
         TreeAssert.ExtractedTreeEquals(dest, expected, context: id);
     }
 
-    /// <summary>[I2-1] 7z 로 압축한 뒤 다시 풀면 원본과 같아야 한다(한글·빈 파일·빈 폴더 포함). 7z 만들기는 W2-02 몫.</summary>
-    [Fact(Skip = Known.I2_1)]
+    /// <summary>
+    /// [I2-1 — W2-02 고침] 7z 로 압축한 뒤 다시 풀면 원본과 같아야 한다(한글·빈 파일·빈 폴더 포함).
+    /// 수준·솔리드·암호·파일 이름 암호화·진행률·취소·메모리는 SevenZipCreateTests·SevenZipCreateLargeTests.
+    /// </summary>
+    [Fact]
     public async Task 압축_7z_왕복이_원본과_같다()
     {
         using var tmp = new TempDir("7zc");

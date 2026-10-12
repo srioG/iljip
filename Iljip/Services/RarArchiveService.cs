@@ -121,7 +121,7 @@ public sealed class RarArchiveService : SevenZipEngineServiceBase
 
     /// <summary>
     /// 열기·목록 단계에서 암호 문제로 멈췄는데, 암호 없이 읽으면 '암호 없음'인 RAR(머리 암호 — WinRAR '파일 이름 암호화')이면
-    /// 7z 헤더 암호와 같은 예외(문구 '파일 이름까지 암호가 걸려 있어요…')로 바꾼다. RAR4 머리 암호는 틀린 암호가
+    /// 7z 헤더 암호와 같은 예외(<see cref="ListPasswordRequiredException"/> — 문구 '파일 목록까지 암호로 잠긴…', W2-02)로 바꾼다. RAR4 머리 암호는 틀린 암호가
     /// 'Unknown Rar Header'·'rar header crc mismatch' 같은 형식 오류로만 드러나 예전엔 영어 오류 창이 뜨고 암호를 다시 묻지 않았다.
     /// 암호 없는 항목의 CRC 불일치(엔진 'file crc mismatch')는 ZIP 과 같은 <see cref="ChecksumMismatchException"/>(쉬운 문구).
     /// </summary>
@@ -132,7 +132,7 @@ public sealed class RarArchiveService : SevenZipEngineServiceBase
             && NeedsPasswordToList(archivePath))
         {
             return string.IsNullOrEmpty(password)
-                ? new PasswordRequiredException(isHeaderEncrypted: true, inner: ex)
+                ? new ListPasswordRequiredException(ex)
                 : new WrongPasswordException(isHeaderEncrypted: true, inner: ex);
         }
         var translated = base.TranslateError(ex, archivePath, password, entry, entryPath);

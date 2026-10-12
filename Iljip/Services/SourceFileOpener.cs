@@ -25,6 +25,9 @@ public static class SourceFileOpener
     public const string ReasonMissing = "파일이 없어졌어요";
     public const string ReasonOther = "읽지 못했어요";
 
+    /// <summary>압축하는 사이에 원본 크기가 바뀌었다(W2-02 — 7z 는 크기를 미리 적어 바뀐 파일을 그대로 담을 수 없음).</summary>
+    public const string ReasonChanged = "압축하는 동안 파일이 바뀌었어요";
+
     private const int ErrorSharingViolation = unchecked((int)0x80070020);
     private const int ErrorLockViolation = unchecked((int)0x80070021);
 

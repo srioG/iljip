@@ -159,6 +159,43 @@ public sealed class SfxArchiveService : SharpCompressArchiveServiceBase
         }
     }
 
+    /// <summary>
+    /// (7z.dll 을 못 쓸 때 — SharpCompress 로 여는 안쪽 7z·RAR) 안쪽이 목록까지 잠긴 압축(7z 헤더 암호·RAR 머리 암호)이면
+    /// 열기·목록 단계의 암호·데이터 오류를 <see cref="ListPasswordRequiredException"/>(암호 없음)·머리 암호 틀림으로 바꾼다(W2-02, I1-7 —
+    /// 7z.dll 경로는 <see cref="SevenZipEngine"/> 가 머리 바이트로 같은 예외를 낸다).
+    /// </summary>
+    protected override Exception? TranslateError(Exception ex, string archivePath, string? password, IArchiveEntry? entry, string? entryPath)
+    {
+        if (entry is null && ex is not ArchiveException and not OperationCanceledException
+            && (ex is SharpCompress.Common.CryptographicException || EngineErrorTranslator.IsDataError(ex))
+            && InnerHeaderEncrypted(archivePath))
+        {
+            return string.IsNullOrEmpty(password)
+                ? new ListPasswordRequiredException(ex)
+                : new WrongPasswordException(isHeaderEncrypted: true, inner: ex);
+        }
+        return base.TranslateError(ex, archivePath, password, entry, entryPath);
+    }
+
+    /// <summary>안쪽 7z·RAR 의 머리(목록)가 암호로 잠겼는지 — 실패 번역 때만 읽는다. 못 읽으면 false.</summary>
+    private static bool InnerHeaderEncrypted(string archivePath)
+    {
+        try
+        {
+            var (kind, offset) = Detect(archivePath);
+            using var s = OpenInner(archivePath, offset);
+            if (kind == ArchiveKind.SevenZipSfx) return ArchiveHeaderProbe.IsSevenZipHeaderEncrypted(s);
+            if (kind != ArchiveKind.RarSfx) return false;
+            var head = new byte[64];
+            int n = s.Read(head, 0, head.Length);
+            return ArchiveHeaderProbe.ProbeRar(head.AsSpan(0, n)).HeaderEncrypted;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public override Task<CompressResult> CompressAsync(
         IEnumerable<string> sourcePaths,
         string archivePath,

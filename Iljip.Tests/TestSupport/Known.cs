@@ -15,7 +15,8 @@ public static class Known
     // (TestSupport/RawRar.cs, 반디집 bz.exe 로 작성기 확인)로 서비스·화면 모두 확인 — RarTests·FormatFlowTests. 진짜 WinRAR 산출물은 MANUAL_CHECKLIST 6절.
     // W2-01(7z.dll 해제 엔진)에서 I2-9(zipx·tgz·tar.gz·txz·tbz2·xz·iso·lzh·자동 풀림 exe)와 I2-2 의 '열기·풀기'(.7z.001·.zip.001)를 메워
     // 그 Skip 을 풀었다(I2_9 사유 삭제). I2-2 는 '분할 만들기' 쪽만 남았다(W2-03 몫 — 쓰는 곳이 없으면 W2-03 이 지움).
-    public const string I2_1 = "known gap I2-1: 7z 압축 생성 불가 — SevenZipArchiveService.CompressAsync 가 NotSupportedException";
+    // W2-02 에서 I2-1(7z 만들기)을 메워 KnownGapTests.압축_7z_왕복이_원본과_같다 의 Skip 을 풀었다(I2_1 사유 삭제).
+    // 같은 묶음에서 I1-7 의 남은 몫(목록까지 잠긴 압축 전용 예외 ListPasswordRequiredException·열 때 '암호가 맞지 않아요' 경고)도 메움 — ListPasswordFlowTests.
     public const string I2_2 = "known gap I2-2: 분할 만들기 미지원 — 숫자 분할(.7z.001·.zip.001)·.z01 조각으로 나눠 압축하지 못함(풀기는 W2-01 에서 됨)";
     public const string I2_10 = "known gap I2-10: 맥 ZIP 의 NFD(자모 분리) 한글 이름을 NFC 로 바꾸지 않음 — 목록·풀린 파일 이름이 자모 분리 그대로";
 

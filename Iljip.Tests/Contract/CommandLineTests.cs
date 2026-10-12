@@ -385,7 +385,7 @@ public class CommandLineTests
         Assert.Empty(ui.Errors);
         Assert.Empty(ui.Warnings);
         var prompt = Assert.Single(ui.PasswordPrompts);
-        Assert.Equal(Iljip.Services.PasswordPromptReason.Required, prompt.Reason);
+        Assert.Equal(Iljip.Services.PasswordPromptReason.ListLocked, prompt.Reason);   // W2-02(I1-7): 목록까지 잠긴 압축 전용 이유
         Assert.Equal(Iljip.Services.PasswordRequiredException.HeaderMessage, prompt.Message);
         Assert.Equal(arc, vm.CurrentArchivePath);
         if (verb == "--extract-here")
@@ -406,9 +406,10 @@ public class CommandLineTests
 
         await RunVm(vm, new[] { "--extract-to-folder", arc });
 
-        Assert.Equal(new[] { Iljip.Services.PasswordPromptReason.Required, Iljip.Services.PasswordPromptReason.Wrong },
+        Assert.Equal(new[] { Iljip.Services.PasswordPromptReason.ListLocked, Iljip.Services.PasswordPromptReason.Wrong },
             ui.PasswordPrompts.Select(p => p.Reason).ToArray());
         Assert.Equal(Iljip.Services.WrongPasswordException.DefaultMessage + Iljip.Services.WrongPasswordException.HeaderNote, ui.PasswordPrompts[1].Message);
+        Assert.Contains("맞지 않아요", Assert.Single(ui.Warnings));   // W2-02(I1-7): 틀린 암호 경고 한 번
         Assert.Empty(ui.Errors);
         Assert.Empty(ui.ProgressSessions);   // 풀기를 시작하지 않음
         Assert.Equal("열기를 취소했어요", vm.StatusText);
@@ -425,7 +426,7 @@ public class CommandLineTests
     {
         Assert.True(Iljip.Services.SevenZipLibrary.IsAvailable, "7z.dll 경로를 시험해야 함");
         var fx = FixtureCatalog.Get("7z_header_encrypted");
-        var expectedReasons = new[] { Iljip.Services.PasswordPromptReason.Required, Iljip.Services.PasswordPromptReason.Wrong };
+        var expectedReasons = new[] { Iljip.Services.PasswordPromptReason.ListLocked, Iljip.Services.PasswordPromptReason.Wrong };   // W2-02(I1-7)
 
         using var tmp = new TempDir("xh7w");
         string arc = CopyFixture(tmp, "7z_header_encrypted");

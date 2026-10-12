@@ -364,12 +364,14 @@ public class LocatorTests
     }
 
     /// <summary>
-    /// 계약(W2-01): 7z 만들기는 W2-02 몫이라 저장 창에 7Z 가 없다 — 7z.dll 을 쓸 수 있든 없든(못 쓰는 PC 에서 옵션 창까지 지난 뒤에야 오류가 나지 않게).
+    /// 계약(W2-02, I2-1): 저장 창의 7Z 는 7z.dll 을 쓸 수 있을 때만 보인다 — 못 쓰는 PC(보안 프로그램이 막음)에서는 빼서
+    /// 옵션 창까지 지난 뒤에야 오류가 나지 않게 한다(W2-01 때는 만들기가 없어 늘 뺐다).
     /// </summary>
     [Fact]
-    public void 저장_형식에_7Z가_없다()
+    public void 저장_형식의_7Z는_7z_dll을_쓸_수_있을_때만()
     {
-        Assert.DoesNotContain("*.7z", Locator.BuildSaveFilter());
+        Assert.True(SevenZipLibrary.IsAvailable, "이 PC 에서는 7z.dll 이 불러져야 함");
+        Assert.Contains("7Z 압축 파일 (*.7z)|*.7z", Locator.BuildSaveFilter());
         using (SevenZipLibrary.SimulateUnavailableForTests())
         {
             string filter = Locator.BuildSaveFilter();

@@ -11,12 +11,8 @@
         TextElement.Foreground="{DynamicResource FgBrush}">
     <StackPanel Margin="22">
         <TextBlock Text="압축 수준" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <ComboBox x:Name="LevelCombo" Height="28" SelectedIndex="2">
-            <ComboBoxItem Content="저장 (압축 안 함, 가장 빠름)" />
-            <ComboBoxItem Content="빠름" />
-            <ComboBoxItem Content="보통 (권장)" />
-            <ComboBoxItem Content="최대 압축 (가장 느림)" />
-        </ComboBox>
+        <!-- 항목 글자는 코드(CompressionOptionsRules.LevelLabels)에서 채운다 — 저장만·빠름·보통·최대 -->
+        <ComboBox x:Name="LevelCombo" Height="28" />
 
         <TextBlock Text="비밀번호 (선택)" FontWeight="SemiBold" Margin="0,18,0,6" />
         <!-- '암호 보이기'를 켜면 같은 자리에 같은 값의 TextBox 가 보인다(두 칸 모두 늘 같은 값으로 맞춰 둠) -->
@@ -48,6 +44,15 @@
                          Content="ZipCrypto (호환 · 탐색기와 오래된 프로그램)" />
             <TextBlock Margin="20,4,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource FgMutedBrush}"
                        Text="ZipCrypto 는 Windows 탐색기에서도 열리지만 보안이 약해요. 한글 암호는 반디집·알집과 맞게 저장돼요." />
+        </StackPanel>
+
+        <!-- 7Z 전용(W2-02): 솔리드·파일 이름 암호화(암호를 넣었을 때만 고를 수 있음) -->
+        <StackPanel x:Name="SevenZipPanel" Margin="0,14,0,0" Visibility="Collapsed">
+            <TextBlock Text="7Z 옵션" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <CheckBox x:Name="SolidCheck" IsChecked="True" Margin="0,0,0,4"
+                      Content="솔리드 압축(더 작게, 일부만 꺼내기는 느림)" />
+            <CheckBox x:Name="EncryptNamesCheck" IsEnabled="False"
+                      Content="파일 이름도 암호로 숨기기" />
         </StackPanel>
 
         <TextBlock x:Name="HintText"

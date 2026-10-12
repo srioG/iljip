@@ -41,6 +41,8 @@ public class FormatFlowTests
     /// (머리 암호면 열 때 '파일 이름까지 암호가 걸려 있어요…'), 틀린 암호면 '암호가 맞지 않아요…' 로 다시 묻고, 맞는 암호면 풀린다.
     /// 틀린 시도는 아무것도 남기지 않고(이름 폴더 번호가 밀리지 않음), 진행 막대는 움직인다.
     /// RAR4 파일 암호는 이 점검 전엔 암호 창 없이 쓰레기를 '완료'로 풀었다.
+    /// W2-02(I1-7): 목록까지 잠긴 압축(7z 헤더 암호·RAR 머리 암호)은 열 때 전용 이유(<see cref="PasswordPromptReason.ListLocked"/>)로 묻고,
+    /// 틀리면 '암호가 맞지 않아요' 경고를 한 번 보인 뒤 다시 묻는다(형식과 상관없이 같음). 그 밖은 경고 없이 다시 묻는다(예전 그대로).
     /// </summary>
     [Theory]
     [InlineData("fx:zip_zipcrypto")]
@@ -66,8 +68,10 @@ public class FormatFlowTests
         await RunVm(new MainViewModel(ui), "--extract-to-folder", c.Path);
 
         Assert.Empty(ui.Errors);
-        Assert.Empty(ui.Warnings);
-        Assert.Equal(new[] { PasswordPromptReason.Required, PasswordPromptReason.Wrong }, ui.PasswordPrompts.Select(p => p.Reason).ToArray());
+        if (c.HeaderEncrypted) Assert.Contains("맞지 않아요", Assert.Single(ui.Warnings));
+        else Assert.Empty(ui.Warnings);
+        var first = c.HeaderEncrypted ? PasswordPromptReason.ListLocked : PasswordPromptReason.Required;
+        Assert.Equal(new[] { first, PasswordPromptReason.Wrong }, ui.PasswordPrompts.Select(p => p.Reason).ToArray());
         Assert.All(ui.PasswordPrompts, p => Assert.Equal(Path.GetFileName(c.Path), p.ArchiveName));
         Assert.Equal(c.HeaderEncrypted ? PasswordRequiredException.HeaderMessage : PasswordRequiredException.DefaultMessage, ui.PasswordPrompts[0].Message);
         Assert.StartsWith(WrongPasswordException.DefaultMessage, ui.PasswordPrompts[1].Message);

@@ -35,16 +35,37 @@ public abstract class ArchivePasswordException : ArchiveException
     public bool IsHeaderEncrypted { get; }
 }
 
-/// <summary>암호가 걸렸는데 암호를 주지 않았다.</summary>
-public sealed class PasswordRequiredException : ArchivePasswordException
+/// <summary>
+/// 암호가 걸렸는데 암호를 주지 않았다. W2-02 에서 sealed 를 풀었다 — 목록부터 잠긴 압축은 파생 <see cref="ListPasswordRequiredException"/>
+/// (기존 catch·`is PasswordRequiredException` 은 그대로 잡는다).
+/// </summary>
+public class PasswordRequiredException : ArchivePasswordException
 {
     public const string DefaultMessage = "암호가 걸린 압축 파일이에요. 암호를 넣어 주세요.";
-    public const string HeaderMessage = "파일 이름까지 암호가 걸려 있어요. 암호를 넣어 주세요.";
+
+    /// <summary>
+    /// 파일 이름(목록)까지 암호가 걸린 압축의 문구 — W2-02 에서 '파일 이름까지 암호가 걸려 있어요…'를 설계 문구로 바꿨다
+    /// (<see cref="ListPasswordRequiredException.ListMessage"/> 와 같은 값).
+    /// </summary>
+    public const string HeaderMessage = "파일 목록까지 암호로 잠긴 압축 파일이에요. 암호를 넣어 주세요.";
 
     public PasswordRequiredException(bool isHeaderEncrypted = false, Exception? inner = null, string? entryPath = null)
         : base(isHeaderEncrypted ? HeaderMessage : DefaultMessage, isHeaderEncrypted, inner, entryPath)
     {
     }
+
+    /// <summary>파생 예외가 자기 문구를 쓸 때(W2-02).</summary>
+    protected PasswordRequiredException(string message, bool isHeaderEncrypted, Exception? inner, string? entryPath)
+        : base(message, isHeaderEncrypted, inner, entryPath)
+    {
+    }
+
+    /// <summary>
+    /// 암호 없음 예외를 고른다(W2-02): 목록까지 잠긴 압축(헤더 암호)이면 <see cref="ListPasswordRequiredException"/>, 아니면 이 형식.
+    /// 서비스들은 헤더 암호의 '암호 없음'을 늘 이것으로 만든다 — 화면이 열기 단계에서 묻는 근거(I1-7).
+    /// </summary>
+    public static PasswordRequiredException For(bool isHeaderEncrypted, Exception? inner = null, string? entryPath = null) =>
+        isHeaderEncrypted ? new ListPasswordRequiredException(inner, entryPath) : new PasswordRequiredException(false, inner, entryPath);
 }
 
 /// <summary>
@@ -232,6 +253,23 @@ public sealed class EngineUnavailableException : ArchiveException
 
     public EngineUnavailableException(Exception? inner = null)
         : base(DefaultMessage, inner)
+    {
+    }
+}
+
+// ───── W2-02(7z 만들기·목록까지 잠긴 7z·RAR 열기 — I2-1·I1-7)에서 더한 것 ─────
+
+/// <summary>
+/// 목록(파일 이름)까지 암호로 잠긴 압축을 암호 없이 열었다(7z '파일 이름도 암호화'·RAR 머리 암호 — I1-7). 늘 <see cref="ArchivePasswordException.IsHeaderEncrypted"/> = true.
+/// 화면은 이 예외면 열기 단계에서 암호를 묻고(<c>PasswordPromptReason.ListLocked</c>) 다시 연다. 열 때 맞은 암호는 풀 때 다시 묻지 않는다.
+/// 같은 압축에 틀린 암호를 주면 <see cref="WrongPasswordException"/>(IsHeaderEncrypted = true).
+/// </summary>
+public sealed class ListPasswordRequiredException : PasswordRequiredException
+{
+    public const string ListMessage = HeaderMessage;
+
+    public ListPasswordRequiredException(Exception? inner = null, string? entryPath = null)
+        : base(ListMessage, isHeaderEncrypted: true, inner, entryPath)
     {
     }
 }
