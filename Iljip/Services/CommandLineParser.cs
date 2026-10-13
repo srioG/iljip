@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Iljip.Services;
 
 /// <summary>명령줄(셸 확장 우클릭 메뉴·탐색기 더블클릭·두 번째 실행이 넘긴 인자)로 할 일.</summary>
@@ -44,6 +46,29 @@ public enum CommandVerb
     /// 모두를 같은 곳에 다시 하게). <see cref="ParsedCommand.Dest"/> = 그 폴더. 메인 창 없이 진행 창만. 하나는 예전대로 '--extract-to 압축 폴더'.
     /// </summary>
     ExtractInto,
+
+    // ───── W2-12(우클릭 메뉴 정비 I1-2·파일 연결 I1-1)에서 더한 것 ─────
+
+    /// <summary>
+    /// --extract-smart &lt;압축…&gt; : 알아서 풀기 — 압축 안의 맨 위가 하나(폴더 하나 또는 파일 하나)면 압축 파일이 있는 폴더에 바로(폴더가 두 겹이 되지 않게),
+    /// 여럿이면 '이름' 폴더에(있으면 '이름 (2)'). 같은 이름은 W2-05 처리기. 메인 창 없이 진행 창만(<see cref="SmartExtractPlanner"/>).
+    /// </summary>
+    ExtractSmart,
+
+    /// <summary>--compress-zip &lt;경로…&gt; : 창 없이 '이름.zip' 으로 바로 압축(원본 옆, 이름은 압축 창 제안과 같은 규칙, 수준·빼기는 마지막 설정, 암호 없음).</summary>
+    CompressZip,
+
+    /// <summary>--compress-7z &lt;경로…&gt; : 창 없이 '이름.7z' 으로 바로 압축(<see cref="CompressZip"/> 과 같은 규칙, 7z.dll 이 있어야 함).</summary>
+    Compress7z,
+
+    /// <summary>
+    /// --register-associations [--drop-handler] : 파일 연결(HKCU — '연결 프로그램' 후보·기본 앱 목록)을 넣는다. 자체 프로세스로 돌고 끝난다(파이프로 넘기지 않음).
+    /// '--drop-handler' 가 뒤에 있으면 zip·7z 드롭 처리기도(<see cref="ParsedCommand.Paths"/> 에 그대로 담김).
+    /// </summary>
+    RegisterAssociations,
+
+    /// <summary>--unregister-associations : 일집이 넣은 파일 연결만 뺀다(기록에 적힌 것만). 자체 프로세스.</summary>
+    UnregisterAssociations,
 }
 
 /// <summary>
@@ -63,7 +88,9 @@ public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? De
     /// W2-06: '--add-to'(압축 파일에 넣기)도 메인 창 없이. W2-11: '--extract-to-folder-in'(폴더 안 '이름' 폴더에 풀기)도 메인 창 없이.
     /// </summary>
     public bool ShowMainWindow => Verb is not (CommandVerb.ExtractHere or CommandVerb.ExtractToFolder or CommandVerb.ExtractTo or CommandVerb.AddTo
-        or CommandVerb.ExtractToFolderIn or CommandVerb.ExtractInto);
+        or CommandVerb.ExtractToFolderIn or CommandVerb.ExtractInto
+        or CommandVerb.ExtractSmart or CommandVerb.CompressZip or CommandVerb.Compress7z            // W2-12: 알아서 풀기·창 없이 바로 압축
+        or CommandVerb.RegisterAssociations or CommandVerb.UnregisterAssociations);                // W2-12: 파일 연결(App 이 따로 맡음)
 
     /// <summary>
     /// '--new-window' 표시(W2-11, I3-15 '창 두 개로 나란히'): 단일 인스턴스(이미 떠 있는 일집에 넘기기)를 건너뛰고 따로 창을 띄운다.
@@ -123,11 +150,36 @@ public static class CommandLineParser
     /// <summary>관리자 권한으로 다시 뜬 일집(W2-11): 동사 앞에 붙는 표시(늘 맨 앞 — 창 없이 풀기 판정에 걸리지 않게).</summary>
     public const string ElevatedFlag = "--elevated";
 
-    /// <summary>알아보는 키워드 전부(셸 확장 계약 확인용). 동사 앞 표시(<see cref="Flags"/>)는 따로.</summary>
+    /// <summary>알아서 풀기(W2-12 — 우클릭 '알아서 풀기'): '--extract-smart 압축…'.</summary>
+    public const string ExtractSmartKeyword = "--extract-smart";
+
+    /// <summary>창 없이 바로 '이름.zip'(W2-12 — 우클릭 '"이름.zip"으로 압축'): '--compress-zip 경로…'.</summary>
+    public const string CompressZipKeyword = "--compress-zip";
+
+    /// <summary>창 없이 바로 '이름.7z'(W2-12 — 우클릭 '"이름.7z"로 압축'): '--compress-7z 경로…'.</summary>
+    public const string Compress7zKeyword = "--compress-7z";
+
+    /// <summary>파일 연결 넣기(W2-12 — ☰ ▸ 설정 '파일 연결'과 같은 일, 자체 프로세스): '--register-associations [--drop-handler]'.</summary>
+    public const string RegisterAssociationsKeyword = "--register-associations";
+
+    /// <summary>파일 연결 빼기(W2-12): '--unregister-associations'.</summary>
+    public const string UnregisterAssociationsKeyword = "--unregister-associations";
+
+    /// <summary>'--register-associations' 뒤에 붙이면 zip·7z 드롭 처리기도 등록.</summary>
+    public const string DropHandlerOption = "--drop-handler";
+
+    /// <summary>
+    /// 긴 명령줄(W2-12 — 우클릭으로 아주 많이 골랐을 때): 동사 뒤 경로들 대신 '--list-file 목록파일'(UTF-8, 한 줄에 경로 하나).
+    /// 동사가 아니라 바꿔 넣기 표시 — <see cref="ExpandListFile"/> 가 해석 전에 그 파일의 줄들로 바꾼다(그래서 <see cref="Keywords"/> 에 없음).
+    /// </summary>
+    public const string ListFileKeyword = "--list-file";
+
+    /// <summary>알아보는 키워드 전부(셸 확장 계약 확인용). 동사 앞 표시(<see cref="Flags"/>)와 '--list-file' 은 따로.</summary>
     public static IReadOnlyList<string> Keywords { get; } = new[]
     {
         OpenKeyword, ExtractKeyword, ExtractHereKeyword, ExtractToFolderKeyword, ExtractToKeyword, CompressKeyword, AddToKeyword, AddToPickKeyword,
         CompressToKeyword, ExtractToFolderInKeyword, ExtractIntoKeyword,
+        ExtractSmartKeyword, CompressZipKeyword, Compress7zKeyword, RegisterAssociationsKeyword, UnregisterAssociationsKeyword,
     };
 
     /// <summary>동사 앞에 붙는 표시(W2-11) — 맨 앞에 연달아 올 때만 표시로 본다(순서 무관, 대소문자는 키워드처럼 가림).</summary>
@@ -169,13 +221,27 @@ public static class CommandLineParser
             case CommandVerb.Extract:
             case CommandVerb.ExtractHere:
             case CommandVerb.ExtractToFolder:
+            case CommandVerb.ExtractSmart:
                 a.Add(cmd.Verb switch
                 {
                     CommandVerb.Extract => ExtractKeyword,
                     CommandVerb.ExtractHere => ExtractHereKeyword,
+                    CommandVerb.ExtractSmart => ExtractSmartKeyword,
                     _ => ExtractToFolderKeyword,
                 });
                 a.AddRange(cmd.Archives);
+                break;
+            case CommandVerb.CompressZip:
+            case CommandVerb.Compress7z:
+                a.Add(cmd.Verb == CommandVerb.CompressZip ? CompressZipKeyword : Compress7zKeyword);
+                a.AddRange(cmd.Paths);
+                break;
+            case CommandVerb.RegisterAssociations:
+                a.Add(RegisterAssociationsKeyword);
+                a.AddRange(cmd.Paths);
+                break;
+            case CommandVerb.UnregisterAssociations:
+                a.Add(UnregisterAssociationsKeyword);
                 break;
             case CommandVerb.ExtractTo:
                 a.Add(ExtractToKeyword);
@@ -213,6 +279,46 @@ public static class CommandLineParser
         return a;
     }
 
+    /// <summary>
+    /// '--list-file 목록파일'(W2-12 — 셸 확장이 명령줄이 30,000자를 넘을 때 씀, <see cref="ShellCommandLine"/>)을 그 파일의 줄들(빈 줄 뺌)로 바꾼 인자.
+    /// 해석기(<see cref="Parse"/>)는 파일을 보지 않으므로 이것만 따로 파일을 읽는다 — 명령을 실제로 처리하는 일집이 해석 전에 부른다
+    /// (파이프로 넘길 때는 짧은 원래 인자를 넘기고 받는 쪽이 부름). 일집 임시 폴더(temp\args)의 .lst 면 읽은 뒤 지운다(남의 파일은 지우지 않음).
+    /// 못 읽으면(그새 지워짐 등) 그 두 인자만 빠진다 — 경로가 없으니 해석은 None 이 되어 아무것도 하지 않는다. 첫 번째 것만 바꾼다.
+    /// </summary>
+    public static string[] ExpandListFile(string[]? args)
+    {
+        if (args is null) return Array.Empty<string>();
+        int i = Array.IndexOf(args, ListFileKeyword);
+        if (i < 0) return args;
+        var result = new List<string>(args[..i]);
+        if (i + 1 < args.Length)
+        {
+            string file = args[i + 1];
+            result.AddRange(ReadListFile(file));
+            if (ShellCommandLine.IsOwnListFile(file))
+            {
+                try { File.Delete(file); }
+                catch (Exception ex) { Logger.LogError("명령줄 목록 파일을 지우지 못함: " + file, ex); }   // 임시 폴더라 다음 청소 때
+            }
+            result.AddRange(args[(i + 2)..]);
+        }
+        return result.ToArray();
+    }
+
+    private static IEnumerable<string> ReadListFile(string file)
+    {
+        try
+        {
+            // UTF-8(BOM 이 있어도 됨). 줄 끝 CRLF·LF 모두
+            return File.ReadAllLines(file, new System.Text.UTF8Encoding(false)).Where(l => l.Length > 0).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("명령줄 목록 파일을 읽지 못함: " + file, ex);
+            return Array.Empty<string>();
+        }
+    }
+
     private static ParsedCommand ParseVerb(string[] args)
     {
         if (args.Length == 0) return ParsedCommand.None;
@@ -225,6 +331,7 @@ public static class CommandLineParser
             ExtractKeyword => CommandVerb.Extract,
             ExtractHereKeyword => CommandVerb.ExtractHere,
             ExtractToFolderKeyword => CommandVerb.ExtractToFolder,
+            ExtractSmartKeyword => CommandVerb.ExtractSmart,   // W2-12: 알아서 풀기도 압축 여러 개
             _ => null,
         };
         if (single is { } verb)
@@ -258,10 +365,26 @@ public static class CommandLineParser
                 }
 
             case CompressKeyword:
+            case CompressZipKeyword:
+            case Compress7zKeyword:
                 {
+                    // W2-12: 창 없이 바로 압축('--compress-zip'·'--compress-7z')도 '--compress' 처럼 뒤가 모두 원본
                     var paths = args.Skip(1).Where(a => !string.IsNullOrEmpty(a)).ToList();
-                    return paths.Count > 0 ? new ParsedCommand(CommandVerb.Compress, null, null, paths) : ParsedCommand.None;
+                    var compressVerb = args[0] switch
+                    {
+                        CompressZipKeyword => CommandVerb.CompressZip,
+                        Compress7zKeyword => CommandVerb.Compress7z,
+                        _ => CommandVerb.Compress,
+                    };
+                    return paths.Count > 0 ? new ParsedCommand(compressVerb, null, null, paths) : ParsedCommand.None;
                 }
+
+            case RegisterAssociationsKeyword:
+                // W2-12: 뒤의 것(빈 문자열 뺌)은 선택 표시('--drop-handler') — 그대로 Paths 에
+                return new ParsedCommand(CommandVerb.RegisterAssociations, null, null, args.Skip(1).Where(a => !string.IsNullOrEmpty(a)).ToList());
+
+            case UnregisterAssociationsKeyword:
+                return new ParsedCommand(CommandVerb.UnregisterAssociations, null, null, Array.Empty<string>());
 
             case CompressToKeyword:
                 {

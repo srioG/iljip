@@ -43,6 +43,12 @@
     <None Update="licenses\*.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
+  <!-- W2-12(I1-1): 파일 연결 아이콘(DefaultIcon = '<설치 폴더>\icons\<ext>.ico')·셸 메뉴 '일집 ▶' 아이콘(icons\iljip.ico).
+       exe 리소스가 아니라 파일로 둔다(rc 컴파일러 없이 바꿀 수 있게 — packaging\Icons\MakeIcons.ps1 이 만듦). 단일 파일 발행에서도 따로. -->
+  <ItemGroup>
+    <None Update="icons\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <!-- 단일 파일로 발행하더라도 LGPL 어셈블리(SharpSevenZip.dll)는 묶지 않고 따로 둔다(사용자가 바꿔 끼울 수 있게).
        지금 발행(packaging\Build.ps1)은 PublishSingleFile=false 라 원래 따로 놓이지만, 설정이 바뀌어도 지켜지게 해 둔다. -->
   <Target Name="KeepLgplLoose" AfterTargets="ComputeResolvedFilesToPublishList">

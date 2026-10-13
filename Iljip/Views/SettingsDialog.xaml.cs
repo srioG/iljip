@@ -15,6 +15,46 @@ public partial class SettingsDialog : Window
 {
     private readonly AppSettings _settings;
 
+    /// <summary>파일 연결 단추가 부를 일집 창(W2-12). null 이면 '파일 연결' 칸을 숨긴다.</summary>
+    private readonly ViewModels.MainViewModel? _vm;
+
+    /// <param name="vm">파일 연결(W2-12 — 넣기·빼기·기본 앱 설정 열기)을 할 일집 창. 단추는 누르는 즉시 적용한다([취소]와 상관없음).</param>
+    public SettingsDialog(AppSettings current, ViewModels.MainViewModel vm)
+        : this(current)
+    {
+        _vm = vm;
+        AssociationPanel.Visibility = Visibility.Visible;
+        DropHandlerCheck.IsEnabled = vm.CanRegisterDropHandler;
+        ShowAssociationState();
+    }
+
+    private void ShowAssociationState() =>
+        AssociationStateText.Text = _vm?.IsFileAssociationRegistered == true
+            ? "지금: 일집이 ‘연결 프로그램’에 들어가 있어요."
+            : "지금: 일집이 ‘연결 프로그램’에 들어가 있지 않아요.";
+
+    private void RegisterAssociations_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        AssociationResultText.Text = _vm.RegisterFileAssociations(DropHandlerCheck.IsChecked == true);
+        ShowAssociationState();
+    }
+
+    private void UnregisterAssociations_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        AssociationResultText.Text = _vm.UnregisterFileAssociations();
+        ShowAssociationState();
+    }
+
+    private void OpenDefaultApps_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        AssociationResultText.Text = _vm.OpenDefaultAppsSettings()
+            ?? "Windows ‘기본 앱’ 설정을 열었어요. 목록에서 ‘일집’을 찾아 압축 파일 형식마다 일집을 골라 주세요.";
+    }
+
+    /// <summary>파일 연결 칸 없이(일집 창 없이 — 시험의 화면 배치 확인 등).</summary>
     public SettingsDialog(AppSettings current)
     {
         InitializeComponent();
@@ -47,6 +87,8 @@ public partial class SettingsDialog : Window
         ExcludeBox.Text = PatternFileFilter.ToLines(c.ExcludePatterns);
         // W2-10(I3-1): 자동 풀림 exe 를 만들기 전 메일 안내를 묻는가(설정 값은 '건너뛰기'라 거꾸로)
         SfxMailWarningCheck.IsChecked = !_settings.Sfx.SkipMailWarning;
+        // W2-12(I1-1): 파일 연결 칸은 일집 창(VM)을 받은 생성자에서만 보인다
+        AssociationPanel.Visibility = Visibility.Collapsed;
     }
 
     private void ExcludeReset_Click(object sender, RoutedEventArgs e) => ExcludeBox.Text = PatternFileFilter.ToLines(PatternFileFilter.DefaultPatterns);

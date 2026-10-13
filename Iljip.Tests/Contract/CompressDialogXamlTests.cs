@@ -256,6 +256,51 @@ public class CompressDialogXamlTests
     }
 
     /// <summary>
+    /// 계약(W2-12, I1-1): 설정 창의 '파일 연결' 칸 — 일집 창(VM) 없이 만들면 숨고, VM 을 받으면 보인다. 단추는 누르는 즉시 VM 을 부른다
+    /// (가짜 레지스트리·가짜 셸 — 진짜 HKCU·ms-settings 는 안 부름): [연결 프로그램에 넣기] → 넣고 '지금' 글이 바뀜, [기본 앱 설정 열기] → 셸 한 번,
+    /// [연결 빼기] → 뺌. 셸 확장 DLL 이 없으면 드롭 처리기 칸은 꺼져 있다. 띄우지 않고 단추 Click 만 일으킨다. 묶기 오류 0.
+    /// </summary>
+    [Fact]
+    public void 설정_창의_파일_연결_칸()
+    {
+        var svc = new TestServices();
+        WpfAppScope.Run(log =>
+        {
+            var plain = new SettingsDialog(new AppSettings());
+            var vm = new MainViewModel(new FakeUserInteraction(), null, svc.Services);
+            var w = new SettingsDialog(vm.Settings, vm);
+            try
+            {
+                WpfAppScope.Pump();
+                Assert.Equal(Visibility.Collapsed, plain.AssociationPanel.Visibility);
+                Assert.Equal(Visibility.Visible, w.AssociationPanel.Visibility);
+                Assert.False(w.DropHandlerCheck.IsEnabled);
+                Assert.Equal("지금: 일집이 ‘연결 프로그램’에 들어가 있지 않아요.", w.AssociationStateText.Text);
+
+                w.RegisterAssociationsButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(FileAssociationRegistrar.RegisteredMessage, w.AssociationResultText.Text);
+                Assert.Equal("지금: 일집이 ‘연결 프로그램’에 들어가 있어요.", w.AssociationStateText.Text);
+                Assert.True(svc.Registry.KeyExists(@"Software\Classes\Iljip.zip"));
+
+                w.OpenDefaultAppsButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(1, svc.Shell.DefaultAppsOpened);
+                Assert.StartsWith("Windows ‘기본 앱’ 설정을 열었어요.", w.AssociationResultText.Text);
+
+                w.UnregisterAssociationsButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(FileAssociationRegistrar.UnregisteredMessage, w.AssociationResultText.Text);
+                Assert.False(svc.Registry.KeyExists(@"Software\Classes\Iljip.zip"));
+                Assert.Null(w.Result);   // 단추는 [확인]·[취소]와 상관없음
+                Assert.Empty(log.Errors);
+            }
+            finally
+            {
+                w.Close();
+                plain.Close();
+            }
+        });
+    }
+
+    /// <summary>
     /// 계약(W2-10): 선택 창에 확인란 글자를 주면 버튼 아래에 그 확인란('다시 묻지 않기')이 보이고, 켜면 <see cref="ChoiceDialog.IsChecked"/>.
     /// 글자를 주지 않으면(예전 선택 창들) 숨는다. 띄우지 않고 만들기만 한다.
     /// </summary>

@@ -25,6 +25,22 @@ public sealed class FakeShellLauncher : IShellLauncher
     {
         lock (_gate) OpenedFolders.Add((path, select));
     }
+
+    /// <summary>'기본 앱 설정 열기'를 부른 횟수(W2-12 — 진짜 ms-settings 는 열지 않음).</summary>
+    public int DefaultAppsOpened { get; private set; }
+
+    /// <summary>파일 연결이 바뀌었다고 알린 횟수(W2-12 — 진짜 SHChangeNotify 는 부르지 않음).</summary>
+    public int AssociationsChangedNotified { get; private set; }
+
+    public void OpenDefaultAppsSettings()
+    {
+        lock (_gate) DefaultAppsOpened++;
+    }
+
+    public void NotifyAssociationsChanged()
+    {
+        lock (_gate) AssociationsChangedNotified++;
+    }
 }
 
 /// <summary>
@@ -105,6 +121,9 @@ public sealed class TestServices
     /// <summary>가짜 네트워크 드라이브 매핑(W2-11). 기본은 매핑 없음(모든 경로 그대로).</summary>
     public FakeMappedDriveResolver MappedDrives { get; } = new();
 
+    /// <summary>가짜 레지스트리(W2-12 — 파일 연결). Software\Classes 만 있는 빈 HKCU 흉내 — 진짜 HKCU 는 절대 쓰지 않는다.</summary>
+    public FakeRegistryRoot Registry { get; } = FakeRegistryRoot.WithDefaults();
+
     public TestServices(AppSettings? settings = null, TempLocations? tempLocations = null)
     {
         Settings = new InMemorySettingsStore(settings);
@@ -120,6 +139,7 @@ public sealed class TestServices
             TempLocations = TempLocations,
             Processes = Processes,
             MappedDrives = MappedDrives,
+            Registry = Registry,
         };
     }
 

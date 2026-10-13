@@ -62,6 +62,8 @@
   (W2-11: `--compress-to <만들 폴더> <원본…>`(만들 곳을 정한 압축 창), `--extract-to-folder-in <폴더> <압축…>`(그 폴더 안 '이름' 폴더마다 — 메인 창 없이),
   `--extract-into <폴더> <압축…>`(검증 지적 — 여럿을 그 폴더에 바로, 메인 창 없이. ★ 창 없이 풀기 `--extract-to` 와는 다른 키워드), 동사 앞 표시
   `--new-window`(단일 인스턴스를 건너뛰는 새 창)·`--elevated`(관리자 권한으로 다시 뜬 일집 — 다시 권하지 않음). `CommandLineParser.ToArgs` 가 `Parse` 의 반대)
+  (W2-12: `--extract-smart <압축…>`(알아서 풀기)·`--compress-zip`·`--compress-7z <경로…>`(창 없이 바로 압축) — 메인 창 없이, `--register-associations [--drop-handler]`·`--unregister-associations`(파일 연결 — 자체 프로세스로 돌고 끝남),
+  긴 명령줄은 `--list-file <목록 파일>`(셸 확장이 30,000자를 넘으면 `%LOCALAPPDATA%\Iljip\temp\args\<guid>.lst` 에 경로를 쓰고 넘김 — 처리하는 일집이 해석 전에 펼치고 지움))
 - **W2-05(2026-10-13)**: 같은 이름 파일이 있으면 덮어쓰기·건너뛰기·이름 바꾸기·취소 + '남은 파일도 똑같이'(☰ ▸ 설정에서 기본 동작 고정), '다 푼 뒤 압축 파일을 휴지통으로'(기본 끔), 여러 압축 한꺼번에 풀기(진행 창 하나·암호 한 번·끝에 요약)
 - **W2-06(2026-10-13)**: 열린 ZIP·7Z 고치기 — 파일 넣기(끌어 놓기·메뉴)·지우기(Del)·이름 바꾸기(F2)·새 폴더, 임시 파일에 다 쓰고 검사한 뒤에만 바꿔 넣음(실패면 원본 그대로, 암호·방식·한글 이름 유지),
   `--add-to <압축> <경로…>`(창 없이 넣기). 압축 속 파일을 열어 고쳐 저장하면 '압축에 다시 넣을까요?'(I3-3)
@@ -77,9 +79,19 @@
 - **W2-11(2026-10-14)**: **시작 화면**(빈 창 — [압축 파일 열기][압축하기][압축 풀기…]·끌어 놓기 안내·**최근 파일** 10개, 없는 파일은 흐리게 '없음' → '목록에서 뺄까요?', 오른쪽 클릭 메뉴),
   ☰ ▸ **새 창**(Ctrl+N — 일집 창 둘로 나란히)·**다른 이름으로 저장**(같은 형식은 복사 — 나뉜 압축은 조각 전부, ZIP↔7Z 는 풀고 다시 압축·'같은 암호를 걸까요?')·**이 압축 파일 지우기**(묻고 닫은 뒤 조각 전부 휴지통으로),
   권한이 필요한 곳(Program Files 등)에 풀기·압축하다 막히면 **'관리자 권한으로 다시 시도'**(UAC 로 같은 작업을 다시 — 암호는 넘기지 않음, 관리자 창 제목 끝 '(관리자)')
-- C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
+- **W2-12(2026-10-14)**: 탐색기 연결 — **파일 연결**(☰ ▸ 설정 '파일 연결'·`--register-associations [--drop-handler]`·`--unregister-associations` — HKCU 에 '연결 프로그램' 후보·기본 앱 목록 칸·형식 아이콘만 넣고
+  기본 앱은 빼앗지 않음, [기본 앱 설정 열기]), 우클릭 **'일집 ▶' 하나**(압축 하나: 일집으로 열기·여기에 풀기·"이름"\ 에 풀기·**알아서 풀기**·다른 곳에 풀기... / 압축 여럿: 압축 풀기...·각각 알아서 풀기·각각 이름 폴더에 풀기 /
+  파일·폴더: 압축하기...·**"이름.zip"으로 압축**·**"이름.7z"로 압축** — 창 없이 바로), 폴더 안 빈 곳 '일집 열기', **오른쪽 끌기** '일집: 여기에 풀기'·'일집: 여기에 압축', zip·7z 아이콘 위에 **끌어 놓아 넣기**(선택),
+  고른 것을 한 명령줄로(길면 `--list-file`). 설치·등록은 사람이 할 일(아래 '셸 확장·파일 연결 반영(W2-12)')
+- C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-14 W2-11 후)
+## 현재 진행 단계 (2026-10-14 W2-12 후)
+
+**W2-12(파일 연결 I1-1·우클릭 메뉴 정비 I1-2·오른쪽 끌기 메뉴 I3-10) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음).
+**설치·등록은 하지 않았다** — 반영은 아래 '셸 확장·파일 연결 반영(W2-12)' 절차(사람이 할 일). 새 파일(아직 git 에 없음 — 커밋할 때 같이):
+`Iljip/Services/Shell/`(`IRegistryRoot.cs`·`FileAssociationRegistrar.cs`·`FileAssociationCommand.cs`·`ShellMenu.cs`·`ShellCommandLine.cs`)·`Iljip/Services/SmartExtractPlanner.cs`·`Iljip/ViewModels/MainViewModel.Shell.cs`·`Iljip/icons/*.ico`(22개)·`packaging/Icons/MakeIcons.ps1`,
+C++ `Iljip.ShellExtension/`(`IljipLaunch.cpp`·`IljipMenu.cpp`·`IljipDragDrop.cpp` — vcxproj 에 넣음), 시험 `Iljip.Tests/Contract/`(`FileAssociationRegistrarTests.cs`·`ShellCommandLineTests.cs`·`ShellMenuTests.cs`·`SmartExtractTests.cs`·`QuickCompressTests.cs`)·`Iljip.Tests/TestSupport/FakeRegistryRoot.cs`.
+계약 테스트 실패 0(전체 2105 — 통과 2105·건너뜀 0, W2-11 검증 지적 1차 뒤 2041 에서 — 빌드한 셸 확장 DLL 시험 넷 포함). 아래 변경 이력 'W2-12'. 그 전(W2-11) 기록:
 
 **W2-11(시작 화면·최근 파일·압축 파일 관리 I3-15, 관리자 권한으로 다시 시도 I3-16) 작업 + 검증 지적 수정 1차 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음).
 새 파일(아직 git 에 없음 — 커밋할 때 같이): `Iljip/Services/`(`RecentFilesService.cs`·`ArchiveSaveAs.cs`·`ElevationService.cs`·`CommandLineQuoting.cs`·`IProcessLauncher.cs`·`MappedDrives.cs`·`StartupDecision.cs`·검증 지적 1차에 `SettingsPatch.cs`),
@@ -125,12 +137,14 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
 2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
 3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함), W2-02 에서 7z 만들기(I2-1) 끝, W2-03 에서 분할 만들기(I2-2) 끝
-   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)·16절(자동 풀림 EXE — W2-10: 화면 모드·다른 PC 의 SmartScreen·백신·회사 메일)·17절(시작 화면·최근 파일·다른 이름으로 저장·지우기·새 창, 진짜 UAC 와 관리자 일집 — W2-11)도 볼 것
+   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)·16절(자동 풀림 EXE — W2-10: 화면 모드·다른 PC 의 SmartScreen·백신·회사 메일)·17절(시작 화면·최근 파일·다른 이름으로 저장·지우기·새 창, 진짜 UAC 와 관리자 일집 — W2-11)·18절(우클릭 '일집 ▶'·오른쪽 끌기·파일 연결 — W2-12, 셸 확장을 설치한 뒤)도 볼 것
 
-### MSIX 셸 확장(예전 진행 상황 — 그대로)
+### MSIX 셸 확장
 
-WPF 빌드 통과, C++ DLL 빌드 통과, MSIX 패키징까지 도달. manifest 에서 `desktop4:ItemType Type="Directory"` 항목을 제거함(desktop4 스키마 거부).
-**폴더 우클릭 메뉴는 임시로 빠진 상태** — 추후 desktop6 namespace로 복원 필요. 다음 검증: `Rebuild.ps1` → MakeAppx → SignTool 서명 → Add-AppxPackage 설치 → 탐색기 우클릭 메뉴 표시.
+(예전) WPF 빌드 통과, C++ DLL 빌드 통과, MSIX 패키징까지 도달. manifest 에서 `desktop4:ItemType Type="Directory"` 항목을 제거함(desktop4 스키마 거부).
+**(W2-12) 폴더 우클릭 메뉴 복원** — `desktop5:ItemType Type="Directory"`(desktop6 아님 — desktop5 가 폴더 항목을 받음)·`Directory\Background`. 패키지 0.4.0.0, 외부 위치(`uap10:AllowExternalContent`·mediumIL·win32App).
+2026-10-14 이 PC 에서 NuGet SDK 의 `makeappx.exe pack`(전체 검사)으로 이 매니페스트 + 빌드한 DLL·exe 를 묶어 **'Package creation succeeded'** 까지 확인(서명·설치는 안 함 — 확인용 폴더는 지움).
+남은 검증(사람): 아래 '셸 확장·파일 연결 반영(W2-12)' 절차 → 탐색기 메뉴 표시(MANUAL_CHECKLIST 18절).
 
 ## 일집-dist 재배포 (재사용장치 영향) — 사람이 할 일, 자동으로 하지 않음
 
@@ -181,13 +195,67 @@ cd "D:\Python\일집\packaging"
 - `-SkipExplorerRestart` : 탐색기 재시작 생략
 
 ### C++ 셸 확장 DLL 만 빌드 (Windows SDK 미설치 PC — 2026-10-12 W1-D 실측)
-이 PC 에는 Windows SDK 헤더가 없어 `Build.ps1` 이 'windows.h 없음' 으로 멈춘다. NuGet 의 SDK 패키지로 DLL 만 빌드할 수 있다
-(시스템 설치 없음. MakeAppx·서명·설치는 여전히 설치된 SDK 필요).
+이 PC 에는 Windows SDK 헤더가 없다. NuGet 의 SDK 패키지로 DLL 을 빌드할 수 있다(시스템 설치 없음).
+(W2-12) `Build.ps1` 도 설치된 SDK(`Windows Kits\10\Include`)가 없으면 이 NuGet SDK 로 C++ 를 빌드하고 그 패키지의 `makeappx.exe`·`signtool.exe` 를 쓴다(`-NoSign` 이면 서명 없이 .msix 만 — 설치는 안 됨).
 ```powershell
 dotnet restore "D:\Python\일집\packaging\WinSdk\WinSdk.csproj"
 & "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" "D:\Python\일집\Iljip.ShellExtension\Iljip.ShellExtension.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:UseNuGetWindowsSdk=true "/p:OutDir=D:\Python\일집-build\Release\x64\Iljip.ShellExtension\\" "/p:IntDir=D:\Python\일집-build\obj\Release\x64\Iljip.ShellExtension\\"
 ```
-빌드된 DLL 이 있으면 계약 테스트 `ShellExtensionContractTests.DLL_메뉴_제목이_CSharp_이름_규칙과_같다` 가 실제 메뉴 제목을 확인한다(없거나 소스보다 오래되면 건너뜀).
+빌드된 DLL 이 있으면 계약 테스트 `ShellExtensionContractTests` 의 `DLL_…` 넷(옛 메뉴 제목·'일집 ▶' 하위 메뉴·오른쪽 끌기 메뉴·드롭 처리기)이 실제 DLL 을 불러 확인한다
+(없거나 C++ 소스 — `.cpp` 넷·`dllmain.cpp`·`IljipCommands.h`·`pch.h` — 보다 오래되면 건너뜀. **C++ 를 고치면 이 명령으로 다시 빌드**해야 그 넷이 돈다).
+형식 아이콘(`Iljip\icons\*.ico`)은 `packaging\Icons\MakeIcons.ps1` 이 만든다(PNG 를 담은 ICO 16·24·32·48·256 — 다시 만들 때만).
+
+### 셸 확장·파일 연결 반영(W2-12) — 사람이 할 일, 자동으로 하지 않음
+이 묶음은 **설치·등록·파일 연결 쓰기·탐색기 재시작을 하지 않았다**(코드·빌드·가짜 레지스트리 시험까지). 반영은 아래 순서로(일집 창은 모두 닫고, 재사용장치가 돌지 않는 시간에).
+`일집-dist`(재사용장치 배포본)와는 따로다 — 셸 확장은 `D:\Python\일집-build\package\Iljip.exe` 를 부른다.
+```powershell
+# 0) 지금 상태 적어 두기(되돌린 뒤 비교용)
+Get-AppxPackage Iljip.ShellExtension | Select-Object Name, Version, InstallLocation
+reg query "HKCU\Software\Iljip" /s
+reg query "HKCU\Software\Classes\.zip" /s
+reg export "HKCU\Software\Classes" "$env:USERPROFILE\Desktop\일집반영전-HKCU-Classes.reg" /y     # (선택) 통째 백업 — 되돌릴 때 비교만, 다시 넣지는 말 것
+
+# 1) (최초 1회 — 관리자 PowerShell) 인증서. packaging\cert\Iljip.pfx 가 이미 있으면 건너뜀
+cd "D:\Python\일집\packaging"; .\CreateCert.ps1
+
+# 2) 셸 확장 빌드·설치(보통 PowerShell): 예전 패키지 제거 → 빌드(NuGet SDK 자동) → 서명 → Add-AppxPackage → 탐색기 재시작
+cd "D:\Python\일집\packaging"; .\Rebuild.ps1                 # 탐색기 재시작이 싫으면 -SkipExplorerRestart 후 로그오프·로그온
+Get-AppxPackage Iljip.ShellExtension | Select-Object Name, Version, InstallLocation   # Version 0.4.0.0
+
+# 3) 파일 연결 넣기 — 셸 확장과 같은 폴더의 일집으로(연결은 '이 명령을 실행한 Iljip.exe' 경로로 들어감)
+& "D:\Python\일집-build\package\Iljip.exe" --register-associations --drop-handler    # 끌어 놓아 넣기를 원치 않으면 --drop-handler 빼기
+#    결과 창 '일집 — 파일 연결'이 뜸(종료 코드 0 = 됨, 1 = 못 함). 또는 그 일집을 켜고 ☰ ▸ 설정 ▸ '파일 연결' [연결 프로그램에 넣기]
+# 4) (선택) 두 번 눌러 바로 일집으로: 설정 창 [기본 앱 설정 열기] 또는 Win+R → ms-settings:defaultapps?registeredAppUser=일집 → 형식마다 '일집'(사람이 고름)
+
+# 5) 확인(reg query) — 값이 아래와 같으면 정상
+reg query "HKCU\Software\Classes\Iljip.zip" /s
+#    (기본값) ZIP 압축 파일 · FriendlyTypeName · DefaultIcon = …\package\icons\zip.ico · shell (기본값) open · shell\open (기본값) 일집으로 열기
+#    shell\open\command = "D:\Python\일집-build\package\Iljip.exe" --open "%1" · (드롭 처리기면) shellex\DropHandler = {61C3F459-E40B-441D-9F76-F56C70DFF8C1}
+reg query "HKCU\Software\Classes\.zip\OpenWithProgids"        # Iljip.zip REG_NONE(다른 프로그램 값도 그대로)
+reg query "HKCU\Software\Classes\.zip" /ve                     # 0)과 같음 — 일집은 형식의 기본값을 쓰지 않음
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.zip\UserChoice"   # 0)과 같음 — 기본 앱은 일집이 바꾸지 않음
+reg query "HKCU\Software\Classes\Applications\Iljip.exe" /s   # FriendlyAppName 일집 · shell\open\command · SupportedTypes 21개
+reg query "HKCU\Software\Iljip\Capabilities" /s               # ApplicationName 일집 · FileAssociations 20개(.iso 는 없음)
+reg query "HKCU\Software\RegisteredApplications" /v 일집        # Software\Iljip\Capabilities
+reg query "HKCU\Software\Iljip\RegisteredKeys"                 # 일집이 쓴 것의 기록(ExePath·OwnedKeys·SharedValues·CreatedKeys) — 빼기는 이것만 지움
+reg query "HKCU\Software\Classes\CLSID\{61C3F459-E40B-441D-9F76-F56C70DFF8C1}" /s   # (드롭 처리기면) InprocServer32 = …\package\Iljip.ShellExtension.dll, ThreadingModel Apartment
+# 6) 탐색기에서 MANUAL_CHECKLIST 18절
+```
+되돌리기(순서대로 — 연결을 먼저 빼야 탐색기가 드롭 처리기 DLL 을 놓는다):
+```powershell
+# a) 파일 연결 빼기 — 기록(RegisteredKeys)에 적힌 것만 지움(다른 프로그램 연결·.zip 기본값은 그대로)
+& "D:\Python\일집-build\package\Iljip.exe" --unregister-associations                 # 또는 ☰ ▸ 설정 [연결 빼기]
+reg query "HKCU\Software\Classes\Iljip.zip"                     # '지정된 레지스트리 키 또는 값을 찾을 수 없습니다'
+reg query "HKCU\Software\Iljip"                                 # 같음(일집이 만든 키는 비면 지움 — settings 는 %LOCALAPPDATA% 라 상관없음)
+#    기본 앱으로 일집을 골라 뒀다면: 설정 ▸ 앱 ▸ 기본 앱에서 원래 프로그램(반디집 등)을 다시 고름(Windows 가 '연결 프로그램' 창을 띄우기도 함)
+# b) 셸 확장 빼기 + 탐색기 다시 시작(작업 관리자 ▸ Windows 탐색기 ▸ 다시 시작)
+cd "D:\Python\일집\packaging"; .\Uninstall.ps1
+Get-AppxPackage Iljip.ShellExtension                             # 아무것도 안 나옴
+# c) 예전(0.3.0) 메뉴로 돌아가려면: 이 묶음의 작업 폴더 변경을 버린 판(git)으로 다시 .\Rebuild.ps1
+# d) Inno 설치 프로그램(다음 배포 — 이 묶음에서 ISCC 안 돌림)으로 넣은 연결은 '일집 제거'가 [Registry] 의 uninsdelete* 로 지움(관리자 설치면 HKLM\Software\Classes)
+```
+위험: 드롭 처리기를 넣은 채 `Rebuild.ps1`(package 폴더를 지우고 다시 만듦)을 돌리면 탐색기가 DLL 을 잡고 있어 지우기에 실패할 수 있다 — 먼저 a) + 탐색기 다시 시작.
+회사 그룹 정책이 사이드로드(서명된 MSIX 설치)나 HKCU\Software\Classes 쓰기를 막으면 2)·3)이 실패한다(3)은 '파일 연결을 넣지 못했어요…' 쉬운 문구). 기록 없이 남은 `Iljip.*` 키(손으로 넣은 것 등)는 빼기가 건드리지 않는다.
 
 ### WPF 본체만 빠르게 테스트
 ```powershell
@@ -211,32 +279,40 @@ dotnet run --project Iljip
 4. **PlatformToolset**: `$(DefaultPlatformToolset)` 사용 (v143 하드코딩 금지)
 5. **링크**: `pathcch.lib` 명시 필요
 6. **MakeAppx**: manifest는 정확히 `AppxManifest.xml` 파일명으로 패키지에 복사 필요
-7. **desktop4 ItemType**: Type 속성은 `*` 또는 `.확장자`만 허용. `Directory`/`Folder` 거부 → desktop6 필요
+7. **desktop4 ItemType**: Type 속성은 `*` 또는 `.확장자`만 허용. `Directory`/`Folder` 거부 → (W2-12) 같은 `desktop4:FileExplorerContextMenus` 안에 `desktop5:ItemType Type="Directory"`·`"Directory\Background"` 로 해결
 8. **빌드 폴더**: OneDrive 안에서 C++ 빌드는 PDB 동기화 충돌. 무조건 `D:\Python\일집-build`로
+9. **(W2-12) 외부 위치 패키지**: `uap10:RuntimeBehavior="win32App"` 이면 `EntryPoint` 를 두면 안 됨(makeappx 가 거부). makeappx 는 매니페스트의 `Iljip.exe` 가 패키지 폴더에 **있어야** 통과(Build.ps1 은 publish 를 package 폴더에 하므로 됨)
+10. **(W2-12) 확장자마다 ItemType 을 두지 말 것**: '*' 와 겹치면 '일집 ▶' 이 두 번 나온다 — 압축 확장자는 DLL(`IljipMenu.cpp ArchiveExtensions` = C# `ShellMenu.ArchiveExtensions`)이 고른다
+11. **(W2-12) 기본 앱(UserChoice)은 쓰지 말 것**: Windows 가 해시로 보호 — 쓰면 '연결이 초기화됨' 알림만. 일집은 '연결 프로그램' 후보·기본 앱 목록 칸만 넣고 `ms-settings:defaultapps?registeredAppUser=일집` 을 연다
 
 ## 향후 작업
 
 - [ ] **일집-dist 재배포** (위 '일집-dist 재배포' 절 — MANUAL_CHECKLIST 확인 뒤)
-- [ ] **폴더 우클릭 메뉴 복원** (desktop6 namespace 적용)
+- [x] **폴더 우클릭 메뉴 복원** — W2-12 에서 desktop5 ItemType 으로(코드·매니페스트 검사까지 — 설치·탐색기 확인은 아래 W2-12 남은 확인)
+- [x] **W2-12**: 파일 연결(I1-1)·우클릭 '일집 ▶' 정비·알아서 풀기·창 없이 바로 압축(I1-2)·오른쪽 끌기 메뉴·zip/7z 끌어 놓아 넣기(I3-10)(아래 변경 이력)
+- [ ] **W2-12 반영(사람)**: '셸 확장·파일 연결 반영(W2-12)' 절차 → MANUAL_CHECKLIST 18절(진짜 탐색기 '일집 ▶'·오른쪽 끌기·드롭 처리기·연결 프로그램·기본 앱 화면·.z01·많이 골랐을 때 목록 파일, 회사 그룹 정책)
+- [ ] (W2-12 남김) '시험하기'(압축 시험) 하위 메뉴 — `--test` 명령이 W2-08(stash)에 있어 넣지 않음. W2-08 을 다시 할 때 `ShellMenu`·`IljipMenu.cpp` 에 같이
+- [ ] (W2-12 남김) 다음 Inno 설치 프로그램 만들기 때 `[Registry]`·`ChangesAssociations`·아이콘 줄이 ISCC 로 실제 컴파일·설치·제거되는지(이 묶음은 ISCC 안 돌림 — 줄 모양·키·값은 계약 시험이 C# 등록기와 맞춰 봄). 버전 `AppVersion` 0.2.0 은 그대로 둠
 - [x] W1-B 다시 → **W2-01(해제 쪽) 끝**: 7z.dll 로 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할·압축된 TAR·자동 풀림 exe 풀기(아래 변경 이력)
 - [x] **W2-02**: 7z 만들기(I2-1)·파일 이름 암호화·솔리드·옵션 창 7Z 칸·저장 형식 7Z, 목록까지 잠긴 7z·RAR 열기(I1-7) — 보관 시험 되살림(아래 변경 이력)
 - [ ] W2-02 남은 확인: MANUAL_CHECKLIST 10절(옵션 창 모양, 반디집·7-Zip 으로 일집 7z 열기, 작업 관리자 메모리, 진짜 7-Zip -mhe·WinRAR 머리 암호 파일)
 - [ ] **재배포 전 필수(보류)**: 7-Zip `License.txt` 원문을 받아 `Iljip/licenses/7-Zip-*.txt`·`THIRD-PARTY-NOTICES.txt` 와 대조(내려받기는 사용자 확인 필요).
       GPL-3·LGPL-2.1 전문은 이 PC 의 Git for Windows 사본(FSF 원문)으로 넣음, BSD 3·2조항 전문의 저작권 줄(연도 등)은 원문 없이 적음
 - [x] ALZ / EGG 지원 (EggDotNet 0.4.0, W1-A 에서 빈 항목·ALZ 한글 이름·잠김·내용 확인까지)
-- [ ] 새 형식·.egg/.alz 우클릭 메뉴: 매니페스트에는 넣음(W2-01 — 1차 W1-B 검증 지적) — `Rebuild.ps1` 재설치 때 반영(재배포 범위, 메뉴 정비는 I1-2)
+- [x] 새 형식·.egg/.alz 우클릭 메뉴 — W2-12 에서 '일집 ▶' 하나(DLL 이 압축 확장자로 고름)로 바뀜, `Rebuild.ps1` 재설치 때 반영(위 W2-12 반영)
 - [ ] 보고 안건: 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(지금은 안 옮김 — 재사용장치 엑셀 COM 영향 확인 필요)
 - [x] **W2-03**: 분할 압축(나눠 만들기 — I2-2 만들기) — ZIP PKZIP 나눔·7Z 숫자 조각·옵션 창 '나누기' 칸(아래 변경 이력)
 - [ ] W2-03 남은 확인: MANUAL_CHECKLIST 11절(옵션 창 '나누기' 칸, Windows 탐색기·알집으로 나눔 ZIP 열기, 진짜 메일 첨부, OneDrive 폴더)
 - [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
 - [ ] W2-05 남은 확인: MANUAL_CHECKLIST 12절(같은 이름 창·설정 창 모양, 메인 창이 정말 안 뜨는지·창이 뒤에 숨지 않는지, 진짜 휴지통·네트워크 드라이브, 여러 개 골라 우클릭이 하나로 묶이는지)
-- [ ] 셸 확장이 고른 파일들을 한 번에 넘기기(지금은 파일마다 일집을 띄우고 일집이 파이프로 묶음 — C++ `IExplorerCommand` 가 여러 경로를 한 명령줄로 넘기게, 재배포 범위)
+- [x] 셸 확장이 고른 파일들을 한 번에 넘기기 — W2-12 '일집 ▶' 하위 메뉴는 고른 것을 한 명령줄로(30,000자 넘으면 `--list-file`). 예전 5개 메뉴(DLL 에만 남음)는 그대로 파일마다
 - [ ] W2-04 다시 할 때: 설정(`Services/AppSettings.cs`)·`AppServices`·`IShellLauncher` 는 W2-05 가 같은 모양으로 먼저 들였음 — 덧붙이기만.
       W2-06 이 압축 속 파일 열기(작업 폴더 `ArchiveWorkspace`·`OpenedEntry`·`RiskyFileTypes`·`ZoneIdentifier`, 더블클릭·우클릭 '열기')를 최소한으로 먼저 들였음 — 그 위에 덧붙이기(임시 폴더 청소기 `TempJanitor` 등은 아직 없음)
 - [x] **W2-06**: 압축 고치기(I2-3 — ZIP·7Z 넣기·지우기·이름 바꾸기·새 폴더, `--add-to`)·고친 파일 다시 넣기(I3-3)
 - [ ] W2-06 남은 확인: MANUAL_CHECKLIST 13절(도구 막대·☰·우클릭 메뉴·F2·Del 창 모양, 오피스로 고쳐 저장했을 때 한 번만 묻는지, 닫을 때 묻기, 회사 PC DLP·OneDrive 폴더에서 바꿔 넣기, 큰 압축 시간)
 - [ ] 탐색기 우클릭 'zip에 추가 (일집)': C++ 셸 확장에 메뉴를 더해 `Iljip.exe --add-to <압축> <고른 파일…>` 을 부르게(명령줄 쪽은 W2-06 에서 끝, 재배포 범위).
-      '기존 zip 고르기' 메뉴는 `Iljip.exe --add-to-pick <고른 파일…>`(일집이 압축 고르기 창을 띄움 — W2-06 검증 지적에서 명령줄 끝)
+      '기존 zip 고르기' 메뉴는 `Iljip.exe --add-to-pick <고른 파일…>`(일집이 압축 고르기 창을 띄움 — W2-06 검증 지적에서 명령줄 끝).
+      (W2-12) zip·7z 아이콘 위에 끌어 놓기(드롭 처리기 — `--add-to`)는 들어감. 우클릭 'zip에 추가' 메뉴 자체는 아직(I1-2 범위 밖으로 둠)
 - [x] **W2-07**: 한 화면 압축 창·설정 기억(I2-12)·각각 따로(I2-4)·압축 후 원본 휴지통(I3-4)·이름에 날짜(I3-5)·쓸모없는 파일 빼기(I3-6)
 - [ ] W2-07 남은 확인: MANUAL_CHECKLIST 14절(압축 창 모양·칸 순서·Tab·작은 화면, 진짜 휴지통으로 옮기고 되살리기, 네트워크 드라이브·USB, 회사 PC DLP·OneDrive 폴더, 엑셀이 만든 `~$` 파일)
 - [x] **W2-09**: 맥 NFD 이름·일본어·중국어 이름(I2-10), 풀기 창(I2-13), 이름으로 찾기·Backspace·선택 합계·트리 너비(I2-14)
@@ -258,7 +334,7 @@ dotnet run --project Iljip
 - [ ] W2-08 다시 할 때: '관리자 권한으로 다시 시도'는 지금 `MainViewModel.OfferElevatedRetry`(기존 `Choose`)가 물음 — 문제 창(ShowProblem·ErrorCatalog)이 들어오면 '권한 없음' 분류의 Actions 로(`ElevationService.ActionsFor`·`RetryActionId` 를 그대로 쓰면 됨)
 - [ ] (선택) 압축 고치기(넣기·지우기·이름 바꾸기)의 권한 오류에도 '관리자 권한으로 다시 시도' — 지금은 `ArchiveSwap.EnsureWritable` 이 권한 오류를 '다른 프로그램이 압축 파일을 쓰고 있어…'(LockedMessage)로 바꿔 대부분 권하지 않음(기존 시험이 그 문구에 기댐). `--add-to` 만 인자(`--elevated --add-to`)를 넘기게 해 둠
 - [ ] 임시 폴더 청소기(`TempJanitor`): 바꿔 저장하는 도중 일집이 강제로 끝나면 `temp\convert\guid` 가 남음(정상 끝·실패·취소는 지움)
-- [ ] (선택) 탐색기 오른쪽 끌기 메뉴('여기에 압축'·'여기에 풀기') — `--compress-to`·`--extract-to-folder-in` 명령줄은 W2-11 에서 끝(C++ 셸 확장·재배포 범위)
+- [x] 탐색기 오른쪽 끌기 메뉴('일집: 여기에 압축'·'일집: 여기에 풀기') — W2-12(desktop9 고전 끌어 놓기 처리기, `--compress-to`·`--extract-to-folder-in`)
 - [ ] 다크 모드
 - [ ] 미리보기 (압축 내부 텍스트/이미지)
 - [ ] 압축 파일 내부 폴더 트리 탐색 (현재 flat list)
@@ -800,6 +876,35 @@ dotnet run --project Iljip
   계약 테스트: 전체 2041 — 통과 2041·건너뜀 0·**실패 0**.
   위험·못 본 것: 이미 떠 있는 창은 다른 창이 바꾼 설정을 다시 켤 때부터 씀(그 창의 설정 창도 켜질 때 값 — 손대지 않은 칸은 저장된 값을 되돌리지 않음). 네트워크 드라이브 판정은 실제 매핑 드라이브로 못 봄(UNC 모양만 시험).
   뮤텍스는 같은 사용자 세션 안만(다른 계정으로 UAC 를 통과한 관리자 일집은 어차피 다른 %LOCALAPPDATA%). MANUAL_CHECKLIST 17절 '(검증 지적)' 줄. `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+
+- **2026-10-14 W2-12 — 파일 연결(I1-1)·우클릭 메뉴 정비(I1-2)·오른쪽 끌기 메뉴(I3-10)(커밋 전, 설치·등록·배포 안 함)**:
+  ① **파일 연결**: `Services/Shell/FileAssociationRegistrar.cs`(+ 레지스트리 틀 `IRegistryRoot.cs` — 진짜는 HKCU, 시험은 메모리 `FakeRegistryRoot`)가 HKCU\Software\Classes 에 확장자 21개(zip·7z·rar·tar·gz·tgz·bz2·tbz2·tbz·xz·txz·zipx·lzh·lha·cab·wim·egg·alz·001·z01·iso)의
+  ProgId `Iljip.<ext>`(이름·`<설치 폴더>\icons\<ext>.ico`·'일집으로 열기' = `"<exe>" --open "%1"`)·`.<ext>\OpenWithProgids` 의 우리 값(REG_NONE)·`Applications\Iljip.exe`·`Software\Iljip\Capabilities`(iso 는 빼고 — Windows 디스크 이미지 기본 연결)·`RegisteredApplications` '일집'을 넣는다.
+  **형식의 기본값·UserChoice(기본 앱)는 절대 쓰지 않음** — 기본 앱은 [기본 앱 설정 열기](`IShellLauncher.OpenDefaultAppsSettings` → `ms-settings:defaultapps?registeredAppUser=일집`, 안 되면 기본 앱 첫 화면). 쓴 것은 `Software\Iljip\RegisteredKeys`(OwnedKeys·SharedValues·CreatedKeys)에 **먼저** 적고,
+  빼기는 그 기록에 적힌 것 중 허용된 모양(Iljip.* ProgId·Applications\Iljip.exe·우리 CLSID·Software\Iljip 아래·OpenWithProgids 의 Iljip.* 값·RegisteredApplications 의 '일집')만 지운다 — 기록이 없으면 아무것도 안 지움, 우리가 새로 만든 빈 키(.egg 등)까지 지워 처음과 같음.
+  다시 넣기는 멱등(우리 키를 지우고 다시 씀, 드롭 처리기를 끄면 그 키도 지움). 넣고 빼면 `SHChangeNotify(SHCNE_ASSOCCHANGED)`(`IShellLauncher.NotifyAssociationsChanged`). 들어오는 길: ☰ ▸ 설정 '파일 연결' 칸(새 — 일집 창을 받은 설정 창에서만 보임, 단추는 누르는 즉시 적용·[확인]과 상관없음 —
+  `MainViewModel.Shell.cs`), 명령줄 `--register-associations [--drop-handler]`·`--unregister-associations`(`FileAssociationCommand` — App 이 창 없이 풀기 다음·단일 인스턴스 전에 자체 프로세스로 돌고 결과 창 하나 뒤 종료 코드 0/1).
+  설정 `shell.associationsRegistered`(기록용 — 실제 상태는 RegisteredKeys, 설정 창 [확인]의 옛 사본이 되돌리지 않게 `ApplySettings` 패치에서 뺌). 형식 아이콘 22개 `Iljip/icons/*.ico`(`packaging/Icons/MakeIcons.ps1` — PNG 담은 ICO, csproj 가 출력·발행 폴더 icons\ 로 — 단일 파일에서도 따로).
+  설치 프로그램 `installer/Iljip.iss`: UTF-8 BOM, `ChangesAssociations=yes`, `[Files]` 아이콘 줄, `[Registry]`(Root: HKA — 관리자 설치면 HKLM) 같은 키·값(ProgId·Applications·Capabilities 는 uninsdeletekey, OpenWithProgids·RegisteredApplications 는 uninsdeletevalue) — **ISCC 로 만들어 보지 않음**.
+  ② **'일집 ▶' 하나**(Windows 11 새 메뉴): 매니페스트(0.4.0.0 — 0.3.0 의 옛 메뉴를 업그레이드로 바꿔 끼움)는 `*`(desktop4)·`Directory`(desktop5 — 폴더 우클릭 복원)에 Root CLSID 하나, `Directory\Background` 에 '일집 열기'. 확장자마다 두지 않음('*' 와 겹쳐 두 번 나옴).
+  C++ `IljipMenu.cpp`: Root(ECF_HASSUBCOMMANDS·아이콘 `<DLL 폴더>\icons\iljip.ico` 없으면 `Iljip.exe,0`)가 GetState 에서 고른 것(확장자·폴더인가만 — 파일 내용은 안 읽음)을 보고 하위 메뉴를 줌: 압축 하나 '일집으로 열기·여기에 풀기·"이름"\ 에 풀기·**알아서 풀기**·다른 곳에 풀기...',
+  압축 여럿 '압축 풀기...·각각 알아서 풀기·각각 이름 폴더에 풀기', 그 밖 '압축하기...·**"이름.zip"으로 압축**·**"이름.7z"로 압축**'. 규칙의 C# 거울 `Services/Shell/ShellMenu.cs`(압축 확장자 목록·제목·동사·이름 — 계약 시험이 C++ 소스와 실제 DLL 둘 다로 맞춰 봄).
+  예전 5개 클래스는 DLL 에만 남김(매니페스트에서 뺌 — 업그레이드 중 옛 등록이 불러도 깨지지 않게). **고른 것을 한 명령줄로**(`IljipLaunch.cpp` — 예전 파일마다 일집을 띄우던 것), 늘 큰따옴표·닫는 따옴표 앞 역슬래시 두 배(예전엔 `C:\` 가 다음 인자를 먹었음),
+  30,000자가 넘으면 `%LOCALAPPDATA%\Iljip\temp\args\<guid>.lst`(UTF-8·CRLF·CREATE_NEW)로 `--list-file` — 처리하는 일집이 해석 전에 펼치고 지움(`CommandLineParser.ExpandListFile` — App 첫 실행·`OnSecondInstanceLaunched`, 남의 파일은 읽기만). C# 거울 `Services/Shell/ShellCommandLine.cs`.
+  **알아서 풀기**(`--extract-smart`): `SmartExtractPlanner`(맨 위가 폴더 하나·파일 하나면 압축 파일 옆에 바로, 여럿·비었음·'..'·압축 자기 이름이면 '이름' 폴더) — `BatchExtractor` 의 새 규칙 `ExtractTargetKind.Smart` 가 목록을 읽은 뒤(목록까지 잠긴 7z 는 암호를 먼저 물음) 정하고,
+  같은 이름은 W2-05 처리기, 끝나면 맨 위 폴더·'이름' 폴더를 엶(바로 푼 파일 하나는 안 엶). **창 없이 바로 압축**(`--compress-zip`·`--compress-7z`): 압축 창 없이 첫 원본 폴더에 '이름.zip/.7z'(이름은 압축 창 제안과 같은 규칙, 있으면 '이름 (2)'), 수준·솔리드·빼기·'다 만들고 시험하기'는 마지막 설정(바꾸지 않음),
+  암호·나누기·날짜·원본 지우기 없음, 되면 조용히(뺀·건너뛴 파일이 있을 때만 안내), 권한 오류면 관리자 권한으로 다시 시도(압축 창으로). 나눔 ZIP 의 `.z01` 을 열면 같은 세트의 `.zip` 으로(`ArchiveVolumes.OpenTargetFor`).
+  ③ **오른쪽 끌기**(`IljipDragDrop.cpp`, 매니페스트 desktop9 `fileExplorerClassicDragDropContextMenuHandler` — 폴더·드라이브): 끈 것이 모두 압축이면 '일집: 여기에 풀기'(`--extract-to-folder-in 놓은폴더 압축…`)를 먼저, '일집: 여기에 압축'(`--compress-to 놓은폴더 원본…`)은 늘.
+  **zip·7z 아이콘 위에 끌어 놓아 넣기**(드롭 처리기 — IPersistFile·IDropTarget, 복사만 허락, 압축 자신은 빼고 `--add-to`): 매니페스트로 선언할 수 없어 ①의 등록기가 `Iljip.zip/.7z\shellex\DropHandler` + `CLSID\{61C3F459-…}\InprocServer32`(Apartment)로 넣음 — 셸 확장 DLL 이 일집 옆에 있을 때만(설정 칸 확인란·`--drop-handler`).
+  `packaging/Build.ps1`: 설치된 SDK 가 없으면 NuGet SDK 로 C++·makeappx·signtool, 아이콘을 package 폴더로, `-NoSign`. 이 PC 에서 C++ DLL 빌드(경고는 예전 WRL C4324 하나) + makeappx 전체 검사 통과(서명·설치 안 함).
+  덧붙이기만 한 것: `AppSettings.Shell`·`ShellSettings`, `AppServices.Registry`, `IShellLauncher.OpenDefaultAppsSettings`·`NotifyAssociationsChanged`, `CommandVerb`·키워드 다섯(키워드 11→16), `ExtractTargetKind.Smart`·`ArchiveOutcome.ShowFolder`, `StartupKind.Associations`, 시험 쪽 `FakeShellLauncher`·`TestServices.Registry`·`FakeUserInteraction.ProgressTitles`. `ArchiveExceptions`·`IUserInteraction` 은 바꾸지 않음.
+  시험: 새 64개(`FileAssociationRegistrarTests` 15·`ShellCommandLineTests` 7·`ShellMenuTests` 6·`SmartExtractTests` 9·`QuickCompressTests` 6·`ShellExtensionContractTests` +7(DLL 셋 포함)·`CommandLineParserTests` +12·`StartupDecisionTests` +1·`CompressDialogXamlTests` +1). 푼 Skip 없음(0 → 0).
+  기대가 바뀐 기존 시험(설계가 바뀐 곳 — 약하게 한 것 없음, Iljip.Tests/README 'W2-12'): `ShellExtensionContractTests` 의 CLSID(5 → 9개 표·매니페스트 3개)·COM 등록(모든 .cpp)·매니페스트 메뉴(확장자별 ItemType → '*'·Directory·Background·desktop9·패키지 속성)·키워드(모든 .cpp, `--list-file` 따로),
+  `LocatorTests.우클릭_메뉴에_풀_수_있는_확장자가_모두_있다`(매니페스트 대신 `ShellMenu.ArchiveExtensions`·파일 연결 목록 — C++ 목록은 소스 대조), `CommandLineParserTests.키워드_목록은_모두_해석된다`(11→16)·`ToArgs는_…`(새 동사 6줄). DLL 시험 건너뛰기 판정에 새 .cpp 셋 더함(더 엄격).
+  계약 테스트: 전체 2105 — 통과 2105·건너뜀 0·**실패 0**(빌드한 DLL 시험 넷 포함).
+  위험·못 본 것: **진짜 탐색기·MSIX 설치·HKCU 등록·기본 앱 화면은 한 번도 안 띄움**(DLL 은 시험 프로세스에 직접 불러 글만 봄 — Invoke·InvokeCommand·Drop 은 안 부름). 패키지 셸 확장은 Windows 11 옛 메뉴('더 많은 옵션 표시')에는 안 나옴(Windows 동작).
+  파일 연결은 넣은 일집 exe 경로로 들어감(셸 확장 package 폴더의 exe 로 넣을 것). 드롭 처리기를 넣은 채 `Rebuild.ps1` 이면 탐색기가 DLL 을 잡아 package 폴더 지우기가 실패할 수 있음. '시험하기' 하위 메뉴는 `--test`(W2-08 — stash)가 없어 뺌. 반영·되돌리기 절차는 '셸 확장·파일 연결 반영(W2-12)', 손 확인은 MANUAL_CHECKLIST 18절.
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

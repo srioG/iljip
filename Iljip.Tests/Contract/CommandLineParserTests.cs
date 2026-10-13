@@ -89,17 +89,27 @@ public class CommandLineParserTests
     /// 알아보는 키워드 목록(셸 확장 계약 확인에 씀)은 각각 해석된다. W2-06 에서 '--add-to'(압축 파일에 넣기)·'--add-to-pick'(기존 압축을 골라 넣기 — 검증 지적)을 더해 8개,
     /// W2-11 에서 '--compress-to'(만들 곳을 정한 압축)·'--extract-to-folder-in'(그 폴더 안 '이름' 폴더에 풀기)을 더해 10개,
     /// W2-11 검증 지적에서 '--extract-into'(여럿을 그 폴더에 바로 풀기 — 관리자 권한으로 다시 시도)를 더해 11개.
+    /// W2-12 에서 '--extract-smart'(알아서 풀기)·'--compress-zip'·'--compress-7z'(창 없이 바로 압축)·'--register-associations'·'--unregister-associations'(파일 연결)를 더해 16개.
     /// 동사 앞 표시('--new-window'·'--elevated')는 키워드가 아니라 <see cref="CommandLineParser.Flags"/>(W2-11 시험은 아래 표시 시험들).
+    /// '--list-file'(긴 명령줄 — 해석 전에 펼침)·'--drop-handler'(파일 연결 넣기의 선택 표시)도 동사가 아니다(W2-12).
     /// </summary>
     [Fact]
     public void 키워드_목록은_모두_해석된다()
     {
-        Assert.Equal(11, CommandLineParser.Keywords.Count);
+        Assert.Equal(16, CommandLineParser.Keywords.Count);
+        Assert.Equal(16, CommandLineParser.Keywords.Distinct().Count());
         Assert.Contains(CommandLineParser.AddToKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.AddToPickKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.CompressToKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.ExtractToFolderInKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.ExtractIntoKeyword, CommandLineParser.Keywords);
+        Assert.Contains("--extract-smart", CommandLineParser.Keywords);
+        Assert.Contains("--compress-zip", CommandLineParser.Keywords);
+        Assert.Contains("--compress-7z", CommandLineParser.Keywords);
+        Assert.Contains("--register-associations", CommandLineParser.Keywords);
+        Assert.Contains("--unregister-associations", CommandLineParser.Keywords);
+        Assert.DoesNotContain("--list-file", CommandLineParser.Keywords);
+        Assert.DoesNotContain("--drop-handler", CommandLineParser.Keywords);
         Assert.Empty(CommandLineParser.Flags.Intersect(CommandLineParser.Keywords));
         foreach (var k in CommandLineParser.Keywords)
         {
@@ -336,6 +346,13 @@ public class CommandLineParserTests
             new ParsedCommand(CommandVerb.AddTo, "a.zip", null, new[] { "x.txt", "y" }),
             new ParsedCommand(CommandVerb.AddTo, null, null, new[] { "x.txt" }),
             new ParsedCommand(CommandVerb.Paths, null, null, new[] { "a.zip", "b.txt" }),
+            // W2-12
+            new ParsedCommand(CommandVerb.ExtractSmart, "a.zip", null, none) { Archives = new[] { "a.zip", @"C:\b c\d.7z" } },
+            new ParsedCommand(CommandVerb.CompressZip, null, null, new[] { @"C:\폴더 y", "x.txt" }),
+            new ParsedCommand(CommandVerb.Compress7z, null, null, new[] { "x.txt" }),
+            new ParsedCommand(CommandVerb.RegisterAssociations, null, null, new[] { "--drop-handler" }),
+            new ParsedCommand(CommandVerb.RegisterAssociations, null, null, none),
+            new ParsedCommand(CommandVerb.UnregisterAssociations, null, null, none),
         };
         foreach (var cmd in commands)
             foreach (var (nw, el) in new[] { (false, false), (true, false), (false, true), (true, true) })
@@ -368,5 +385,50 @@ public class CommandLineParserTests
     public void W2_11_메인_창_여부(bool showMainWindow, params string[] args)
     {
         Assert.Equal(showMainWindow, CommandLineParser.Parse(args).ShowMainWindow);
+    }
+
+    /// <summary>
+    /// W2-12: 알아서 풀기·창 없이 바로 압축은 우클릭 풀기처럼 진행 창만(메인 창 없이), 파일 연결 넣기·빼기는 App 이 자체 프로세스로 맡아 메인 창 없음.
+    /// 인자가 모자라면 None(메인 창). '--extract-smart' 는 뒤의 압축을 모두 받는다.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "--extract-smart", "a.zip")]
+    [InlineData(false, "--extract-smart", "a.zip", "b.7z")]
+    [InlineData(false, "--compress-zip", "폴더")]
+    [InlineData(false, "--compress-7z", "a.txt", "b.txt")]
+    [InlineData(false, "--register-associations")]
+    [InlineData(false, "--register-associations", "--drop-handler")]
+    [InlineData(false, "--unregister-associations")]
+    [InlineData(true, "--extract-smart")]
+    [InlineData(true, "--compress-zip")]
+    [InlineData(true, "--compress-7z", "")]
+    [InlineData(true, "--EXTRACT-SMART", "a.zip")]   // 키워드는 대소문자를 가림 — 경로 목록
+    public void W2_12_메인_창_여부(bool showMainWindow, params string[] args)
+    {
+        Assert.Equal(showMainWindow, CommandLineParser.Parse(args).ShowMainWindow);
+    }
+
+    /// <summary>W2-12: '--extract-smart' 는 압축 여럿(빈 문자열 뺌), '--register-associations' 뒤의 표시는 Paths 에 그대로, '--unregister-associations' 는 뒤를 무시.</summary>
+    [Fact]
+    public void W2_12_새_동사_해석()
+    {
+        var smart = CommandLineParser.Parse(new[] { "--extract-smart", @"C:\받은 파일\a.zip", "", @"C:\b.egg" });
+        Assert.Equal(CommandVerb.ExtractSmart, smart.Verb);
+        Assert.Equal(@"C:\받은 파일\a.zip", smart.Archive);
+        Assert.Equal(new[] { @"C:\받은 파일\a.zip", @"C:\b.egg" }, smart.Archives);
+        Assert.Empty(smart.Paths);
+
+        var reg = CommandLineParser.Parse(new[] { "--register-associations", "--drop-handler" });
+        Assert.Equal(CommandVerb.RegisterAssociations, reg.Verb);
+        Assert.Equal(new[] { CommandLineParser.DropHandlerOption }, reg.Paths);
+        Assert.Empty(CommandLineParser.Parse(new[] { "--register-associations" }).Paths);
+
+        var unreg = CommandLineParser.Parse(new[] { "--unregister-associations", "x" });
+        Assert.Equal(CommandVerb.UnregisterAssociations, unreg.Verb);
+        Assert.Empty(unreg.Paths);
+        Assert.True(StartupDecision.IsAssociationCommand(new[] { "--register-associations" }));
+        Assert.True(StartupDecision.IsAssociationCommand(new[] { "--unregister-associations" }));
+        Assert.False(StartupDecision.IsAssociationCommand(new[] { "--extract-smart", "a.zip" }));
+        Assert.False(StartupDecision.IsAssociationCommand(Array.Empty<string>()));
     }
 }

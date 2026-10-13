@@ -102,4 +102,36 @@ public class StartupDecisionTests
         string headlessMethod = src[b..src.IndexOf("private static async Task<int> RunHeadlessExtractAsync", StringComparison.Ordinal)];
         Assert.Contains("StartupDecision.IsHeadlessExtract(args)", headlessMethod);
     }
+
+    /// <summary>
+    /// W2-12: 파일 연결 넣기·빼기('--register-associations [--drop-handler]'·'--unregister-associations')는 뮤텍스와 상관없이 따로(자체 프로세스 — 떠 있는 일집에 넘기지 않음).
+    /// 창 없이 풀기 판정은 그대로 먼저. App 은 창 없이 풀기 다음, 단일 인스턴스(뮤텍스) 전에 이것만 처리하고 끝낸다(진짜 HKCU 는 AppServices 기본값으로만).
+    /// </summary>
+    [Fact]
+    public void 파일_연결_명령은_따로_돌고_끝난다()
+    {
+        foreach (bool mutex in new[] { true, false })
+        {
+            Assert.Equal(StartupKind.Associations, StartupDecision.Decide(new[] { "--register-associations" }, mutex, Exists));
+            Assert.Equal(StartupKind.Associations, StartupDecision.Decide(new[] { "--register-associations", "--drop-handler" }, mutex, Exists));
+            Assert.Equal(StartupKind.Associations, StartupDecision.Decide(new[] { "--unregister-associations" }, mutex, Exists));
+            Assert.Equal(StartupKind.Associations, StartupDecision.Decide(new[] { "--elevated", "--register-associations" }, mutex, Exists));
+            Assert.Equal(mutex ? StartupKind.FirstInstance : StartupKind.Forward, StartupDecision.Decide(new[] { "--extract-smart", "a.zip" }, mutex, Exists));
+            Assert.Equal(mutex ? StartupKind.FirstInstance : StartupKind.Forward, StartupDecision.Decide(new[] { "--compress-zip", "a" }, mutex, Exists));
+        }
+        Assert.True(StartupDecision.SkipsSingleInstance(new[] { "--unregister-associations" }));
+        Assert.False(StartupDecision.SkipsSingleInstance(new[] { "--extract-smart", "a.zip" }));
+
+        string src = RepoFiles.Read("Iljip", "App.xaml.cs");
+        int a = src.IndexOf("protected override async void OnStartup", StringComparison.Ordinal);
+        string body = src[a..];
+        int headless = body.IndexOf("IsHeadlessExtractCommand(e.Args)", StringComparison.Ordinal);
+        int assoc = body.IndexOf("if (StartupDecision.IsAssociationCommand(e.Args))", StringComparison.Ordinal);
+        int mutexAt = body.IndexOf("new Mutex(", StringComparison.Ordinal);
+        Assert.True(headless >= 0 && assoc > headless && mutexAt > assoc, "파일 연결 명령은 창 없이 풀기 다음, 뮤텍스 전에");
+        string block = body[assoc..mutexAt];
+        Assert.Contains("FileAssociationCommand.Run(CommandLineParser.Parse(e.Args), AppServices.CreateDefault(), Environment.ProcessPath)", block);
+        Assert.Contains("Shutdown(run?.ExitCode ?? 1);", block);
+        Assert.Contains("return;", block);
+    }
 }

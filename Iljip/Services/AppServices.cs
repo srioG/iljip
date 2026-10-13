@@ -35,6 +35,11 @@ public sealed class AppServices
     /// <summary>네트워크 드라이브(Z:) → UNC(W2-11 — 관리자 일집에는 사용자가 연결한 드라이브가 보이지 않음). 시험은 가짜 매핑.</summary>
     public IMappedDriveResolver MappedDrives { get; init; } = new MappedDriveResolver();
 
+    /// <summary>
+    /// 레지스트리(W2-12 — 파일 연결 I1-1, HKCU 에만). 진짜는 처음 쓸 때 만든다(시험은 가짜 메모리 트리 — HKCU 를 절대 건드리지 않음).
+    /// </summary>
+    public IRegistryRoot Registry { get; init; } = new CurrentUserRegistryRoot();
+
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();
 }

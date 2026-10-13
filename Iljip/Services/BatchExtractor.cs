@@ -14,6 +14,11 @@ public enum ExtractTargetKind
     NamedFolderIn,
     /// <summary>고른 폴더에 바로(대화형 --extract-to).</summary>
     Into,
+    /// <summary>
+    /// 알아서 풀기(W2-12 — '--extract-smart'): 압축마다 목록을 보고 맨 위가 하나면 압축 파일이 있는 폴더에 바로, 여럿이면 '이름' 폴더(<see cref="SmartExtractPlanner"/>).
+    /// 풀 곳은 목록을 읽은 뒤(암호가 필요하면 물은 뒤) 정한다.
+    /// </summary>
+    Smart,
 }
 
 /// <summary>풀 곳 규칙. <see cref="Folder"/> 는 <see cref="ExtractTargetKind.NamedFolderIn"/>·<see cref="ExtractTargetKind.Into"/> 에서만.</summary>
@@ -21,6 +26,9 @@ public sealed record ExtractTargetRule(ExtractTargetKind Kind, string? Folder = 
 {
     public static readonly ExtractTargetRule Here = new(ExtractTargetKind.Here);
     public static readonly ExtractTargetRule NamedFolder = new(ExtractTargetKind.NamedFolder);
+
+    /// <summary>알아서 풀기(W2-12).</summary>
+    public static readonly ExtractTargetRule Smart = new(ExtractTargetKind.Smart);
 
     /// <summary>새 '이름' 폴더를 만드는 규칙인가(실패·취소로 파일이 하나도 없으면 그 폴더를 지움).</summary>
     public bool MakesNewFolder => Kind is ExtractTargetKind.NamedFolder or ExtractTargetKind.NamedFolderIn;
@@ -34,6 +42,7 @@ public sealed record ExtractTargetRule(ExtractTargetKind Kind, string? Folder = 
         return Kind switch
         {
             ExtractTargetKind.Here => parent,
+            ExtractTargetKind.Smart => parent,   // 알아서 풀기는 BatchExtractor 가 목록을 본 뒤 정한다 — 여기는 '쓰려는 폴더'(압축 파일이 있는 폴더)만
             ExtractTargetKind.NamedFolder => ArchiveNaming.UniqueFolder(parent, ArchiveNaming.FolderNameFor(archivePath)),
             ExtractTargetKind.NamedFolderIn => ArchiveNaming.UniqueFolder(Folder!, ArchiveNaming.FolderNameFor(archivePath)),
             _ => Folder!,
@@ -51,6 +60,12 @@ public sealed record ArchiveOutcome(
     Exception? Error = null)
 {
     public string Name => Path.GetFileName(ArchivePath);
+
+    /// <summary>
+    /// 알아서 풀기(W2-12)에서 다 푼 뒤 열어 보일 폴더: '이름' 폴더에 풀었으면 그 폴더, 바로 풀었고 맨 위가 폴더 하나면 그 폴더, 파일 하나면 null(이미 보던 폴더라 열지 않음).
+    /// 다른 규칙에서는 쓰지 않는다(null).
+    /// </summary>
+    public string? ShowFolder { get; init; }
 }
 
 /// <summary>여러 개 풀기 한 번의 결과.</summary>
@@ -214,7 +229,11 @@ public sealed class BatchExtractor
             return (new ArchiveOutcome(archive, null, false, 0, unsupported.Message, unsupported), false, null);
         }
 
-        string dest = Rule.DestinationFor(archive);
+        // W2-12: 알아서 풀기는 목록을 읽은 뒤(암호가 필요하면 물은 뒤) 풀 곳을 정한다 — 그 전까지 dest 는 null
+        bool smart = Rule.Kind == ExtractTargetKind.Smart;
+        string? dest = smart ? null : Rule.DestinationFor(archive);
+        bool madeNewFolder = Rule.MakesNewFolder;
+        string? showFolder = null;
         var progress = new BatchProgress(session.Progress, index, () => Count, name);
         string? password = null;
         int silentTried = 0;          // 앞에서 맞은 암호를 몇 개 써 봤나
@@ -224,13 +243,29 @@ public sealed class BatchExtractor
             using var scope = ExtractionScope.Begin(_resolver);
             try
             {
+                if (dest is null)
+                {
+                    var entries = await service.ListEntriesAsync(archive, password, session.CancellationToken);
+                    var plan = SmartExtractPlanner.Plan(entries, archive);
+                    string parent = Path.GetDirectoryName(archive) ?? Environment.CurrentDirectory;
+                    if (plan.Kind == SmartPlanKind.Here)
+                    {
+                        dest = parent;
+                        showFolder = plan.TopIsFolder ? Path.Combine(parent, plan.TopName!) : null;
+                    }
+                    else
+                    {
+                        dest = showFolder = ArchiveNaming.UniqueFolder(parent, ArchiveNaming.FolderNameFor(archive));
+                        madeNewFolder = true;
+                    }
+                }
                 await service.ExtractAsync(archive, dest, password, progress, session.CancellationToken);
-                return (new ArchiveOutcome(archive, dest, true, scope.Skipped), false, password);
+                return (new ArchiveOutcome(archive, dest, true, scope.Skipped) { ShowFolder = smart ? showFolder : null }, false, password);
             }
             catch (OperationCanceledException)
             {
                 // 진행 창 [취소] 또는 같은 이름 창 [취소] — 서비스가 이미 되돌렸다(취소 규칙). 새로 만든 '이름' 폴더가 비었으면 지운다.
-                CleanupNewFolder(dest);
+                CleanupNewFolder(dest, madeNewFolder);
                 return (new ArchiveOutcome(archive, dest, false, scope.Skipped, CancelledReason), true, null);
             }
             catch (Exception ex) when (IsPasswordProblem(ex))
@@ -268,7 +303,7 @@ public sealed class BatchExtractor
                 var answer = _ui.AskPassword(name, reason, message);
                 if (answer is null)
                 {
-                    CleanupNewFolder(dest);
+                    CleanupNewFolder(dest, madeNewFolder);
                     return (new ArchiveOutcome(archive, dest, false, 0, PasswordSkippedReason), false, null);
                 }
                 password = answer;
@@ -277,16 +312,19 @@ public sealed class BatchExtractor
             {
                 // 이유는 영어 엔진 문구 없는 쉬운 한국어(모르는 오류는 '손상됐거나 끝까지 받아지지 않은 것 같아요') — 날 문구는 로그와 요약 '자세히'(Error)에
                 Logger.LogError($"여러 개 풀기 — 실패: {archive}", ex);
-                CleanupNewFolder(dest);
+                CleanupNewFolder(dest, madeNewFolder);
                 return (new ArchiveOutcome(archive, dest, false, 0, ErrorMessages.ToPlainMessage(ex), ex), false, null);
             }
         }
     }
 
-    /// <summary>새로 만든 '이름' 폴더에 파일이 하나도 없으면 지운다(다음에 풀 때 번호가 밀리지 않게 — 기존 '"이름"\ 에 풀기' 규칙).</summary>
-    private void CleanupNewFolder(string dest)
+    /// <summary>
+    /// 새로 만든 '이름' 폴더에 파일이 하나도 없으면 지운다(다음에 풀 때 번호가 밀리지 않게 — 기존 '"이름"\ 에 풀기' 규칙).
+    /// 알아서 풀기(W2-12)는 '이름' 폴더로 정했을 때만(<paramref name="madeNewFolder"/>), 아직 풀 곳을 못 정했으면(<paramref name="dest"/> null) 할 일 없음.
+    /// </summary>
+    private static void CleanupNewFolder(string? dest, bool madeNewFolder)
     {
-        if (Rule.MakesNewFolder) ArchiveNaming.RemoveFolderIfNoFiles(dest);
+        if (madeNewFolder && dest is not null) ArchiveNaming.RemoveFolderIfNoFiles(dest);
     }
 
     /// <summary>암호 문제(암호 창을 띄울 일)인가 — 일집 암호 예외만(화면의 IsPasswordRelated 와 같은 타입 판정, B5).</summary>

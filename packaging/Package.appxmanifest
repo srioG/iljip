@@ -5,17 +5,22 @@
     xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
     xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
     xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+    xmlns:desktop9="http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-    IgnorableNamespaces="uap uap10 com desktop4 rescap">
+    IgnorableNamespaces="uap uap10 com desktop4 desktop5 desktop9 rescap">
 
+    <!-- W2-12: 0.3.0 → 0.4.0 — 메뉴 CLSID 가 바뀌어(옛 5개 → '일집 ▶' 하나) 같은 이름 패키지의 업그레이드 설치로 옛 메뉴를 바꿔 끼운다(두 번 나오지 않게) -->
     <Identity Name="Iljip.ShellExtension"
               Publisher="CN=Iljip"
-              Version="0.3.0.0" />
+              Version="0.4.0.0" />
 
     <Properties>
         <DisplayName>일집 셸 확장</DisplayName>
         <PublisherDisplayName>일집</PublisherDisplayName>
         <Logo>Assets\StoreLogo.png</Logo>
+        <!-- 외부 위치 패키지(Install.ps1 의 Add-AppxPackage -ExternalLocation — Iljip.exe·DLL 은 패키지 밖 폴더에 있음)에 필요 -->
+        <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
     </Properties>
 
     <Dependencies>
@@ -28,7 +33,9 @@
     </Resources>
 
     <Applications>
-        <Application Id="Iljip" Executable="Iljip.exe" EntryPoint="Windows.FullTrustApplication">
+        <!-- 외부 위치의 보통 Win32 프로그램으로 돈다(mediumIL·win32App — 파일·레지스트리를 가상화하지 않음). win32App 은 EntryPoint 를 두지 않는다(makeappx 검증) -->
+        <Application Id="Iljip" Executable="Iljip.exe"
+                     uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
             <uap:VisualElements
                 DisplayName="일집"
                 Description="광고 없는 압축 프로그램"
@@ -37,161 +44,53 @@
                 Square44x44Logo="Assets\Square44x44Logo.png" />
 
             <Extensions>
-                <!-- COM 인-프로세스 서버 등록 -->
+                <!-- COM 인-프로세스 서버 등록. W2-12: 옛 메뉴 5개(B3E8A7D5…·2A4F7C91…·F5964E4F…·7D3E9C2A…·F9E2C1A8…)는 DLL 에만 남기고 여기서는 뺐다.
+                     드롭 처리기(61C3F459…)는 매니페스트로 선언할 수 없어 일집 ☰ ▸ 설정 '파일 연결'이 HKCU 고전 COM 으로 등록한다(선택). -->
                 <com:Extension Category="windows.comServer">
                     <com:ComServer>
                         <com:SurrogateServer DisplayName="일집 셸 확장">
-                            <com:Class Id="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71"
+                            <!-- '일집 ▶'(하위 메뉴) -->
+                            <com:Class Id="C0EE1823-ADD5-4327-92D8-F940142AD913"
                                        Path="Iljip.ShellExtension.dll"
                                        ThreadingModel="STA" />
-                            <com:Class Id="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4"
+                            <!-- 폴더 안 빈 곳 '일집 열기' -->
+                            <com:Class Id="A0714267-8EDA-4F03-8E4D-411FBB979391"
                                        Path="Iljip.ShellExtension.dll"
                                        ThreadingModel="STA" />
-                            <com:Class Id="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F"
-                                       Path="Iljip.ShellExtension.dll"
-                                       ThreadingModel="STA" />
-                            <com:Class Id="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9"
-                                       Path="Iljip.ShellExtension.dll"
-                                       ThreadingModel="STA" />
-                            <com:Class Id="F9E2C1A8-3D7B-4E5A-91C8-B5F7D2E9A3C6"
+                            <!-- 오른쪽 단추로 끌어 놓기 '일집: 여기에 압축'·'일집: 여기에 풀기' -->
+                            <com:Class Id="1AE50C95-17B6-40F9-918B-69099428FF2A"
                                        Path="Iljip.ShellExtension.dll"
                                        ThreadingModel="STA" />
                         </com:SurrogateServer>
                     </com:ComServer>
                 </com:Extension>
 
-                <!-- 파일 탐색기 컨텍스트 메뉴 -->
+                <!-- 파일 탐색기 우클릭 메뉴(W2-12 — Windows 11 새 메뉴는 앱마다 최상위 항목이 적어 '일집 ▶' 하나만).
+                     모든 파일('*')·폴더('Directory')에 같은 '일집 ▶'을 두고, 하위 메뉴는 DLL 이 고른 것의 확장자로 정한다
+                     (압축 하나 — 열기·여기에 풀기·"이름"\ 에 풀기·알아서 풀기·다른 곳에 풀기 / 압축 여럿 / 그 밖의 파일·폴더 — 압축하기·"이름.zip"·"이름.7z").
+                     압축 확장자마다 따로 두지 않는 것은 '*' 와 겹쳐 메뉴가 두 번 나올 수 있어서다(압축으로 보는 확장자 목록은 C++ IljipMenu.cpp·C# ShellMenu).
+                     폴더 항목은 desktop5 ItemType 으로(desktop4 는 Directory 를 거부함). 자동 풀림 .exe 는 압축 메뉴가 아니라 일반 파일 메뉴. -->
                 <desktop4:Extension Category="windows.fileExplorerContextMenus">
                     <desktop4:FileExplorerContextMenus>
-                        <!-- 압축 파일 우클릭 -->
-                        <desktop4:ItemType Type=".zip">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".7z">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".rar">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".tar">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".gz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".bz2">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                        </desktop4:ItemType>
-                        <!-- W2-01(7z.dll)에서 풀 수 있게 된 형식. .tar.gz·.tar.bz2·.tar.xz 는 끝 확장자 .gz·.bz2·.xz 로, .7z.001·.zip.001 은 .001 로 잡힌다.
-                             우클릭 때는 확장자로만 고르고 파일 내용은 읽지 않는다(내용 판별은 일집 본체가 열 때). 자동 풀림 .exe 는 넣지 않는다. -->
-                        <desktop4:ItemType Type=".xz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".tgz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".tbz2">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".tbz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".txz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".zipx">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".001">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".iso">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".cab">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".lzh">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".lha">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".wim">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".egg">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-                        <desktop4:ItemType Type=".alz">
-                            <desktop4:Verb Id="IljipOpen" Clsid="B3E8A7D5-1C9F-4E2A-B6A1-D39C8F2E5B71" />
-                            <desktop4:Verb Id="IljipExtractHere" Clsid="2A4F7C91-8E6D-4B3A-9C52-F1D8E9A7B3C4" />
-                            <desktop4:Verb Id="IljipExtractToFolder" Clsid="F5964E4F-2EC5-4DC7-BA37-C04AD4DB456F" />
-                            <desktop4:Verb Id="IljipExtractTo" Clsid="7D3E9C2A-5B1F-4A8C-93E6-C2A8F5D7B1E9" />
-                        </desktop4:ItemType>
-
-                        <!-- 일반 파일 우클릭 → 압축 -->
-                        <!-- (폴더용 우클릭은 desktop4 스키마가 ItemType="Directory"를 거부함.
-                             desktop6 또는 별도 등록으로 추후 복원 예정) -->
                         <desktop4:ItemType Type="*">
-                            <desktop4:Verb Id="IljipCompress" Clsid="F9E2C1A8-3D7B-4E5A-91C8-B5F7D2E9A3C6" />
+                            <desktop4:Verb Id="IljipRoot" Clsid="C0EE1823-ADD5-4327-92D8-F940142AD913" />
                         </desktop4:ItemType>
+                        <desktop5:ItemType Type="Directory">
+                            <desktop5:Verb Id="IljipRoot" Clsid="C0EE1823-ADD5-4327-92D8-F940142AD913" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type="Directory\Background">
+                            <desktop5:Verb Id="IljipBackground" Clsid="A0714267-8EDA-4F03-8E4D-411FBB979391" />
+                        </desktop5:ItemType>
                     </desktop4:FileExplorerContextMenus>
                 </desktop4:Extension>
+
+                <!-- 오른쪽 단추로 끌어 놓기 메뉴(I3-10 — 고전 IContextMenu, 폴더·드라이브에 놓을 때) -->
+                <desktop9:Extension Category="windows.fileExplorerClassicDragDropContextMenuHandler">
+                    <desktop9:FileExplorerClassicDragDropContextMenuHandler>
+                        <desktop9:ExtensionHandler Type="Directory" Clsid="1AE50C95-17B6-40F9-918B-69099428FF2A" />
+                        <desktop9:ExtensionHandler Type="Drive" Clsid="1AE50C95-17B6-40F9-918B-69099428FF2A" />
+                    </desktop9:FileExplorerClassicDragDropContextMenuHandler>
+                </desktop9:Extension>
             </Extensions>
         </Application>
     </Applications>

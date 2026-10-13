@@ -36,6 +36,9 @@ public sealed class AppSettings
     /// <summary>최근 연 압축 파일(recent.*) — W2-11(시작 화면 '최근 파일', I3-15). 다루기는 <see cref="RecentFilesService"/>.</summary>
     public RecentSettings Recent { get; set; } = new();
 
+    /// <summary>탐색기 연결(shell.*) — W2-12(파일 연결을 넣었는지 기록).</summary>
+    public ShellSettings Shell { get; set; } = new();
+
     /// <summary>읽은 JSON 에 묶음이 null 로 들어 있었을 때 기본값으로 채운다.</summary>
     internal AppSettings Normalize()
     {
@@ -46,6 +49,7 @@ public sealed class AppSettings
         Ui ??= new UiSettings();
         Sfx ??= new SfxSettings();
         Recent ??= new RecentSettings();
+        Shell ??= new ShellSettings();
         Recent.Files ??= new List<RecentFile>();
         Recent.Files.RemoveAll(f => f is null || string.IsNullOrWhiteSpace(f.Path));
         return this;
@@ -152,6 +156,18 @@ public sealed class SfxSettings
     /// 그 질문 창의 '다시 묻지 않기'로 켜고, ☰ ▸ 설정에서 되돌린다. 압축 창의 형식 칸 아래 안내는 이 값과 상관없이 늘 보인다.
     /// </summary>
     public bool SkipMailWarning { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>shell.* — 탐색기 연결(W2-12, I1-1).</summary>
+public sealed class ShellSettings
+{
+    /// <summary>
+    /// shell.associationsRegistered — 이 사용자가 ☰ ▸ 설정 '파일 연결'로 연결을 넣었는가(기록용 — 실제 상태는 레지스트리의 RegisteredKeys 가 기준).
+    /// </summary>
+    public bool AssociationsRegistered { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }

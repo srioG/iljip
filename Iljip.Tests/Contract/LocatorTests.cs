@@ -324,8 +324,11 @@ public class LocatorTests
     }
 
     /// <summary>
-    /// 계약(W1-B 검증 지적): 탐색기 우클릭 메뉴(패키지 매니페스트)에 일집이 풀 수 있는 확장자가 모두 있다
+    /// 계약(W1-B 검증 지적): 탐색기 우클릭 메뉴에 일집이 풀 수 있는 확장자가 모두 있다
     /// ('.tar.gz'·'.7z.001' 처럼 점이 둘인 것은 끝 확장자 '.gz'·'.001' 로). 우클릭 때는 확장자로만 고르고 파일을 읽지 않는다.
+    /// W2-12(I1-2): 매니페스트는 모든 파일('*')·폴더('Directory')에 '일집 ▶' 하나를 두고, 풀기 메뉴를 보일지는 셸 확장이 끝 확장자로 고른다 —
+    /// 그래서 풀 수 있는 확장자는 그 목록(C# <see cref="ShellMenu.ArchiveExtensions"/> = C++ IljipMenu.cpp ArchiveExtensions — ShellExtensionContractTests 가
+    /// 소스로 맞춰 봄)과 파일 연결(<see cref="FileAssociationRegistrar.Extensions"/>)에 모두 있어야 한다.
     /// </summary>
     [Fact]
     public void 우클릭_메뉴에_풀_수_있는_확장자가_모두_있다()
@@ -333,10 +336,15 @@ public class LocatorTests
         string manifest = File.ReadAllText(Path.Combine(RepoRoot(), "packaging", "Package.appxmanifest"));
         var types = System.Text.RegularExpressions.Regex.Matches(manifest, "ItemType Type=\"([^\"]+)\"").Select(m => m.Groups[1].Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*", types);
+        Assert.Contains("Directory", types);
+        Assert.NotEmpty(Locator.AllSupportedExtensions);
         foreach (var ext in Locator.AllSupportedExtensions)
         {
             string last = ext[ext.LastIndexOf('.')..];
-            Assert.True(types.Contains(last), $"우클릭 메뉴에 {last} 가 없음({ext} 를 풀 수 있는데)");
+            Assert.True(ShellMenu.ArchiveExtensions.Contains(last, StringComparer.OrdinalIgnoreCase), $"우클릭 메뉴(셸 확장 압축 목록)에 {last} 가 없음({ext} 를 풀 수 있는데)");
+            Assert.True(ShellMenu.IsArchiveName(@"C:\받은 파일\자료" + ext), $"{ext} 를 압축으로 보지 않음");
+            Assert.True(FileAssociationRegistrar.Extensions.Contains(last, StringComparer.OrdinalIgnoreCase), $"파일 연결에 {last} 가 없음({ext} 를 풀 수 있는데)");
         }
     }
 

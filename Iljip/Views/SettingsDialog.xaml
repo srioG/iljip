@@ -84,6 +84,28 @@
                 </CheckBox>
                 <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,0,0,4"
                            Text="꺼도 압축 창에서 자동 풀림 EXE 를 고르면 같은 안내가 늘 보여요." />
+
+                <!-- W2-12(I1-1): 파일 연결 — 단추는 누르는 즉시 적용(아래 [확인]·[취소]와 상관없음). 일집 창(VM)이 없으면 숨김 -->
+                <StackPanel x:Name="AssociationPanel">
+                    <TextBlock Text="파일 연결" FontSize="14" FontWeight="SemiBold" Margin="0,20,0,8" />
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                               Text="압축 파일(zip·7z·rar·egg·alz 등)을 오른쪽 클릭 ▸ ‘연결 프로그램’에 일집을 넣어요. 다른 프로그램의 연결은 빼앗지 않아요." />
+                    <TextBlock x:Name="AssociationStateText" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,0,6" />
+                    <CheckBox x:Name="DropHandlerCheck" Margin="0,0,0,8">
+                        <TextBlock TextWrapping="Wrap" Text="zip·7z 파일 위에 파일을 끌어다 놓으면 그 압축 파일에 넣기 (우클릭 메뉴를 설치한 일집에서만)" />
+                    </CheckBox>
+                    <WrapPanel>
+                        <Button x:Name="RegisterAssociationsButton" Style="{StaticResource DialogButton}" Content="연결 프로그램에 넣기" Height="28" Padding="10,0" Margin="0,0,8,6"
+                                Click="RegisterAssociations_Click" />
+                        <Button x:Name="OpenDefaultAppsButton" Style="{StaticResource DialogButton}" Content="기본 앱 설정 열기" Height="28" Padding="10,0" Margin="0,0,8,6"
+                                Click="OpenDefaultApps_Click" />
+                        <Button x:Name="UnregisterAssociationsButton" Style="{StaticResource DialogButton}" Content="연결 빼기" Height="28" Padding="10,0" Margin="0,0,8,6"
+                                Click="UnregisterAssociations_Click" />
+                    </WrapPanel>
+                    <TextBlock x:Name="AssociationResultText" TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}"
+                               Text="두 번 눌러 바로 일집으로 열리게 하려면 [기본 앱 설정 열기]에서 일집을 직접 골라 주세요(Windows 가 프로그램이 바꾸지 못하게 막아요). iso 는 Windows 의 디스크 이미지 열기를 바꾸지 않아요. 단추는 누르는 즉시 적용돼요." />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

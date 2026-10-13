@@ -13,6 +13,25 @@ public static class ArchiveVolumes
     private static readonly Regex Numbered = new(@"^(?<base>.*)\.(?<n>\d{3,})$", RegexOptions.CultureInvariant);
     private static readonly Regex EggVolume = new(@"^(?<base>.*)\.vol(?<n>\d+)\.egg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex RarPart = new(@"\.part\d+\.rar$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ZipSpanPart = new(@"\.z\d{2,}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// 열 파일(W2-12 — 파일 연결로 '.z01' 을 두 번 눌렀을 때): PKZIP 나눔 조각 '이름.z01'·'.z02' … 이고 같은 폴더에 '이름.zip'(마지막 조각)이 있으면 그 .zip
+    /// (나눔 ZIP 은 마지막 .zip 으로 연다 — W2-03). 그 밖에는 받은 그대로.
+    /// </summary>
+    public static string OpenTargetFor(string path)
+    {
+        try
+        {
+            if (!ZipSpanPart.IsMatch(Path.GetFileName(path ?? string.Empty))) return path!;
+            string zip = Path.ChangeExtension(path!, ".zip");
+            return File.Exists(zip) ? zip : path!;
+        }
+        catch
+        {
+            return path!;
+        }
+    }
 
     /// <summary>
     /// <paramref name="archivePath"/>(열거나 푼 파일 — 첫 조각·나눔 ZIP 의 .zip 등)와 같은 세트의 조각 전부(있는 것만, 차례대로).

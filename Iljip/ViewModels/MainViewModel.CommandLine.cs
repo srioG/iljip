@@ -58,7 +58,8 @@ public partial class MainViewModel
             switch (cmd.Verb)
             {
                 case CommandVerb.Open when File.Exists(cmd.Archive):
-                    await OpenArchiveAsync(cmd.Archive!);
+                    // W2-12: 파일 연결로 나눔 ZIP 의 '.z01' 을 두 번 누르면 같은 세트의 '.zip'(마지막 조각)으로 연다
+                    await OpenArchiveAsync(ArchiveVolumes.OpenTargetFor(cmd.Archive!));
                     break;
 
                 // 해제 명령은 열기가 실제로 된 경우에만 이어서 푼다 — 열지 못했으면(오류 창을 이미 보임) 해제 오류 창을 또 띄우지 않는다.
@@ -127,6 +128,18 @@ public partial class MainViewModel
                     await RunAddToAsync(cmd.Archive, cmd.Paths);
                     break;
 
+                case CommandVerb.ExtractSmart:
+                    // W2-12: 보통은 메인 창 없이(ProcessShellCommandAsync) 오지만, 이 길로 와도 같게 — 압축마다 알아서
+                    if (ExistingArchives(cmd) is { Count: > 0 } smartArchives)
+                        await RunExtractBatchAsync(smartArchives, ExtractTargetRule.Smart, fromShell: false);
+                    break;
+
+                case CommandVerb.CompressZip:
+                case CommandVerb.Compress7z:
+                    // W2-12: 창 없이 바로 압축(보통은 메인 창 없이 오지만 이 길로 와도 같게)
+                    await RunQuickCompressAsync(cmd.Paths, cmd.Verb == CommandVerb.Compress7z ? CompressionFormat.SevenZip : CompressionFormat.Zip);
+                    break;
+
                 case CommandVerb.Paths:
                     {
                         // 키워드가 아니면 모두 경로로 간주 (드롭과 동일 처리)
@@ -167,6 +180,31 @@ public partial class MainViewModel
         if (cmd.ShowMainWindow)
         {
             await ProcessCommandLineAsync(args);
+            return;
+        }
+
+        // W2-12: 파일 연결 넣기·빼기는 App 이 자체 프로세스로 맡는다(여기로 오지 않음) — 혹시 오면 아무것도 하지 않는다(파이프로 남의 레지스트리를 바꾸지 않게)
+        if (cmd.Verb is CommandVerb.RegisterAssociations or CommandVerb.UnregisterAssociations) return;
+
+        // W2-12: 탐색기 우클릭 '"이름.zip"으로 압축'·'"이름.7z"로 압축' — 압축 창 없이 진행 창만. 한 번에 하나씩(명령 차례)
+        if (cmd.Verb is CommandVerb.CompressZip or CommandVerb.Compress7z)
+        {
+            await _commandGate.WaitAsync();
+            _inCommandGate.Value = true;
+            try
+            {
+                await RunQuickCompressAsync(cmd.Paths, cmd.Verb == CommandVerb.Compress7z ? CompressionFormat.SevenZip : CompressionFormat.Zip);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("우클릭 바로 압축 중 오류", ex);
+                _ui.ShowError($"압축하지 못했어요.\n\n{ErrorMessages.ToPlainMessage(ex)}");
+            }
+            finally
+            {
+                _inCommandGate.Value = false;
+                _commandGate.Release();
+            }
             return;
         }
 
@@ -239,6 +277,7 @@ public partial class MainViewModel
         CommandVerb.ExtractTo => new ExtractTargetRule(ExtractTargetKind.Into, cmd.Dest),
         CommandVerb.ExtractToFolderIn => new ExtractTargetRule(ExtractTargetKind.NamedFolderIn, cmd.Dest),   // W2-11
         CommandVerb.ExtractInto => new ExtractTargetRule(ExtractTargetKind.Into, cmd.Dest),                // W2-11 검증 지적
+        CommandVerb.ExtractSmart => ExtractTargetRule.Smart,                                                 // W2-12 알아서 풀기
         _ => ExtractTargetRule.NamedFolder,
     };
 
@@ -254,6 +293,7 @@ public partial class MainViewModel
         {
             ExtractTargetKind.Here => new ParsedCommand(CommandVerb.ExtractHere, archives[0], null, none) { Archives = archives },
             ExtractTargetKind.NamedFolder => new ParsedCommand(CommandVerb.ExtractToFolder, archives[0], null, none) { Archives = archives },
+            ExtractTargetKind.Smart => new ParsedCommand(CommandVerb.ExtractSmart, archives[0], null, none) { Archives = archives },   // W2-12
             ExtractTargetKind.NamedFolderIn when rule.Folder is not null
                 => new ParsedCommand(CommandVerb.ExtractToFolderIn, archives[0], rule.Folder, none) { Archives = archives },
             ExtractTargetKind.Into when rule.Folder is not null && archives.Count == 1
@@ -334,7 +374,7 @@ public partial class MainViewModel
                 opened = OpenResultFolder(result, target.Folder);
         }
         else if (fromShell && rule.Kind != ExtractTargetKind.Here && Settings.Extract.OpenFolderAfter && !result.Cancelled)
-            opened = OpenResultFolder(result);
+            opened = OpenResultFolder(result, smart: rule.Kind == ExtractTargetKind.Smart);
 
         int total = result.Total;
         StatusText = result.Cancelled
@@ -376,22 +416,29 @@ public partial class MainViewModel
 
     /// <summary>풀 곳 규칙에서 이 압축을 풀 폴더(여기에·'이름' 폴더는 압축이 있는 폴더, 고른 폴더면 그 폴더) — 관리자 권한 질문이 네트워크 폴더인지 볼 때.</summary>
     private static string? WriteFolderFor(ExtractTargetRule rule, string archive) =>
-        rule.Kind is ExtractTargetKind.Here or ExtractTargetKind.NamedFolder ? Path.GetDirectoryName(archive) : rule.Folder;
+        rule.Kind is ExtractTargetKind.Here or ExtractTargetKind.NamedFolder or ExtractTargetKind.Smart ? Path.GetDirectoryName(archive) : rule.Folder;
 
     /// <summary>
     /// 우클릭 풀기 뒤 결과 폴더 열기(I1-6). 하나를 풀었으면 그 폴더, 여럿을 풀었으면 모두 같은 곳에 생겼을 때 그 위 폴더를 한 번(창이 여러 개 뜨지 않게).
     /// 진짜 탐색기는 <see cref="AppServices.Shell"/>(시험은 가짜 — 호출만 기록).
     /// </summary>
     /// <param name="chosenFolder">풀기 창에서 고른 풀 곳(W2-09) — 여럿을 풀었으면 이 폴더를 한 번 연다.</param>
-    private bool OpenResultFolder(BatchResult result, string? chosenFolder = null)
+    /// <param name="smart">
+    /// 알아서 풀기(W2-12): 압축마다 보일 폴더(<see cref="ArchiveOutcome.ShowFolder"/> — '이름' 폴더 또는 바로 푼 맨 위 폴더)를 연다.
+    /// 바로 푼 파일 하나뿐인 압축은 이미 보던 폴더라 열지 않는다('여기에 풀기'와 같음).
+    /// </param>
+    private bool OpenResultFolder(BatchResult result, string? chosenFolder = null, bool smart = false)
     {
-        var done = result.Outcomes.Where(o => o.Succeeded && o.Destination is not null).ToList();
+        var done = result.Outcomes
+            .Where(o => o.Succeeded && o.Destination is not null && (!smart || o.ShowFolder is not null))
+            .Select(o => smart ? o.ShowFolder! : o.Destination!)
+            .ToList();
         if (done.Count == 0) return false;
         try
         {
             if (done.Count == 1)
             {
-                _services.Shell.OpenFolder(done[0].Destination!);
+                _services.Shell.OpenFolder(done[0]);
                 return true;
             }
             if (chosenFolder is not null)
@@ -399,7 +446,7 @@ public partial class MainViewModel
                 _services.Shell.OpenFolder(chosenFolder);
                 return true;
             }
-            var parents = done.Select(o => Path.GetDirectoryName(o.Destination!.TrimEnd(Path.DirectorySeparatorChar)))
+            var parents = done.Select(d => Path.GetDirectoryName(d.TrimEnd(Path.DirectorySeparatorChar)))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (parents.Count == 1 && parents[0] is { } parent)
             {

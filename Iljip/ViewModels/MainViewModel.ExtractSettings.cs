@@ -23,7 +23,8 @@ public partial class MainViewModel
     /// </summary>
     public void ApplySettings(AppSettings settings)
     {
-        var patch = SettingsPatch.Between(Settings, settings, "recent");
+        // W2-12: shell.*(파일 연결 기록)은 설정 창의 [연결 프로그램에 넣기]가 바로 저장한다 — 창이 열릴 때 사본의 옛 값으로 되돌리지 않게 뺀다
+        var patch = SettingsPatch.Between(Settings, settings, "recent", "shell");
         if (patch.IsEmpty) return;
         patch.ApplyTo(Settings);
         SaveSettings(patch.ApplyTo);

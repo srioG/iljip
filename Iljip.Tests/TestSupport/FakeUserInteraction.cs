@@ -26,6 +26,9 @@ public sealed class FakeUserInteraction : IUserInteraction
     public List<string> Infos { get; } = new();
     public List<ProgressRecorder> ProgressSessions { get; } = new();
 
+    /// <summary>진행 창 제목(<see cref="ProgressSessions"/> 와 같은 차례 — W2-12: 창 없이 바로 압축의 '압축 중...').</summary>
+    public List<string> ProgressTitles { get; } = new();
+
     /// <summary>선택 창이 불린 기록(문구, 버튼 문구들, 기본 버튼 순번).</summary>
     public List<(string Message, IReadOnlyList<string> Choices, int DefaultIndex)> ChoicePrompts { get; } = new();
 
@@ -110,6 +113,7 @@ public sealed class FakeUserInteraction : IUserInteraction
         var cancelWhen = CancelWhen;
         var session = new Session(CancelProgress, CancelOnFirstBytes, p => OnProgressReport?.Invoke(p), cancelWhen);
         ProgressSessions.Add(session.Recorder);
+        ProgressTitles.Add(title);
         return session;
     }
 

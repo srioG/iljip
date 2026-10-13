@@ -455,7 +455,7 @@ public partial class MainWindow : Window
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm) return;
-        var dlg = new Views.SettingsDialog(vm.Settings) { Owner = this };
+        var dlg = new Views.SettingsDialog(vm.Settings, vm) { Owner = this };   // W2-12: '파일 연결' 단추는 이 창(VM)으로
         if (dlg.ShowDialog() == true && dlg.Result is { } result)
             vm.ApplySettings(result);
     }

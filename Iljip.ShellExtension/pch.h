@@ -4,11 +4,16 @@
 #define NOMINMAX
 
 #include <windows.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <shobjidl_core.h>
 #include <pathcch.h>
+#include <knownfolders.h>
+#define STRSAFE_NO_DEPRECATE
+#include <strsafe.h>
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>

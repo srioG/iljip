@@ -283,5 +283,7 @@ public class ShellExtractFlowTests
     {
         public void OpenFile(string path) => throw new InvalidOperationException("셸 없음");
         public void OpenFolder(string path, bool select = false) => throw new System.ComponentModel.Win32Exception(2);
+        public void OpenDefaultAppsSettings() => throw new InvalidOperationException("셸 없음");
+        public void NotifyAssociationsChanged() => throw new InvalidOperationException("셸 없음");
     }
 }

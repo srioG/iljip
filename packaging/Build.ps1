@@ -6,7 +6,11 @@
 #   3. 결과를 $BuildDir\package\ 로 모음
 #   4. Package.appxmanifest 를 AppxManifest.xml 이름으로 복사
 #   5. MakeAppx.exe 로 .msix 생성
-#   6. SignTool.exe 로 자체 서명 인증서로 서명
+#   6. SignTool.exe 로 자체 서명 인증서로 서명(-NoSign 이면 건너뜀 — 매니페스트·패키지 검사만 할 때)
+#
+# W2-12: Windows SDK 를 설치하지 않은 PC(이 PC)에서도 돌게 — 설치된 SDK(Windows Kits)가 없으면
+#   C++ 빌드는 NuGet SDK(/p:UseNuGetWindowsSdk=true — packaging\WinSdk\WinSdk.csproj 로 받음), MakeAppx·SignTool 도 그 패키지의 것을 쓴다.
+#   형식 아이콘(Iljip\icons\*.ico — 파일 연결 DefaultIcon·'일집 ▶' 메뉴 아이콘)을 외부 위치(package\icons)에 둔다.
 #
 # 빌드 산출물은 OneDrive 동기화 충돌 회피를 위해 외부 폴더(기본: D:\Python\일집-build)에 저장.
 # 환경 변수 IljipBuildDir 또는 -BuildDir 파라미터로 변경 가능.
@@ -16,11 +20,24 @@ param(
     [string]$Platform = "x64",
     [string]$BuildDir = $(if ($env:IljipBuildDir) { $env:IljipBuildDir } else { "D:\Python\일집-build" }),
     [string]$CertPath = "$PSScriptRoot\cert\Iljip.pfx",
-    [string]$CertPassword = "Iljip2026!"
+    [string]$CertPassword = "Iljip2026!",
+    [switch]$NoSign
 )
 
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
+
+# W2-12: 설치된 Windows SDK 가 없으면 NuGet SDK 패키지(Microsoft.Windows.SDK.CPP)를 쓴다(시스템 설치 없음)
+$kitsInclude = "${env:ProgramFiles(x86)}\Windows Kits\10\Include"
+$useNuGetSdk = -not (Test-Path $kitsInclude)
+$nugetSdkBin = $null
+if ($useNuGetSdk) {
+    Write-Host "==> 설치된 Windows SDK 없음 — NuGet SDK 패키지 받기" -ForegroundColor Cyan
+    & dotnet restore "$PSScriptRoot\WinSdk\WinSdk.csproj" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "NuGet SDK 패키지를 받지 못했어요(dotnet restore packaging\WinSdk\WinSdk.csproj)" }
+    $nugetSdkBin = Get-ChildItem "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.cpp\*\c\bin\*\x64" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+}
 
 $packageDir = Join-Path $BuildDir "package"
 $objDir = Join-Path $BuildDir "obj"
@@ -81,9 +98,11 @@ Write-Host "  MSBuild: $msbuild" -ForegroundColor DarkGray
 $cppOut = Join-Path $BuildDir "$Configuration\$Platform\Iljip.ShellExtension"
 $cppInt = Join-Path $objDir "$Configuration\$Platform\Iljip.ShellExtension"
 
+$sdkSwitch = if ($useNuGetSdk) { "/p:UseNuGetWindowsSdk=true" } else { "/p:UseNuGetWindowsSdk=false" }
 & $msbuild "$root\Iljip.ShellExtension\Iljip.ShellExtension.vcxproj" `
     /p:Configuration=$Configuration `
     /p:Platform=$Platform `
+    $sdkSwitch `
     "/p:OutDir=$cppOut\" `
     "/p:IntDir=$cppInt\" `
     /m
@@ -97,6 +116,9 @@ $dllSrc = Get-ChildItem -Path $BuildDir -Recurse -Filter "Iljip.ShellExtension.d
 if (-not $dllSrc) { throw "빌드된 Iljip.ShellExtension.dll을 찾을 수 없어요." }
 Write-Host "  DLL: $dllSrc" -ForegroundColor DarkGray
 Copy-Item $dllSrc -Destination $packageDir -Force
+
+# W2-12: 형식 아이콘(파일 연결 DefaultIcon '<설치 폴더>\icons\<ext>.ico'·'일집 ▶' 메뉴 아이콘) — publish 에도 들어가지만 늘 최신으로
+Copy-Item "$root\Iljip\icons" -Destination $packageDir -Recurse -Force
 
 Write-Host "==> manifest + Assets 복사" -ForegroundColor Cyan
 # MakeAppx 는 정확히 'AppxManifest.xml' 이름을 요구함
@@ -114,14 +136,25 @@ Write-Host "==> MakeAppx.exe로 .msix 패키징" -ForegroundColor Cyan
 $sdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
 $makeAppx = Get-ChildItem "$sdkRoot\*\x64\MakeAppx.exe" -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1
+# W2-12: 설치된 SDK 가 없으면 NuGet SDK 패키지의 makeappx.exe
+if (-not $makeAppx -and $nugetSdkBin) { $makeAppx = Get-Item (Join-Path $nugetSdkBin "makeappx.exe") -ErrorAction SilentlyContinue }
 if (-not $makeAppx) { throw "MakeAppx.exe를 찾을 수 없어요. Windows SDK가 설치되어 있나요?" }
 
 & $makeAppx pack /d $packageDir /p $msixPath /nv /o
 if ($LASTEXITCODE -ne 0) { throw "MakeAppx 실패" }
 
+if ($NoSign) {
+    Write-Host ""
+    Write-Host "✓ 빌드 완료(서명 안 함 — -NoSign): $msixPath" -ForegroundColor Green
+    Write-Host "  서명하지 않은 패키지는 설치할 수 없어요. 설치하려면 -NoSign 없이 다시 실행하세요."
+    return
+}
+
 Write-Host "==> SignTool로 서명" -ForegroundColor Cyan
 $signTool = Get-ChildItem "$sdkRoot\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1
+# W2-12: 설치된 SDK 가 없으면 NuGet SDK 패키지의 signtool.exe
+if (-not $signTool -and $nugetSdkBin) { $signTool = Get-Item (Join-Path $nugetSdkBin "signtool.exe") -ErrorAction SilentlyContinue }
 if (-not $signTool) { throw "SignTool.exe를 찾을 수 없어요." }
 
 if (-not (Test-Path $CertPath)) {

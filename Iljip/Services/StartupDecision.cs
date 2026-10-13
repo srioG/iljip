@@ -19,6 +19,12 @@ public enum StartupKind
 
     /// <summary>이미 떠 있는 일집에 명령을 넘긴다(못 넘기면 넘겨받기를 해 보고, 그래도 안 되면 혼자 처리 — W2-05).</summary>
     Forward,
+
+    /// <summary>
+    /// 파일 연결 넣기·빼기('--register-associations'·'--unregister-associations' — W2-12). 자체 프로세스로 HKCU 에만 쓰고 끝난다
+    /// (단일 인스턴스·파이프와 상관없음 — 떠 있는 일집에 넘기지 않음).
+    /// </summary>
+    Associations,
 }
 
 /// <summary>
@@ -33,6 +39,7 @@ public static class StartupDecision
     {
         args ??= Array.Empty<string>();
         if (IsHeadlessExtract(args, fileExists)) return StartupKind.Headless;
+        if (IsAssociationCommand(args)) return StartupKind.Associations;
         if (SkipsSingleInstance(args)) return StartupKind.Independent;
         return mutexAcquired ? StartupKind.FirstInstance : StartupKind.Forward;
     }
@@ -47,11 +54,19 @@ public static class StartupDecision
                && !string.IsNullOrWhiteSpace(args[2]);
     }
 
-    /// <summary>단일 인스턴스(뮤텍스·파이프)를 건너뛰는가 — 맨 앞에 '--new-window' 나 '--elevated' 가 있으면.</summary>
+    /// <summary>단일 인스턴스(뮤텍스·파이프)를 건너뛰는가 — 맨 앞에 '--new-window' 나 '--elevated' 가 있으면, 또는 파일 연결 명령(W2-12)이면.</summary>
     public static bool SkipsSingleInstance(IReadOnlyList<string>? args)
     {
         if (args is null || args.Count == 0) return false;
         var cmd = CommandLineParser.Parse(args as string[] ?? args.ToArray());
-        return cmd.NewWindow || cmd.Elevated;
+        return cmd.NewWindow || cmd.Elevated || IsAssociationCommand(args);
+    }
+
+    /// <summary>파일 연결 넣기·빼기인가(W2-12 — 첫 인자(표시 뒤)가 '--register-associations'·'--unregister-associations').</summary>
+    public static bool IsAssociationCommand(IReadOnlyList<string>? args)
+    {
+        if (args is null || args.Count == 0) return false;
+        var verb = CommandLineParser.Parse(args as string[] ?? args.ToArray()).Verb;
+        return verb is CommandVerb.RegisterAssociations or CommandVerb.UnregisterAssociations;
     }
 }

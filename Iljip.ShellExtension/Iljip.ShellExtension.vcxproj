@@ -73,7 +73,7 @@
       <SubSystem>Windows</SubSystem>
       <ModuleDefinitionFile>Iljip.ShellExtension.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;pathcch.lib;runtimeobject.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;pathcch.lib;runtimeobject.lib;shell32.lib;ole32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -88,6 +88,9 @@
     </ClCompile>
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="IljipCommands.cpp" />
+    <ClCompile Include="IljipLaunch.cpp" />
+    <ClCompile Include="IljipMenu.cpp" />
+    <ClCompile Include="IljipDragDrop.cpp" />
   </ItemGroup>
 
   <ItemGroup>

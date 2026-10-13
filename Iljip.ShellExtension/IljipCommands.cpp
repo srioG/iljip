@@ -98,60 +98,25 @@ namespace IljipShell
         return name.substr(0, cut) + L"…";
     }
 
-    // ===== 베이스 유틸 =====
+    // ===== 베이스 유틸 — W2-12 부터 공통 함수(IljipLaunch.cpp)에 맡긴다 =====
 
     template <typename T>
     std::wstring IljipCommandBase<T>::GetIljipExePath()
     {
-        // 셸 확장 DLL이 위치한 폴더 + "Iljip.exe"
-        wchar_t dllPath[MAX_PATH] = {};
-        HMODULE hMod = nullptr;
-        GetModuleHandleExW(
-            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            reinterpret_cast<LPCWSTR>(&GetIljipExePath),
-            &hMod);
-        GetModuleFileNameW(hMod, dllPath, MAX_PATH);
-
-        // dllPath = "...\Iljip.ShellExtension.dll". 동명 폴더 → Iljip.exe
-        PathCchRemoveFileSpec(dllPath, MAX_PATH);
-        std::wstring exe = dllPath;
-        exe += L"\\Iljip.exe";
-        return exe;
+        return IljipExePath();
     }
 
     template <typename T>
     std::vector<std::wstring> IljipCommandBase<T>::GetSelectedPaths(IShellItemArray* items)
     {
-        std::vector<std::wstring> result;
-        if (!items) return result;
-
-        DWORD count = 0;
-        if (FAILED(items->GetCount(&count))) return result;
-
-        for (DWORD i = 0; i < count; ++i)
-        {
-            Microsoft::WRL::ComPtr<IShellItem> item;
-            if (FAILED(items->GetItemAt(i, &item))) continue;
-
-            LPWSTR raw = nullptr;
-            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &raw)) && raw)
-            {
-                result.emplace_back(raw);
-                CoTaskMemFree(raw);
-            }
-        }
-        return result;
+        return SelectedPaths(items);
     }
 
     template <typename T>
     std::wstring IljipCommandBase<T>::QuoteArg(const std::wstring& path)
     {
-        std::wstring r;
-        r.reserve(path.size() + 2);
-        r.push_back(L'"');
-        r.append(path);
-        r.push_back(L'"');
-        return r;
+        // W2-12: 예전엔 따옴표로 감싸기만 해서 'C:\' 처럼 끝이 역슬래시인 경로가 다음 인자를 먹었다 — 끝 역슬래시는 두 배
+        return QuoteCommandArg(path);
     }
 
     template <typename T>
@@ -185,6 +150,7 @@ namespace IljipShell
     template class IljipCommandBase<ExtractToFolderCommand>;
     template class IljipCommandBase<ExtractToCommand>;
     template class IljipCommandBase<CompressWithIljipCommand>;
+    template class IljipCommandBase<IljipBackgroundCommand>;
 
     // ===== 제목 =====
 

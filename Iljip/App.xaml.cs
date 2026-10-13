@@ -44,6 +44,18 @@ public partial class App : Application
             return;
         }
 
+        // W2-12(I1-1): 파일 연결 넣기·빼기('--register-associations [--drop-handler]'·'--unregister-associations') — 자체 프로세스로 HKCU 에만 쓰고 끝난다
+        // (단일 인스턴스 파이프로 넘기지 않음). 사용자가 직접 부를 때만 쓰이므로 결과를 짧은 창 하나로 알린다. 종료 코드 0 됨·1 못 함.
+        if (StartupDecision.IsAssociationCommand(e.Args))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            var run = FileAssociationCommand.Run(CommandLineParser.Parse(e.Args), AppServices.CreateDefault(), Environment.ProcessPath);
+            if (run is not null)
+                MessageBox.Show(run.Message, "일집 — 파일 연결", MessageBoxButton.OK, run.Ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            Shutdown(run?.ExitCode ?? 1);
+            return;
+        }
+
         // ===== 단일 인스턴스 =====
         // 이미 일집이 떠 있으면, 새로 들어온 명령줄 인자를 기존 창에 넘기고 이 프로세스는 종료한다.
         // W2-05: 넘긴 쪽이 '받았음'(1바이트)을 확인한다 — 앞 일집이 우클릭 풀기를 마치고 끝나는 중이라 받지 않으면(또는 못 넘기면)
@@ -95,18 +107,22 @@ public partial class App : Application
         win.Closed += MainWindow_Closed;
         MarkElevated(win);
 
+        // W2-12: 셸 확장이 아주 많이 골라 '--list-file 목록파일'로 넘겼으면 이 일집이 처리하므로 여기서 그 파일의 경로들로 바꾼다(읽고 지움).
+        // 떠 있는 일집에 넘길 때는 짧은 원래 인자를 넘기고 받는 쪽이 바꾼다(OnSecondInstanceLaunched).
+        string[] startArgs = CommandLineParser.ExpandListFile(e.Args);
+
         // W2-05(I1-6): 탐색기 우클릭 풀기('여기에 풀기'·'"이름"\ 에 풀기')는 메인 창을 띄우지 않고 진행 창만 — 끝나면(결과 폴더를 연 뒤) 앱을 끝낸다.
         // 창(VM)은 만들어 두기만 한다: 그사이 다른 명령(열기 등)이 파이프로 들어오면 그때 띄운다.
-        if (!CommandLineParser.Parse(e.Args).ShowMainWindow && win.DataContext is MainViewModel shellVm)
+        if (!CommandLineParser.Parse(startArgs).ShowMainWindow && win.DataContext is MainViewModel shellVm)
         {
-            await RunWindowlessAsync(shellVm, e.Args);
+            await RunWindowlessAsync(shellVm, startArgs);
             return;
         }
 
         // 명령줄 인자가 있으면 창이 다 뜬 뒤 MainWindow의 ViewModel에 위임
-        if (e.Args.Length > 0 && win.DataContext is MainViewModel vm)
+        if (startArgs.Length > 0 && win.DataContext is MainViewModel vm)
         {
-            string[] args = e.Args;
+            string[] args = startArgs;
             win.Loaded += async (_, _) =>
             {
                 await vm.ProcessCommandLineAsync(args);
@@ -443,6 +459,8 @@ public partial class App : Application
     /// </summary>
     private async Task OnSecondInstanceLaunched(string[] args)
     {
+        // W2-12: 넘긴 쪽은 '--list-file 목록파일'을 그대로 넘긴다(파이프 한 줄이 길어지지 않게) — 처리하는 이 일집이 그 파일의 경로들로 바꾼다
+        args = CommandLineParser.ExpandListFile(args);
         if (!CommandLineParser.Parse(args).ShowMainWindow)
         {
             if (MainWindow?.DataContext is MainViewModel shellVm)
