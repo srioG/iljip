@@ -73,4 +73,11 @@ public interface IUserInteraction
 
     /// <summary>여러 개를 한꺼번에 한 결과(I2-6): 요약 한 줄·못 한 것과 이유·알림. 날 오류는 '자세히' 아래에만.</summary>
     void ShowSummary(OperationSummary summary);
+
+    // ───── W2-06(압축 고치기 — 새 폴더 이름)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// 글 한 줄을 묻는다(새 폴더 이름 등). <paramref name="initialText"/> 를 채워 두고 확장자 앞까지 골라 둔다. 취소하면 null.
+    /// </summary>
+    string? AskText(string title, string message, string initialText);
 }

@@ -82,6 +82,59 @@ public class DropPolicyTests
         Assert.Equal(DropChoice.Cancel, d.Options[d.DefaultIndex]);
     }
 
+    // ───────────── W2-06(I2-3): 고칠 수 있는 압축(ZIP·7z)을 보는 중이면 [이 압축 파일에 넣기] ─────────────
+
+    private static DropDecision DecideEditable(ViewState state, params string[] paths) =>
+        DropPolicy.Decide(state, paths, IsArchive, archiveEditable: true);
+
+    [Theory]
+    [InlineData("a.txt")]
+    [InlineData("a.txt", "b.txt")]
+    [InlineData("a.zip", "b.zip")]
+    public void 고칠_수_있는_압축을_보는_중에는_넣을지_묻는다(params string[] paths)
+    {
+        var d = DecideEditable(ViewState.Archive, paths);
+        Assert.Equal(DropDecisionKind.Ask, d.Kind);
+        Assert.Equal(DropPolicy.AskWhileEditableArchive, d.Message);
+        Assert.Contains("이 압축 파일에 넣을까요?", d.Message);
+        Assert.Equal(new[] { DropChoice.AddToArchive, DropChoice.NewStaging, DropChoice.Cancel }, d.Options);
+        Assert.Equal(DropChoice.Cancel, d.Options[d.DefaultIndex]);   // 기본 버튼은 여전히 [취소]
+    }
+
+    [Fact]
+    public void 고칠_수_있는_압축을_보는_중에_압축_파일_하나면_넣기_다음에_열기()
+    {
+        var d = DecideEditable(ViewState.Archive, "b.zip");
+        Assert.Equal(new[] { DropChoice.AddToArchive, DropChoice.OpenArchive, DropChoice.NewStaging, DropChoice.Cancel }, d.Options);
+        Assert.Equal(DropChoice.Cancel, d.Options[d.DefaultIndex]);
+    }
+
+    /// <summary>고칠 수 있는지는 압축을 보는 중에만 따진다 — 빈 창·목록을 모으는 중은 예전 규칙 그대로.</summary>
+    [Theory]
+    [InlineData(ViewState.Empty, "a.zip")]
+    [InlineData(ViewState.Empty, "a.txt")]
+    [InlineData(ViewState.Staging, "a.zip")]
+    [InlineData(ViewState.Staging, "a.txt")]
+    public void 넣기_선택은_압축을_보는_중에만(ViewState state, params string[] paths)
+    {
+        Assert.Equal(Decide(state, paths), DecideEditable(state, paths), new DecisionComparer());
+        Assert.DoesNotContain(DropChoice.AddToArchive, DecideEditable(state, paths).Options);
+    }
+
+    [Fact]
+    public void 넣기_버튼_문구()
+    {
+        Assert.Equal("이 압축 파일에 넣기", DropPolicy.Label(DropChoice.AddToArchive, ViewState.Archive));
+    }
+
+    private sealed class DecisionComparer : IEqualityComparer<DropDecision>
+    {
+        public bool Equals(DropDecision? x, DropDecision? y) =>
+            x is not null && y is not null && x.Kind == y.Kind && x.Message == y.Message && x.Options.SequenceEqual(y.Options);
+
+        public int GetHashCode(DropDecision obj) => obj.Kind.GetHashCode();
+    }
+
     [Fact]
     public void 묻지_않으면_기본_버튼도_없다()
     {
@@ -133,8 +186,9 @@ public class DropPolicyTests
         await Drop(vm, NewFile(tmp, "a.txt"));
 
         var prompt = Assert.Single(ui.ChoicePrompts);
-        Assert.Equal(DropPolicy.AskWhileArchive, prompt.Message);
-        Assert.Equal(new[] { "새로 압축할 목록 만들기 (보던 압축은 닫혀요)", "취소" }, prompt.Choices);
+        // W2-06: 보는 압축이 ZIP(고칠 수 있음)이라 [이 압축 파일에 넣기]가 맨 앞에 더해졌다(고칠 수 없는 압축은 아래 '고칠_수_없는_압축' 시험 — 예전 그대로)
+        Assert.Equal(DropPolicy.AskWhileEditableArchive, prompt.Message);
+        Assert.Equal(new[] { "이 압축 파일에 넣기", "새로 압축할 목록 만들기 (보던 압축은 닫혀요)", "취소" }, prompt.Choices);
         Assert.Equal("취소", prompt.Choices[prompt.DefaultIndex]);   // 화면에도 [취소]를 기본 버튼으로 넘긴다
         Assert.Equal(zip, vm.CurrentArchivePath);
         Assert.Equal(15, vm.Entries.Count);
@@ -165,9 +219,52 @@ public class DropPolicyTests
 
         await Drop(vm, tar);
 
-        Assert.Equal(new[] { "이 압축 파일 열기 (보던 압축은 닫혀요)", "새로 압축할 목록 만들기 (보던 압축은 닫혀요)", "취소" },
+        Assert.Equal(new[] { "이 압축 파일에 넣기", "이 압축 파일 열기 (보던 압축은 닫혀요)", "새로 압축할 목록 만들기 (보던 압축은 닫혀요)", "취소" },
             Assert.Single(ui.ChoicePrompts).Choices);
         Assert.Equal(tar, vm.CurrentArchivePath);
+    }
+
+    /// <summary>W2-06: 고칠 수 없는 압축(TAR·RAR·EGG …)을 보는 중이면 예전 그대로 — [이 압축 파일에 넣기] 없음.</summary>
+    [Fact]
+    public async Task 고칠_수_없는_압축을_보는_중에는_넣기가_없다()
+    {
+        using var tmp = new TempDir("drop8");
+        var ui = new FakeUserInteraction { ChooseByLabel = "취소" };
+        var vm = new MainViewModel(ui);
+        string tar = FixtureCatalog.Get("tar_default").FullPath;
+        await VmRunner.Run(() => vm.OpenArchiveAsync(tar), "열기");
+        Assert.False(vm.CanEditArchive);
+
+        await Drop(vm, NewFile(tmp, "a.txt"));
+
+        var prompt = Assert.Single(ui.ChoicePrompts);
+        Assert.Equal(DropPolicy.AskWhileArchive, prompt.Message);
+        Assert.Equal(new[] { "새로 압축할 목록 만들기 (보던 압축은 닫혀요)", "취소" }, prompt.Choices);
+        Assert.Equal(tar, vm.CurrentArchivePath);
+    }
+
+    /// <summary>W2-06(I2-3): 열린 ZIP 에 파일을 끌어 놓고 [이 압축 파일에 넣기] → 질문은 한 번, 지금 보는 폴더에 들어가고 목록이 다시 읽힌다.</summary>
+    [Fact]
+    public async Task 열린_압축에_끌어_놓고_넣기를_고르면_들어간다()
+    {
+        using var tmp = new TempDir("drop9");
+        string zip = tmp.P("열린.zip");
+        File.Copy(FixtureCatalog.Get("zip_default").FullPath, zip);
+        var ui = new FakeUserInteraction { ChooseByLabel = "이 압축 파일에 넣기" };
+        var vm = new MainViewModel(ui);
+        await VmRunner.Run(() => vm.OpenArchiveAsync(zip), "열기");
+        int before = vm.Entries.Count;
+        string file = NewFile(tmp, "끌어 온 파일.txt");
+
+        await Drop(vm, file);
+
+        Assert.Single(ui.ChoicePrompts);
+        Assert.Empty(ui.Errors);
+        Assert.Equal(zip, vm.CurrentArchivePath);
+        Assert.Equal(before + 1, vm.Entries.Count);
+        Assert.Contains(vm.Entries, e => e.Path == "끌어 온 파일.txt");
+        var list = await Svc.For(zip).ListEntriesAsync(zip);
+        Assert.Contains(list, e => e.Path == "끌어 온 파일.txt");
     }
 
     [Fact]

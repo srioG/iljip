@@ -50,12 +50,12 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-13 W2-03 후): `통과!  - 실패: 0, 통과: 1304, 건너뜀: 1, 전체: 1305` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 1개' — I2-10).
-  (W2-02 후: 통과 1200·건너뜀 1·전체 1201)
+- 결과(2026-10-13 W2-06 검증 지적 수정 2차 후): `통과!  - 실패: 0, 통과: 1643, 건너뜀: 1, 전체: 1644` — **건너뜀(Skip)은 정상**입니다(아래 '남은 Skip 1개' — I2-10).
+  (W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
   → W2-01: 통과 1097·건너뜀 2·전체 1099)
-  반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개, (W2-03) `SplitCreateTests` 의 반디집 시험(나눔 ZIP·7z 조각 — Theory 행 포함 32개)이, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
+  반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개, (W2-03) `SplitCreateTests` 의 반디집 시험(나눔 ZIP·7z 조각 — Theory 행 포함 32개)이, (W2-06) `ArchiveEditTests.고친_압축을_반디집이_푼다`(12개)가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
   빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 3개)가 건너뜁니다.
   (W2-01) Windows 의 IMAPI2FS(디스크 이미지 만들기)가 없는 PC 에서는 `DiscImageTests` 가 환경 조건(`DiscImageFact`)으로 건너뜁니다.
   빌드된 셸 확장 DLL(`D:\Python\일집-build\Release\x64\Iljip.ShellExtension\Iljip.ShellExtension.dll`)이 없거나 C++ 소스보다 오래되면
@@ -63,7 +63,9 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 - 느린 축: 파일명 보이는 암호 7z(py7zr, 키 유도 2^19회)를 쓰는 테스트, 32 MiB 취소 테스트, 실제 `Iljip.exe`·반디집 `bz.exe` 를 띄우는 테스트(각 1~10초),
   (W2-01) 잘림 전수 시험(`TruncationTests`·`XzTests`·`CabTests` — 구조 검사가 7z.dll 보다 먼저 막아 각 몇 초), 24 MiB xz 를 만드는 취소 시험,
   (W2-02) 160MB 원본으로 7z 진행률·메모리·취소를 재는 `SevenZipCreateLargeTests`(원본 만들기 몇 초 + 보통 수준 압축 20~25초 + 취소 시험 5초 —
-  메모리·시간을 재므로 `DisableParallelization` 묶음이라 다른 테스트가 다 끝난 뒤 따로 돈다. %TEMP% 에 160MB 를 잠깐 씀).
+  메모리·시간을 재므로 `DisableParallelization` 묶음이라 다른 테스트가 다 끝난 뒤 따로 돈다. %TEMP% 에 160MB 를 잠깐 씀),
+  (W2-06) 압축 고치기 `ArchiveEditTests`(110개 — 고칠 때마다 다시 읽어 검사하고 풀어 SHA 를 비교, 반디집 `bz t` 포함). `MainWindowEditUiTests` 는 WPF 앱 객체를 잠깐 만들므로 `DisableParallelization` 묶음.
+  (W2-06 검증 지적) 16MB 솔리드 7z 지우기의 진행률·취소를 재는 `SevenZipEditProgressTests`(지우기 한 번 약 7초 — 시간을 재므로 `DisableParallelization` 묶음).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
 - **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1148개 — 통과 1147·건너뜀 1, 2026-10-13 W2-03 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
@@ -91,13 +93,13 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/KoreanFileNameDecoderTests.cs` | [10] CP949·UTF-8·ASCII·CP437 이름 판별 |
 | `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(본문은 '고쳐지면 맞아야 할 기대'). W2-01 에서 I2-2(열기)·I2-9 의 Skip 을 지워 통과, I2-1(7z 왕복 — 한글·빈 파일·빈 폴더)은 W2-02 에서 Skip 을 지워 통과. 압축된 tar 는 펼친 tar 안 파일 전부를 매니페스트 expected_entries 와 비교하고 '.tar 항목 없음'까지 봄(일집은 반디집보다 한 단계 더 펼친다 — W2-01 요구). 웹에서 받은 표시(MOTW)를 옮기지 않는 것은 기록(보고 안건) |
 | `Contract/CommandLineTests.cs` | [12] 명령줄 처리(60초 시간 제한) — **가짜 창으로 `--extract-here`(그 자리에)·`--extract-to-folder`(이름 폴더, 다시 하면 '이름 (2)', 암호 묻기·틀리면 다시·취소, 동시에 여러 개)** + 실제 `Iljip.exe --extract-to`. (1차 검증) 헤더 암호 7z 를 열기·우클릭 풀기에서 암호를 한 번 묻고 풀기·틀리면 다시·취소·다른 압축을 열면 잊기, 암호 창은 취소할 때까지(몇 번째 맞는 암호든 풀림), 이름 폴더 풀기를 취소·손상으로 멈추면 파일이 없을 때만 그 폴더를 지움. (W2-01) '"이름"\ 에 풀기'는 압축 확장자를 통째로 뗀 폴더(`자료.tar.gz`→`자료`, `견적.7z.001`→`견적`)에, .tar.gz 는 tar 안 내용까지 펼침, 헤더 암호 7z '여기에 풀기'가 7z.dll 로도 틀리면 다시·취소면 아무것도 없음, 실제 exe 로 7z·lzh·iso·tgz 풀기·ZIP 바탕 문서(.xlsx·.docx·.hwpx)는 `Unsupported archive type:`·종료 코드 2·잘린 xz·tar.xz·lzh·rar 는 30초 안에 종료 코드 1(한국어 한 줄, '압축 아님' 표지 없음) |
-| `Contract/CommandLineParserTests.cs` | (W1-D) 명령줄 해석 순수 함수 — 키워드·인자 개수·대문자는 경로·'--extract-to-folder' 와 '--extract-to' 안 섞임. (W2-05) 풀기 동사는 압축 여러 개(`Archives`), 우클릭 풀기 동사만 메인 창 없이(`ShowMainWindow`) |
+| `Contract/CommandLineParserTests.cs` | (W1-D) 명령줄 해석 순수 함수 — 키워드·인자 개수·대문자는 경로·'--extract-to-folder' 와 '--extract-to' 안 섞임. (W2-05) 풀기 동사는 압축 여러 개(`Archives`), 우클릭 풀기 동사만 메인 창 없이(`ShowMainWindow`). (W2-06) `--add-to 압축 경로…`(키워드 7개 — 기대 6→7), 넣을 경로가 없으면 None, 메인 창 없이. (W2-06 검증 지적) `--add-to-pick 경로…`(압축은 비워 둠 — 키워드 8개, 기대 7→8) |
 | `Contract/ArchiveNamingTests.cs` | (W1-D) '"이름"\ 에 풀기' 폴더 이름 표(.tar.gz·.7z.001·.part1.rar·.vol1.egg·'.zip' …)와 '이름 (2)'·'(3)' 새 폴더 |
 | `Contract/AppStartupContractTests.cs` | (W1-D) 첫 실행 인자 버그 — App.xaml 에 StartupUri 없음, OnStartup 이 창을 직접 만들고 인자를 넘김(소스 확인). (W2-05) 우클릭 풀기는 win.Show() 전에 메인 창 없이 따로, 두 번째 실행의 우클릭 풀기는 메인 창을 앞으로 안 가져옴, 파이프 '받았음' 답, 같은 이름 창은 UI 스레드에서 |
 | `Contract/ShellExtensionContractTests.cs` | (W1-D) C++ 셸 확장·매니페스트·C# 의 약속: CLSID 5개 일치, 메뉴 Verb, '여기에 풀기 (일집)' 제목, C++ 이 넘기는 키워드를 C# 이 알아봄. **빌드된 DLL 이 있으면 실제 GetTitle 이 C# 이름 규칙과 같은지**(Invoke 는 안 부름) |
 | `Contract/SourceFileOpenerTests.cs` | (W1-D) 원본 열기 — 쓰기 공유로 열린 파일은 읽힘, 공유를 막으면 '다른 프로그램이 쓰고 있어요', 재시도, 없는 파일. (1차 검증) 앞부분이 잠긴(LockFileEx) 파일은 열기에서 걸러짐, 첫 블록을 읽어 봐도 처음부터 읽힘, 읽는 도중 막히면 `SourceUnreadableException` |
 | `Contract/CompressSkipTests.cs` | (W1-D) 잠긴 파일·못 들어가는 하위 폴더·없어진 원본은 건너뛰고 나머지는 그대로(zip·tar), GZ·BZ2 는 `SourceUnreadableException`, 담는 차례는 예전과 같음, 화면 안내('건너뛴 파일 N개')·결과 보존·부분 파일 정리. (1차 검증) 통째로·뒤쪽만 잠긴 파일(바이트 범위 잠금)도 건너뜀(뒤쪽은 빼고 다시 씀), 하나도 못 담으면 빈 zip·tar 를 만들지 않고 `NothingToCompressException`(기존 파일 그대로, 화면은 오류 안내). (W2-02) 7z 도 같은 규칙(.7z 행 — 공유를 막은·통째로·뒤쪽만 잠긴 파일, 못 들어가는 하위 폴더, 없어진 원본, 하나도 못 담음·빈 폴더만 남음, 화면 안내) |
-| `Contract/DropPolicyTests.cs` | (W1-D) 끌어 놓기 규칙 표 + 가짜 선택 창으로 [취소]·[새로 압축할 목록]·[열기]·[목록에 넣기]. (1차 검증) 기본 버튼(Enter)은 늘 [취소], `ChoiceDialog` 가 정한 버튼 하나만 IsDefault(창은 만들기만), Drop 이벤트를 끝낸 뒤(Dispatcher.Yield) 처리(소스) |
+| `Contract/DropPolicyTests.cs` | (W1-D) 끌어 놓기 규칙 표 + 가짜 선택 창으로 [취소]·[새로 압축할 목록]·[열기]·[목록에 넣기]. (1차 검증) 기본 버튼(Enter)은 늘 [취소], `ChoiceDialog` 가 정한 버튼 하나만 IsDefault(창은 만들기만), Drop 이벤트를 끝낸 뒤(Dispatcher.Yield) 처리(소스). (W2-06) 고칠 수 있는 압축(ZIP·7Z)을 보는 중이면 [이 압축 파일에 넣기]가 맨 앞(기본은 여전히 [취소] — 기존 VM 시험 2개의 선택지 기대가 바뀜), 고칠 수 없는 압축(TAR)은 예전 선택지 그대로, 넣기를 고르면 지금 폴더에 들어감 |
 | `Contract/SortingTests.cs` | (W1-D) 정렬 비교기(폴더 먼저·크기·날짜·같은 값은 이름), VM 정렬(두 번 누르면 내림, 폴더를 옮겨도 유지, 기본은 이름 오름차순), XAML 계약 + 열 머리 템플릿을 메모리에서 적용해 손잡이·화살표 확인. (1차 검증) 이름은 탐색기와 같은 자연 정렬(`2.txt` → `10.txt`, `1월` → `2월` → `10월`) |
 | `Contract/SevenZipLibraryTests.cs` | [W2-01] 출력에 x64\7z.dll 이 있고 실제로 불러짐, 판(26.03)·SHA-256 기록, 막힌 PC 흉내(7z·RAR 는 SharpCompress 로 대신 — 암호·잘림·여러 조각도 쉬운 말로, zipx·iso·cab·lzh·wim·xz·txz 는 한국어 안내·대상 폴더 안 생김, 저장 형식에 7Z 없음), 공개 소프트웨어 안내·라이선스 전문(BSD 2·3조항 포함). (W2-02) 막힌 PC 에서는 저장 형식에 7Z 가 없고 7z 만들기는 `EngineUnavailableException`(쉬운 안내, 파일·임시 파일 없음), 목록까지 잠긴 7z·머리 암호 RAR 은 대신 경로에서도 `ListPasswordRequiredException` |
 | `Contract/TruncationTests.cs` | [W2-01 (a)·(e)] 끝이 잘린 RAR5·RAR4(한 바이트씩 전부 — 머리 사이 포함)·ZIPX·LZH(전부)·머리 암호 RAR5 는 '끝부분이 잘려'(목록도) + 대상에 아무것도 안 남김(새로 만든 폴더도), 끝 머리 없는 RAR4 는 판 20 이면 풀고 판 29 면 잘림, 여러 조각 RAR 의 마지막 조각 없음은 그 이름, 숫자 분할의 마지막 조각이 덜 받아졌으면 '덜 받아졌어요', 잘린 .gz 는 어디서 잘려도 반쪽 파일 없음 |
@@ -124,6 +126,12 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/BatchExtractTests.cs` | [W2-05, I2-6] 여러 개 풀기: 같은 암호 셋은 한 번만 묻기·진행 창 '2/3 · b.zip'·전체 막대, 암호가 다른 파일만 '앞에서 쓴 암호가 맞지 않아요. b.zip 암호를 넣어 주세요.', 암호 창 취소는 그 파일만 건너뜀, 5개 중 손상 1개는 요약(4/5·이름·한국어 이유·날 문구는 자세히), 같은 이름 [취소]·진행 창 [취소]면 남은 것 손대지 않음, 따로 들어온 우클릭 명령이 돌던 묶음에 붙음, 열기 창 여러 개 → '모두 풀기', `--extract a b` |
 | `Contract/RecycleAfterExtractTests.cs` | [W2-05, I2-5] 풀고 나서 압축 파일 지우기(가짜 휴지통): 다 풀면 보냄·기본은 안 보냄, 나뉜 압축은 조각 모두 한 번에(7z.001·z01/zip·zip.001), 실패·건너뜀·취소·휴지통 없는 곳(알림)·조각 하나라도 휴지통 없는 곳·일집 임시 폴더·고른 항목만 풀기는 안 보냄, 덮어쓰기·이름 바꾸기로 다 풀면 보냄, 못 보내면 알림(날 코드 없음), 메인 창에서 지우면 화면 비움, 여러 개 풀기는 다 풀린 것만, 창 없이 풀기는 설정·휴지통을 안 씀(소스) |
 | `Contract/ExtractSettingsTests.cs` | [W2-05] 설정 settings.json(기본값·왕복·모르는 필드 보존·깨진 파일은 settings.bad-*.json·없으면 안 만듦·설정 창은 사본·시험 중엔 사용자 설정을 안 읽음), 같은 이름 처리기(설정 고정·‘남은 파일도 똑같이’ 기억·취소는 기억 안 함), 메인 창 풀기의 같은 이름 질문(크기·남은 수)·취소, 나뉜 압축 조각 찾기(`ArchiveVolumes` — 숫자·PKZIP·RAR partN·EGG volN·나뉘지 않음), 요약 문구, 모르는 엔진 오류의 쉬운 한국어 |
+| `Contract/ArchiveEditTests.cs` | [W2-06, I2-3] 압축 고치기(서비스 — `Services/Editing`): ZIP 7종(반디집 기본·CP949 이름·ZipCrypto·한글 ZipCrypto·AES-256·한글 AES·데이터 서술자) × 넣기·지우기·이름 바꾸기·새 폴더, 7z 5종(반디집 기본·파일 이름 암호화·한글 이름 암호화·7z.dll 솔리드·내용만 암호) × 같은 4가지 — 목록·풀린 SHA·(ZIP) 손대지 않은 항목은 이름 바이트·플래그·압축 데이터까지 그대로, 새·바뀐 이름은 UTF-8(bit 11), 암호 압축은 같은 방식(같은 암호 바이트·AES 세기)·여전히 암호 필요, (7z) 파일 이름 암호화 유지. 반디집 `bz t` 12개(`BandizipCliTheory`). 취소·잠긴 원본·바꾸는 순간 잠김·쓰기 실패·검사 실패면 원본 바이트 그대로·임시/예비 파일 없음, 검사기가 계획과 다른 목록을 잡음, 고칠 수 없는 형식 16가지·나뉜 압축·앞에 붙은 ZIP, 암호 없음/틀림, 암호 ZIP 지우기는 암호 없이, 같은 이름(비켜 넣기·덮어쓰기·건너뛰기·취소=전체 취소), 이름 규칙·대소문자만 바꾸기·없는 항목, 저장만 ZIP 에는 저장만으로 |
+| `Contract/MainViewModelEditTests.cs` | [W2-06, I2-3] 가짜 창으로 화면 흐름: Del 묻기(기본 [취소]·이름 셋까지)·지우고 목록 다시 읽기, 이름 바꾸기·못 쓰는 이름·이미 있는 이름 안내, 새 폴더 이름 묻기(`AskText`)·취소, 지금 폴더에 넣기, 같은 이름 묻고 덮어쓰기, 암호 ZIP 은 암호 창·취소면 그대로, 고칠 수 없는 형식은 안내만, `--add-to` 는 메인 창 없이·짧은 알림·암호 묻기·실패는 쉬운 오류 한 번, 명령줄 안에서 고치기가 차례(`_commandGate`)를 다시 기다리지 않음. (검증 지적) `--add-to-pick` 은 압축 고르기 창(ZIP·7Z)·고르지 않으면 조용히·TAR 는 쉬운 오류, 7z.dll 을 못 불러온 PC 의 7z 는 '이 PC에서는 7Z 파일을 고치는 부품…'(TAR 는 그대로), 반디집 유니코드 경로 ZIP 도 화면에서 같은 이름 묻기·지우기 |
+| `Contract/EntryReinsertTests.cs` | [W2-06, I3-3] 압축 속 파일을 열어 고치면(가짜 파일 감시 `FakeFileChangeSource`): '다시 넣을까요?' → [넣기]면 다시 넣음, 내용이 같으면 안 묻고 알림 여러 번은 한 번만, [나중에]면 압축을 떠날 때·닫을 때 다시, 닫을 때 [취소]면 안 닫힘, 암호 압축은 열 때의 암호로, 고칠 수 없는 형식은 '다른 곳에 저장', 닫으면 감시 멈춤·작업 폴더 지움, 실행 파일은 열기 전에 경고, 감시기는 조용해진 뒤 내용(SHA-256)으로 판단, 이/가 고르기. (검증 지적) 넣는 동안 또 저장하면 넣은 뒤 다시 묻기(ZIP·7z), [넣지 않기]는 물어본 내용만, 연 뒤 지운 항목도 제자리에 넣기(ZIP·7z), 넣지 못하면 '다른 곳에 저장' 권하기·닫을 때 [닫지 않기], 7z.dll 을 못 불러온 PC 는 '이 PC에서는 7Z 파일을 고칠 수 없어요.'. (검증 지적 2차) 묻는 동안 명령줄(--open·--extract)로 다른 압축이 와도 멈추지 않음, 묻는 중·넣는 중에는 일집을 닫지 않음(ZIP·7z), Windows 에 못 쓰는 이름(':'·끝 점)의 항목도 그 이름 그대로 다시 넣기, 감시기의 '가라앉음'은 묻기를 기다리지 않음 |
+| `Contract/ArchiveEditReview2Tests.cs` | [W2-06 검증 지적 2차] 빈 7z(모두 지운 결과·빈 폴더만)에 넣기·새 폴더 + 반디집 `bz t`, 다시 넣기(바꿔 넣기)는 압축에 있던 이름(':'·끝 점) 그대로(ZIP·7z — 사용자가 고르는 이름은 예전 규칙), 이름 검사(순수), 일집이 못 푸는 정상 ZIP(흘려 쓴 ZipCrypto + 데이터 서술자)은 '손상'이 아니라 '일집이 풀 수 없는 방식'·결과만 못 풀면 고치다 생긴 문제, ZIP 검사 동안에도 막대가 오름(암호 있음·없음) |
+| `Contract/ArchiveEditReviewTests.cs` | [W2-06 검증 지적] 반디집 ZIP 유니코드 경로(0x7075 — `nfd_bandizip_default`)도 목록 이름으로 지우기·이름 바꾸기·같은 이름 넣기(묻기)·바꿔 넣기 + 반디집 `bz t`, 파일과 같은 이름의 폴더는 폴더째 '이름 (1)'(ZIP·7z, 한 넣기 안에서 같은 이름), 원래부터 손상된 ZIP 은 '원래 압축 파일에 이미 손상된 곳이…', 고치는 사이 원본이 바뀌면 덮어쓰지 않음(ZIP·7z)·동시에 셋을 고쳐도 '됐다'고 한 것은 모두 남음, 바꿔 넣기(`ReplaceExisting` — 묻지 않고 바꿈, 없으면 새로, 폴더면 비켜 넣기). 같은 파일의 `SevenZipEditProgressTests`(`DisableParallelization` 묶음 — 16MB 솔리드 7z): 지우기 동안 막대가 '다시 정리하는 중'에 오름·도중 취소는 3초 안·원본 그대로 |
+| `Contract/MainWindowEditUiTests.cs` | [W2-06] 메인 창 XAML 을 STA 스레드에서 만들기만(띄우지 않음): 이름 칸만 편집 가능·행 지우기/더하기 끔·우클릭/☰ 메뉴 항목. F2 로만 편집 시작·이름 확정은 편집을 끝낸 뒤(Dispatcher.Yield)·닫을 때 묻기(소스). WPF 앱 객체를 잠깐 만들고 끝나면 `Application.Current` 를 되돌림(따로 순차 실행) |
 | `Contract/FileLockTests.cs` | 열기 실패 후 원본 파일을 잠그지 않는지(B8 고침) + 분할 EGG 조각들도 바로 지울 수 있는지 |
 | `Contract/RarTests.cs` | (통합 점검) 합성 RAR4·RAR5 — 작성기를 반디집으로 검증, 목록·해제·풀린 수정 시각, 목록 시각은 현지 시각, 암호 없음/틀림 → 암호 예외·아무것도 안 남음(머리 암호는 '파일 이름까지…'), 이름 보이는 암호 RAR 은 암호 없이 목록, 손상 → CRC 오류(앞 파일 남김), 진행률, '/' 로 고른 선택 해제. (W2-02) 머리 암호 RAR 을 암호 없이 읽으면 `ListPasswordRequiredException` |
 | `Contract/FormatFlowTests.cs` | (통합 점검) 형식이 달라도 화면 흐름이 같은가 — 가짜 창으로 ZIP·7z·EGG·RAR4·RAR5 암호 창 길(없음 → 틀림 → 맞음), ZIP(CP949·UTF-8)·7z·TAR·EGG·ALZ·RAR 한글 이름(목록·폴더 트리·풀린 이름), 모든 해제의 진행 막대 도중 보고, 목록 시각이 UTC 로 오지 않음, 암호 ZIP(AES·한글 ZipCrypto)도 읽는 도중 막힌 파일만 빼고 다시 써서 같은 암호로 풀림. (W2-02) 목록까지 잠긴 7z·RAR 은 첫 창이 `ListLocked`, 틀리면 '암호가 맞지 않아요' 경고 한 번 뒤 다시 |
@@ -135,7 +143,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀. (W2-02) 일집 7z(AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더)를 반디집이 맞는 암호로 풂(틀린 암호로는 못 풂) |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로 |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`) |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -195,13 +203,65 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | 목록·풀린 이름이 자모 분리 그대로(내용은 정확) |
 
-### 남은 Skip 1개(2026-10-13 W2-05 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
+### 남은 Skip 1개(2026-10-13 W2-06 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
 
 | 테스트 | 사유 | 언제 풀리나 |
 |---|---|---|
 | `BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` | I2-10 맥 NFD 이름 | 이름 NFC 정규화 작업(따로) |
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
+
+### W2-06 에서 고친 것(2026-10-13) — I2-3 압축 고치기·I3-3 압축 속 파일 고쳐서 다시 넣기
+
+푼 Skip 은 없습니다(Skip 테스트가 없던 새 기능). 고치기는 서비스(`ArchiveEditTests` — 진짜 ZIP·7z, 반디집 `bz t`)와 화면(`MainViewModelEditTests` — 가짜 창)으로,
+다시 넣기는 가짜 파일 감시(`FakeFileChangeSource` — 진짜 FileSystemWatcher·메모장·엑셀은 안 씀)로 시험합니다. 메인 창은 만들기만 하고 띄우지 않습니다(`MainWindowEditUiTests`).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 열린 압축 고치기(I2-3) | 없음(보기·풀기만) | ZIP·7Z 에 파일 넣기(메뉴·끌어 놓기)·지우기(Del)·이름 바꾸기(F2)·새 폴더. 같은 폴더 숨김 `.~이름.8글자.tmp` 에 다 쓰고 다시 읽어 검사한 뒤에만 바꿔 넣음 — 취소·잠김·쓰기 실패·검사 실패면 원본 바이트 그대로. ZIP 은 손대지 않은 항목을 바이트 그대로 옮기고 새 항목은 원래 암호 바이트·방식으로 암호화, 새 이름은 UTF-8. 7z 는 솔리드·파일 이름 암호화·암호 그대로. 그 밖의 형식은 '이 형식은 고칠 수 없어요' | `ArchiveEditTests` 전부, `MainViewModelEditTests` 전부 |
+| 끌어 놓기(압축을 보는 중) | [새로 압축할 목록 만들기][취소](압축 파일이면 [열기]도) | 고칠 수 있는 압축이면 [이 압축 파일에 넣기]가 맨 앞(기본은 [취소] 그대로), 고칠 수 없는 압축은 예전 그대로 | `DropPolicyTests.고칠_수_있는_압축을_보는_중에는_넣을지_묻는다`·`…압축_파일_하나면_넣기_다음에_열기`·`고칠_수_없는_압축을_보는_중에는_넣기가_없다`·`열린_압축에_끌어_놓고_넣기를_고르면_들어간다` |
+| 명령줄 `--add-to` | 없음(경로 목록으로 봄) | `--add-to 압축 경로…` = 메인 창 없이 넣기('{n}개를 넣었어요.' 알림) — 탐색기 메뉴는 아직 없음 | `CommandLineParserTests.add_to는_압축_하나와_넣을_경로들`·`우클릭_풀기만_메인_창_없이`, `MainViewModelEditTests.우클릭_넣기는_…` |
+| 압축 속 파일 고쳐 저장(I3-3) | 없음 | 연 파일을 감시하다 내용이 바뀌면 '‘이름’이 바뀌었어요. 압축 파일에 다시 넣을까요?' [넣기][나중에][넣지 않기], [나중에]는 압축을 떠날 때·일집을 닫을 때 다시, 고칠 수 없는 형식은 '다른 곳에 저장' | `EntryReinsertTests` 전부 |
+
+기대가 바뀐 기존 테스트: `CommandLineParserTests.키워드_목록은_모두_해석된다`(키워드 6 → 7 + '--add-to' 포함), `DropPolicyTests.압축을_보는_중_끌어_놓고_취소하면_그대로`·`압축을_보는_중_다른_압축을_끌어_와_열기를_고르면_그것이_열린다`
+(보는 압축이 ZIP 이라 문구가 `AskWhileEditableArchive`, 선택지 맨 앞에 [이 압축 파일에 넣기] — 기본 [취소]·보던 압축 그대로라는 단언은 그대로. 고칠 수 없는 TAR 는 예전 문구·선택지라는 새 시험을 더함).
+알아 둘 것(시간에 민감한 기존 시험 — 이번에 안 건드린 길): 마지막 전체 실행은 실패 0 이지만, 이 PC 가 바쁠 때(빈 메모리 0.8GB·PFDlpMon 이 CPU 한 개 이상·OneDrive 동기화) 중간 실행에서
+`SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…`(W2-05 에 적은 것과 같음 — 3.2~4.8초, **이것만 따로 돌려도 3.6초로 실패**한 때가 있었고 그때 160MB 압축이 평소 20~25초가 아닌 41초 — 7z 만들기 코드는 이번에 안 바뀜)와
+`LocatorTests.옮기기는_잠깐_잠긴_파일을_기다렸다_옮긴다`(0.25초 뒤 풀리는 잠금을 0.6초 동안 다시 해 봄 — 풀어 주는 작업이 스레드 풀에서 늦게 돈 한 번)가 실패했습니다. 한도는 그대로 — 실패하면 PC 가 한가할 때 다시 돌려 볼 것.
+
+### W2-06 검증 지적 수정(2026-10-13, 2차)
+
+푼 Skip 은 없습니다. 지적 7개를 모두 확인해 고치고(설명 문구 1개는 코드·문서만) 새 시험 29개를 더했습니다(`ArchiveEditReview2Tests` 21·`EntryReinsertTests` 8). 기대가 바뀐 기존 테스트는 없습니다.
+새 시험은 모두 **고치기 전 코드로 되돌려 돌리면 실패**하는 것을 확인했습니다(명령줄 교착 2개는 60초 시간 제한으로 실패).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| '다시 넣을까요?'와 명령줄 열기(--open·--extract)가 겹침 | 명령줄이 명령 차례를 쥔 채 묻기·넣기가 끝나기를 기다리고, [넣기]는 그 차례를 기다려 둘 다 영영 멈춤(그 뒤 명령도 모두 막힘) | 압축을 떠나기 전에는 '조용히 기다리는 확인'만 기다리고(`OpenedEntryWatcher.WhenSettledAsync`) 묻거나 넣는 중인 파일은 그 흐름에 맡김 — 다른 압축이 열린 뒤 원래 압축에 넣음 | `EntryReinsertTests.묻는_동안_명령줄로_다른_압축을_열어도_멈추지_않는다`(2)·`감시기의_가라앉음은_묻기를_기다리지_않는다` |
+| 묻는 중·넣는 중 일집 닫기 | 그 파일을 건너뛰고 닫기를 허락 → 작업 폴더가 지워져 고친 내용이 사라짐(넣기도 끊김) | 닫지 않고 '‘…’를 압축 파일에 다시 넣는 일이 아직 끝나지 않았어요. 끝난 뒤에 닫아 주세요.' | `EntryReinsertTests.묻는_동안_일집을_닫으려_하면_닫지_않는다`·`넣는_동안_일집을_닫으려_하면_…`(ZIP·7z) |
+| 빈 7z(모두 지운 결과)에 넣기·새 폴더 | 솔리드 정보가 없어 '압축 파일이 손상됐어요. 다시 받아 보세요.' | 솔리드 아님으로 보고 고침(빈 폴더만 있는 7z 도) | `ArchiveEditReview2Tests.빈_7z에도_넣기와_새_폴더가_된다`(3) |
+| Windows 에 못 쓰는 이름(':'·끝 점)의 항목 다시 넣기 | 바꾼 적 없는 이름 때문에 '이름에 쓸 수 없는 글자가 있어요' → 못 넣음 | 다시 넣기(바꿔 넣기)는 압축에 있던 이름 그대로(`EditPlanner.ValidateExistingName` — 경로를 깨는 것만 막음). 사용자가 고르는 이름은 예전 규칙 | `ArchiveEditReview2Tests.다시_넣기는_압축에_있던_이름을_그대로_쓴다`(4)·`압축에_있던_이름_검사는_…`(9), `EntryReinsertTests.윈도우에_못_쓰는_이름의_항목도_…`(2) |
+| 일집 풀기 엔진이 못 푸는 정상 ZIP(흘려 쓴 ZipCrypto + 데이터 서술자) | '원래 압축 파일에 이미 손상된 곳이 있어서…'(사실과 다름) | 구조는 맞는데 엔진이 ZIP 으로 알아보지 못하거나 방식을 모르면 '이 압축 파일은 일집이 풀 수 없는 방식으로 만들어져 있어서 고치지 않았어요…'(`ArchiveTester.UnreadableMessage`). 결과만 못 풀면 고치다 생긴 문제 | `ArchiveEditReview2Tests.일집이_못_푸는_정상_ZIP은_…`(2)·`결과만_못_풀면_…` |
+| ZIP 검사 동안 진행 막대 | 다시 쓰기가 끝나면 100% 에 멈춰 검사 내내 그대로 | 검사(풀린 크기)도 막대에 넣고 풀어 본 바이트로 올림 | `ArchiveEditReview2Tests.ZIP_검사_동안에도_진행_막대가_오른다`(2) |
+| 설명 문구 | '다시 넣기 = 지우기 + 넣기'가 남음 | '바꿔 넣기'로(코드 주석·HANDOFF·이 파일) | — |
+
+### W2-06 검증 지적 수정(2026-10-13, 1차)
+
+푼 Skip 은 없습니다. 지적 9개 중 8개를 고치고 새 시험 27개를 더했습니다(`ArchiveEditReviewTests` 14·`SevenZipEditProgressTests` 2·`EntryReinsertTests` 7·`MainViewModelEditTests` 3·`CommandLineParserTests` 1).
+기대가 바뀐 기존 테스트: `CommandLineParserTests.키워드_목록은_모두_해석된다`(키워드 7 → 8 + '--add-to-pick' 포함 — 키워드를 더한 것, 단언을 줄이지 않음).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 7z 지우기·이름 바꾸기·새 폴더의 취소·진행 | 7z.dll 이 다시 압축하는 동안 [취소]가 듣지 않고(그 단계가 끝날 때까지) 막대가 멈춰 보임 | 취소하면 작업 사본을 잠가 7z.dll 의 다음 읽기를 실패시켜 바로 멈춤(블록 2MB — 이 PC 0.5~1.4초), 다시 압축하는 동안 결과 크기로 막대가 오름, 사본 만들기·검사도 진행에 넣음 | `SevenZipEditProgressTests` 2개 |
+| 반디집 ZIP 유니코드 경로(0x7075) | 고치기가 원시 이름(CP949)으로 키를 만들어 목록 이름과 달라 '찾지 못했어요'·같은 이름을 묻지 않고 두 개 | 목록(SharpCompress)과 같게 첫 0x7075 의 UTF-8 이름을 키로 | `ArchiveEditReviewTests.유니코드_경로가_…`(4)·`유니코드_경로_ZIP을_고친_결과를_반디집이_푼다`, `MainViewModelEditTests.반디집_유니코드_경로_ZIP도_화면에서_고친다` |
+| 다시 넣는 동안 또 저장(I3-3) | 넣은 뒤 기준을 '지금 파일'로 잡아 그 사이 저장한 내용이 넣은 것으로 여겨져 사라짐 | 넣을 내용을 먼저 복사해 고정하고 그 바이트의 표로 기준을 잡음 — 또 바뀌었으면 바로 다시 묻기. [넣지 않기]는 물어본 내용만 | `EntryReinsertTests.넣는_동안_또_저장하면_…`(2)·`넣지_않기는_물어본_내용만_넘긴다` |
+| '기존 zip 고르기' | 없음 | `--add-to-pick 경로…` → 압축 고르기 창(ZIP·7Z), 고르지 않으면 조용히 | `CommandLineParserTests.add_to_pick은_…`, `MainViewModelEditTests.기존_압축_고르기로_넣으면_고른_압축에_넣는다` |
+| 7z.dll 을 못 불러온 PC 의 7z | '이 형식은 고칠 수 없어요'(7z 는 고칠 수 있는 형식 — 틀린 말) | '이 PC에서는 7Z 파일을 고치는 부품(7z.dll)을 불러오지 못해…', 다시 넣기 질문도 '이 PC에서는 7Z 파일을 고칠 수 없어요.' | `MainViewModelEditTests.막힌_PC에서는_7z를_…`, `EntryReinsertTests.막힌_PC에서는_7z_안의_…` |
+| 파일과 같은 이름의 폴더 넣기 | 파일 '보고서'와 폴더 '보고서/…'가 둘 다 생김(Windows 에 풀 수 없음) | 폴더째 '보고서 (1)' 로(한 넣기 안에서 같은 이름으로) | `ArchiveEditReviewTests.파일과_같은_이름의_폴더를_…`(2)·`비켜_넣기는_…` |
+| 원래부터 손상된 압축 | '고친 압축 파일을 검사했더니 맞지 않는 곳이 있어서…'(고치다 생긴 것처럼) | 검사가 실패하면 원본도 검사해 '원래 압축 파일에 이미 손상된 곳이 있어서 고치지 않았어요(고치다 생긴 문제가 아니에요)…' | `ArchiveEditReviewTests.원래부터_손상된_ZIP을_…` |
+| 연 뒤 지운·이름 바꾼 항목 다시 넣기, 넣기 실패 | '지우기 + 넣기'라 '찾지 못했어요' 오류, 고친 내용을 살릴 길 없음 | '바꿔 넣기'(`EditOp.Add.ReplaceExisting` — 있으면 묻지 않고 바꿈, 없으면 새로, 그 이름이 폴더면 비켜 넣기), 실패하면 '…넣지 못했어요. 고친 내용을 잃지 않게 다른 곳에 저장할까요?'(닫을 때는 [닫지 않기]) | `ArchiveEditReviewTests.바꿔_넣기는_…`(2), `EntryReinsertTests.연_뒤에_지운_항목도_…`(2)·`넣지_못하면_…` |
+| 잃어버린 갱신 | 읽은 뒤 다른 프로그램·다른 고치기가 원본을 바꿔도 덮어씀 | 읽기 시작할 때 잰 크기·수정 시각이 바꾸기 직전과 다르면 바꾸지 않고 '고치는 동안 다른 곳에서 이 압축 파일이 바뀌어서…', 같은 프로세스 안 바꾸기는 한 번에 하나 | `ArchiveEditReviewTests.고치는_사이에_원본이_바뀌면_…`(2)·`동시에_고쳐도_…` |
+
+고치지 않은 지적 1개: `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…` 가 바쁠 때 3027ms 로 실패 — W2-02 의 7z **만들기** 길(이번 고치기와 상관없음)이고, 한도를 늘리거나 Skip 하면 시험을 약하게 하는 것이라 그대로 둡니다(이미 `DisableParallelization` 묶음). 이번 전체 실행 두 번은 2770ms·1958ms 로 통과.
 
 ### W2-05 에서 고친 것(2026-10-13) — I1-5 같은 이름·I1-6 메인 창 없는 우클릭 풀기·I2-5 풀고 나서 지우기·I2-6 여러 개 풀기
 

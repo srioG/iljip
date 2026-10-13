@@ -57,9 +57,13 @@ public sealed class FakeUserInteraction : IUserInteraction
     public void ShowWarning(string message) => Warnings.Add(message);
     public void ShowInfo(string message) => Infos.Add(message);
 
+    /// <summary>선택 창이 뜰 때마다(답하기 전에) 문구로 부른다 — 묻는 동안 다른 일을 끼워 넣는 시험(W2-06: 묻는 동안 파일을 또 저장).</summary>
+    public Action<string>? OnChoicePrompt { get; set; }
+
     public int Choose(string message, IReadOnlyList<string> choices, int defaultIndex = 0)
     {
         ChoicePrompts.Add((message, choices.ToList(), defaultIndex));
+        OnChoicePrompt?.Invoke(message);
         if (ChoiceAnswers.Count > 0) return ChoiceAnswers.Dequeue();
         if (ChooseByLabel is { } label)
         {
@@ -91,9 +95,12 @@ public sealed class FakeUserInteraction : IUserInteraction
 
     public CompressionOptions? AskCompressionOptions(string targetExtension) => CompressionOptions;
 
+    /// <summary>진행 창이 보고를 받을 때마다 부른다(작업 스레드에서) — 진행 도중 다른 일을 끼워 넣는 시험(W2-06: 다시 넣는 도중 파일을 또 저장).</summary>
+    public Action<ArchiveProgress>? OnProgressReport { get; set; }
+
     public IProgressSession ShowProgress(string title)
     {
-        var session = new Session(CancelProgress, CancelOnFirstBytes);
+        var session = new Session(CancelProgress, CancelOnFirstBytes, p => OnProgressReport?.Invoke(p));
         ProgressSessions.Add(session.Recorder);
         return session;
     }
@@ -133,15 +140,30 @@ public sealed class FakeUserInteraction : IUserInteraction
 
     public void ShowSummary(OperationSummary summary) => Summaries.Add(summary);
 
+    // ───── W2-06: 글 한 줄 묻기(새 폴더 이름) ─────
+
+    /// <summary>글 묻기 창이 불린 기록(제목, 문구, 처음 글자).</summary>
+    public List<(string Title, string Message, string Initial)> TextPrompts { get; } = new();
+
+    /// <summary>글 묻기 창의 답(차례로, null = 취소). 비면 취소(null).</summary>
+    public Queue<string?> TextAnswers { get; } = new();
+
+    public string? AskText(string title, string message, string initialText)
+    {
+        TextPrompts.Add((title, message, initialText));
+        return TextAnswers.Count > 0 ? TextAnswers.Dequeue() : null;
+    }
+
     private sealed class Session : IProgressSession
     {
         private readonly CancellationTokenSource _cts = new();
 
-        public Session(bool cancelled, bool cancelOnFirstBytes)
+        public Session(bool cancelled, bool cancelOnFirstBytes, Action<ArchiveProgress>? onReport = null)
         {
             if (cancelled) _cts.Cancel();
             Recorder = new ProgressRecorder(p =>
             {
+                onReport?.Invoke(p);
                 if (cancelOnFirstBytes && p.BytesProcessed > 0) _cts.Cancel();
             });
         }

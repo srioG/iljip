@@ -191,6 +191,17 @@ public sealed class WpfUserInteraction : IUserInteraction
         dlg.ShowDialog();
     }
 
+    /// <summary>글 한 줄 묻기(W2-06 — 새 폴더 이름). 다른 스레드에서 불리면 UI 스레드로 넘긴다.</summary>
+    public string? AskText(string title, string message, string initialText)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => AskText(title, message, initialText));
+        var dlg = new TextPromptDialog(title, message, initialText);
+        Prepare(dlg);
+        return dlg.ShowDialog() == true ? dlg.Text : null;
+    }
+
     private sealed class Session : IProgressSession
     {
         private readonly ProgressDialog _dialog;

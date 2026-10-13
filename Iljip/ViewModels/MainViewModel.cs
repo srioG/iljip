@@ -60,6 +60,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsStagingMode));
         OnPropertyChanged(nameof(IsEmptyState));
         OnPropertyChanged(nameof(HasAnyContent));
+        OnPropertyChanged(nameof(CanEditArchive));   // W2-06
     }
 
     // ===== 모드 판별 =====
@@ -154,6 +155,10 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
+        // W2-06(I3-3): 다른 압축으로 바꾸기 전에 — 이 압축에서 연 파일을 고쳐 놓고 아직 넣지 않았으면 묻는다('나중에'의 다시 묻기)
+        if (IsArchiveMode && !string.Equals(Path.GetFullPath(archivePath), CurrentArchivePath is { } cur ? Path.GetFullPath(cur) : null, StringComparison.OrdinalIgnoreCase))
+            await AskPendingBeforeLeavingAsync();
+
         string? password = string.IsNullOrEmpty(knownPassword) ? null : knownPassword;
         StatusText = "압축 파일을 읽는 중...";
         while (true)
@@ -166,6 +171,8 @@ public partial class MainViewModel : ObservableObject
                 foreach (var e in entries)
                     Entries.Add(e);
 
+                if (!string.Equals(CurrentArchivePath, archivePath, StringComparison.OrdinalIgnoreCase))
+                    RetireWorkspace();   // W2-06: 앞 압축의 작업 폴더는 앱을 닫을 때까지 둔다(감시도 그대로)
                 CurrentArchivePath = archivePath;
                 _archivePassword = string.IsNullOrEmpty(password) ? null : password;
                 BuildFolderTree();
@@ -716,10 +723,13 @@ public partial class MainViewModel : ObservableObject
         return parent;
     }
 
-    /// <summary>현재 상태(압축 보기/스테이징)를 비우고 빈 상태로.</summary>
+    /// <summary>
+    /// 현재 상태(압축 보기/스테이징)를 비우고 빈 상태로. W2-06(I3-3): 압축을 닫기 전에 — 이 압축에서 연 파일을 고쳐 놓고 아직 넣지 않았으면 묻는다.
+    /// </summary>
     [RelayCommand]
-    private void Clear()
+    private async Task ClearAsync()
     {
+        if (IsArchiveMode) await AskPendingBeforeLeavingAsync();
         CloseView();
         StatusText = "준비됨";
     }
@@ -727,6 +737,7 @@ public partial class MainViewModel : ObservableObject
     /// <summary>보던 압축·모으던 목록을 모두 비운다(상태 줄은 그대로).</summary>
     private void CloseView()
     {
+        RetireWorkspace();   // W2-06: 작업 폴더는 앱을 닫을 때까지 둔다
         Entries.Clear();
         CurrentArchivePath = null;
         _archivePassword = null;
@@ -773,7 +784,8 @@ public partial class MainViewModel : ObservableObject
         if (paths.Count == 0) return;
 
         var state = IsArchiveMode ? ViewState.Archive : IsStagingMode ? ViewState.Staging : ViewState.Empty;
-        var decision = DropPolicy.Decide(state, paths, IsArchiveFileByExtension);
+        // W2-06(I2-3): 고칠 수 있는 압축(ZIP·7z)을 보는 중이면 [이 압축 파일에 넣기]도
+        var decision = DropPolicy.Decide(state, paths, IsArchiveFileByExtension, archiveEditable: CanEditArchive);
         var choice = decision.Kind switch
         {
             DropDecisionKind.OpenDirect => DropChoice.OpenArchive,
@@ -791,6 +803,9 @@ public partial class MainViewModel : ObservableObject
                 break;
             case DropChoice.NewStaging:
                 StartNewStaging(paths);
+                break;
+            case DropChoice.AddToArchive:
+                await AddPathsToArchiveAsync(paths);   // 지금 보는 폴더에
                 break;
             default:
                 break;   // 취소 — 아무것도 바꾸지 않는다

@@ -1,9 +1,14 @@
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Iljip.Models;
+using Iljip.Services;
 using Iljip.ViewModels;
 
 namespace Iljip;
@@ -14,6 +19,34 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closing += Window_Closing;
+        Closed += (_, _) => ViewModel?.Shutdown();   // W2-06: 연 파일 감시를 멈추고 임시 작업 폴더를 지운다
+    }
+
+    /// <summary>W2-06(I3-3): 고친 파일을 다시 넣을지 물은 뒤 닫기로 했다(두 번째 Close 는 묻지 않음).</summary>
+    private bool _exitConfirmed;
+
+    /// <summary>
+    /// 창 닫기(W2-06, I3-3): 압축 속에서 연 파일을 고쳐 놓고 아직 넣지 않았으면 하나씩 묻는다([넣기][넣지 않기(닫기)][취소]).
+    /// 묻는 동안은 닫기를 멈추고, 다 끝나면 다시 닫는다. [취소]면 닫지 않는다.
+    /// </summary>
+    private async void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_exitConfirmed || ViewModel is not { HasOpenedEntries: true } vm) return;
+        e.Cancel = true;
+        bool close;
+        try
+        {
+            close = await vm.ConfirmExitAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("닫기 전 고친 파일 확인 실패", ex);
+            close = true;
+        }
+        if (!close) return;
+        _exitConfirmed = true;
+        Close();
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
@@ -99,15 +132,125 @@ public partial class MainWindow : Window
             vm.SelectedFolder = node;
     }
 
-    /// <summary>목록에서 폴더를 더블클릭하면 그 폴더로 진입.</summary>
-    private void EntriesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    /// <summary>목록에서 폴더를 더블클릭하면 그 폴더로 진입. 파일이면 꺼내서 기본 프로그램으로 연다(I1-3 — W2-06 이 최소로 들임).</summary>
+    private async void EntriesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel is not { IsArchiveMode: true } vm) return;
+        if (e.OriginalSource is DependencyObject src && FindParent<DataGridColumnHeader>(src) is not null) return;   // 열 머리 두 번 누르기
         if (EntriesGrid.SelectedItem is ArchiveEntry { IsDirectory: true } entry)
         {
             vm.NavigateToFolder(entry.Path);
             e.Handled = true;
         }
+        else if (EntriesGrid.SelectedItem is ArchiveEntry file)
+        {
+            e.Handled = true;
+            await vm.OpenEntryAsync(file);
+        }
+    }
+
+    /// <summary>우클릭 메뉴 → 열기(파일은 기본 프로그램으로, 폴더는 들어감).</summary>
+    private async void OpenSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { IsArchiveMode: true } vm) return;
+        if (EntriesGrid.SelectedItem is ArchiveEntry entry) await vm.OpenEntryAsync(entry);
+    }
+
+    // ───── W2-06(I2-3) 압축 고치기: 지우기(Del)·이름 바꾸기(F2 — 목록 안에서) ─────
+
+    /// <summary>[지우기]·우클릭 '지우기': 고른 항목을 압축 파일에서 지운다(VM 이 먼저 묻는다).</summary>
+    private async void DeleteSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { IsArchiveMode: true } vm) return;
+        var selected = EntriesGrid.SelectedItems.OfType<ArchiveEntry>().ToList();
+        if (selected.Count == 0)
+        {
+            vm.StatusText = "지울 항목을 먼저 골라 주세요";
+            return;
+        }
+        await vm.DeleteEntriesAsync(selected);
+    }
+
+    /// <summary>[이름 바꾸기]·우클릭 '이름 바꾸기': 고른 항목 하나의 이름 칸을 바로 고칠 수 있게 연다(F2 와 같음).</summary>
+    private void RenameSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { IsArchiveMode: true } vm) return;
+        if (EntriesGrid.SelectedItem is not ArchiveEntry entry)
+        {
+            vm.StatusText = "이름을 바꿀 항목을 먼저 골라 주세요";
+            return;
+        }
+        StartRename(vm, entry);
+    }
+
+    /// <summary>이름 바꾸기를 우리가 시작했는가 — 그 밖의 편집(글자 입력·두 번 누르기)은 막는다.</summary>
+    private bool _renameRequested;
+
+    /// <summary>이름 칸을 편집 상태로(고칠 수 없는 형식이면 VM 이 '이 형식은 고칠 수 없어요' 안내).</summary>
+    private void StartRename(MainViewModel vm, ArchiveEntry entry)
+    {
+        if (!vm.CheckEditable()) return;
+        EntriesGrid.SelectedItem = entry;
+        EntriesGrid.ScrollIntoView(entry);
+        EntriesGrid.CurrentCell = new DataGridCellInfo(entry, ColName);
+        EntriesGrid.Focus();
+        _renameRequested = true;
+        try
+        {
+            EntriesGrid.BeginEdit();
+        }
+        finally
+        {
+            _renameRequested = false;
+        }
+    }
+
+    /// <summary>편집은 이름 바꾸기(F2·메뉴)로 시작한 것만 — 글자를 치거나 고른 칸을 다시 눌러 편집이 시작되지 않게.</summary>
+    private void EntriesGrid_BeginningEdit(object? sender, DataGridBeginningEditEventArgs e)
+    {
+        if (!_renameRequested || ViewModel is not { IsArchiveMode: true } || e.Column != ColName) e.Cancel = true;
+    }
+
+    /// <summary>이름 칸이 열리면 글자 칸에 포커스, 확장자 앞까지 골라 둔다(탐색기와 같게).</summary>
+    private void RenameBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        box.Focus();
+        string text = box.Text;
+        string ext = Path.GetExtension(text);
+        bool isDir = box.DataContext is ArchiveEntry { IsDirectory: true };
+        int stem = !isDir && ext.Length > 0 && ext.Length < text.Length ? text.Length - ext.Length : text.Length;
+        box.Select(0, stem);
+    }
+
+    /// <summary>
+    /// 이름 칸을 마쳤을 때(Enter·다른 곳 누르기 = 확정, Esc = 취소): 확정이면 VM 이 압축 안 이름을 바꾸고 목록을 다시 읽는다.
+    /// 목록을 다시 읽기 전에 편집을 먼저 끝낸다(Dispatcher.Yield — 편집 중에 목록을 비우면 DataGrid 가 예외를 냄).
+    /// </summary>
+    private async void EntriesGrid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        if (e.Row.Item is not ArchiveEntry entry || ViewModel is not { } vm) return;
+        string text = FindChild<TextBox>(e.EditingElement)?.Text ?? string.Empty;
+        await Dispatcher.Yield(DispatcherPriority.Background);
+        await vm.RenameEntryAsync(entry, text);
+    }
+
+    private static T? FindChild<T>(DependencyObject? root) where T : DependencyObject
+    {
+        if (root is null) return null;
+        if (root is T hit) return hit;
+        int n = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < n; i++)
+            if (FindChild<T>(VisualTreeHelper.GetChild(root, i)) is { } found) return found;
+        return null;
+    }
+
+    private static T? FindParent<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node is not null and not T)
+            node = node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+        return node as T;
     }
 
     /// <summary>우클릭 메뉴 → 선택한 항목만 압축 풀기.</summary>
@@ -120,11 +263,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 목록에서 Delete 키 → 스테이징(압축 대기) 모드일 때만 선택 항목 제거.
-    /// 압축 파일을 열어 보는 중에는 무시한다.
+    /// 목록에서 Delete 키 → 스테이징(압축 대기) 모드면 선택 항목을 목록에서 뺀다.
+    /// W2-06: 압축 파일을 보는 중이면 Del = 압축 파일에서 지우기(VM 이 먼저 묻는다), F2 = 이름 바꾸기, Enter = 열기.
+    /// 이름 칸을 고치는 중(글자 칸)의 키는 그 칸에 맡긴다.
     /// </summary>
-    private void EntriesGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    private async void EntriesGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.OriginalSource is TextBox) return;
+        if (ViewModel is { IsArchiveMode: true } avm)
+        {
+            if (e.Key == Key.Delete)
+            {
+                var picked = EntriesGrid.SelectedItems.OfType<ArchiveEntry>().ToList();
+                e.Handled = true;
+                if (picked.Count > 0) await avm.DeleteEntriesAsync(picked);
+            }
+            else if (e.Key == Key.F2 && EntriesGrid.SelectedItem is ArchiveEntry one)
+            {
+                e.Handled = true;
+                StartRename(avm, one);
+            }
+            else if (e.Key == Key.Enter && EntriesGrid.SelectedItem is ArchiveEntry target)
+            {
+                e.Handled = true;
+                await avm.OpenEntryAsync(target);
+            }
+            return;
+        }
         if (e.Key != Key.Delete) return;
         if (ViewModel is not { IsStagingMode: true } vm) return;
 

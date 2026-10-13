@@ -22,6 +22,8 @@ public enum DropChoice
     NewStaging,
     /// <summary>아무것도 안 한다.</summary>
     Cancel,
+    /// <summary>지금 보는 압축 파일(ZIP·7z)에 넣는다(W2-06 — 압축 고치기 I2-3).</summary>
+    AddToArchive,
 }
 
 public enum DropDecisionKind
@@ -62,13 +64,31 @@ public sealed record DropDecision(DropDecisionKind Kind, string? Message, IReadO
 /// <item>압축할 목록을 모으는 중 + 일반 파일 → 바로 더한다(예전과 같음). + 압축 파일 1개 → [이 압축 파일 열기] [압축할 목록에 넣기] [취소].</item>
 /// <item>압축을 보는 중 + 무엇이든 → [새로 압축할 목록 만들기] [취소]. 압축 파일 1개면 맨 앞에 [이 압축 파일 열기].</item>
 /// </list>
-/// '열린 압축에 추가'는 압축 고치기(I2-3)가 없어 넣지 않는다.
+/// W2-06(I2-3): 보는 압축을 고칠 수 있으면(ZIP·7z — <see cref="ArchiveServiceLocator.EditorFor"/>) 맨 앞에 [이 압축 파일에 넣기]를 더하고
+/// '…이 압축 파일에 넣을까요?'로 묻는다(<see cref="Decide(ViewState, IReadOnlyList{string}, Func{string, bool}, bool)"/>). 기본 버튼은 여전히 [취소].
 /// 압축 파일인지는 <paramref name="isArchiveFile"/>(화면은 '있는 파일 + 확장자'로 — 내용은 보지 않는다. 속이 ZIP 인 .docx 는 압축할 파일)로 판단한다.
 /// </summary>
 public static class DropPolicy
 {
     public const string AskWhileStaging = "압축할 목록을 모으는 중이에요. 끌어 온 압축 파일을 어떻게 할까요?";
     public const string AskWhileArchive = "지금 압축 파일을 보고 있어요. 끌어 온 파일을 어떻게 할까요?";
+
+    /// <summary>고칠 수 있는 압축(ZIP·7z)을 보는 중에 끌어 놓았을 때(W2-06).</summary>
+    public const string AskWhileEditableArchive = "지금 압축 파일을 보고 있어요. 끌어 온 파일을 이 압축 파일에 넣을까요?";
+
+    /// <summary>
+    /// <paramref name="archiveEditable"/>: 보는 압축을 고칠 수 있는가(W2-06). 압축을 보는 중이고 고칠 수 있으면 맨 앞에 [이 압축 파일에 넣기]
+    /// (+ 압축 파일 1개면 [이 압축 파일 열기]) [새로 압축할 목록 만들기] [취소]. 그 밖은 <see cref="Decide(ViewState, IReadOnlyList{string}, Func{string, bool})"/> 와 같다.
+    /// </summary>
+    public static DropDecision Decide(ViewState state, IReadOnlyList<string> paths, Func<string, bool> isArchiveFile, bool archiveEditable)
+    {
+        if (state != ViewState.Archive || !archiveEditable) return Decide(state, paths, isArchiveFile);
+        bool singleArchive = paths.Count == 1 && isArchiveFile(paths[0]);
+        return new DropDecision(DropDecisionKind.Ask, AskWhileEditableArchive,
+            singleArchive
+                ? new[] { DropChoice.AddToArchive, DropChoice.OpenArchive, DropChoice.NewStaging, DropChoice.Cancel }
+                : new[] { DropChoice.AddToArchive, DropChoice.NewStaging, DropChoice.Cancel });
+    }
 
     public static DropDecision Decide(ViewState state, IReadOnlyList<string> paths, Func<string, bool> isArchiveFile)
     {
@@ -100,6 +120,7 @@ public static class DropPolicy
             : "이 압축 파일 열기 (보던 압축은 닫혀요)",
         DropChoice.AddToStaging => "압축할 목록에 넣기",
         DropChoice.NewStaging => "새로 압축할 목록 만들기 (보던 압축은 닫혀요)",
+        DropChoice.AddToArchive => "이 압축 파일에 넣기",
         _ => "취소",
     };
 }

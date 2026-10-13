@@ -38,6 +38,11 @@ public static class AppPaths
     /// <summary>압축된 tar 목록 캐시를 두는 곳(<c>Root\temp\list</c> — W2-01).</summary>
     public static string ListCacheRoot => Path.Combine(TempRoot, "list");
 
+    // ───── W2-06(I3-3 고친 파일 다시 넣기)에서 더한 것 — W2-04 보관본과 같은 이름·자리 ─────
+
+    /// <summary>압축 안 파일을 열 때 꺼내 두는 곳(<c>temp\open\&lt;key16&gt;\&lt;순번&gt;\</c> — <see cref="ArchiveWorkspace"/>).</summary>
+    public static string OpenRoot => Path.Combine(TempRoot, "open");
+
     /// <summary>설정 파일(<c>Root\settings.json</c> — 설계 §4, W2-05 에서 처음 씀). 로그와 같은 곳이라 OneDrive·로밍과 무관하다.</summary>
     public static string SettingsFile => Path.Combine(Root, "settings.json");
 

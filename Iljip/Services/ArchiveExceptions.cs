@@ -305,3 +305,42 @@ public sealed class SplitSizeTooSmallException : ArchiveException
     {
     }
 }
+
+// ───── W2-06(기존 압축 고치기·압축 속 파일 고쳐 다시 넣기 — I2-3·I3-3)에서 더한 것 ─────
+
+/// <summary>
+/// 이 형식(또는 이 압축 파일의 모양)은 고칠 수 없다 — RAR·EGG·TAR·ISO 등, 나뉜 ZIP·7Z, 앞에 실행 파일이 붙은 ZIP, PKWARE 강한 암호 ZIP.
+/// 원본은 건드리지 않는다. ZIP 이나 7Z 로 다시 압축하면 고칠 수 있다.
+/// </summary>
+public sealed class ArchiveNotEditableException : ArchiveException
+{
+    public const string DefaultMessage = "이 형식은 고칠 수 없어요. ZIP이나 7Z로 다시 압축하면 고칠 수 있어요.";
+
+    /// <summary>
+    /// 7z 인데 이 PC 에서 7z.dll 을 못 불러올 때(보안 프로그램이 막음 등) — '7Z로 다시 압축하면'은 맞지 않는 안내라 따로(W2-06 검증 지적).
+    /// </summary>
+    public const string SevenZipEngineMessage =
+        "이 PC에서는 7Z 파일을 고치는 부품(7z.dll)을 불러오지 못해 고칠 수 없어요. 보안 프로그램이 막았을 수 있어요. 일집을 다시 설치하거나 담당자에게 알려 주세요.";
+
+    public ArchiveNotEditableException(Exception? inner = null)
+        : base(DefaultMessage, inner)
+    {
+    }
+
+    public ArchiveNotEditableException(string message, Exception? inner = null)
+        : base(message, inner)
+    {
+    }
+}
+
+/// <summary>
+/// 압축 고치기(넣기·지우기·이름 바꾸기·새 폴더)를 할 수 없는 요청이거나, 고친 결과를 검사해 보니 기대와 달라 원본을 그대로 둔 경우.
+/// Message 가 화면 문구다(같은 이름이 이미 있음·찾지 못함·이름에 못 쓰는 글자 등). 원본은 늘 그대로다.
+/// </summary>
+public sealed class ArchiveEditException : ArchiveException
+{
+    public ArchiveEditException(string message, Exception? inner = null, string? entryPath = null)
+        : base(message, inner, entryPath)
+    {
+    }
+}

@@ -19,10 +19,15 @@ public enum CommandVerb
     Compress,
     /// <summary>키워드 없이 경로만 — 끌어 놓기와 같게.</summary>
     Paths,
+    /// <summary>
+    /// --add-to &lt;압축&gt; &lt;경로…&gt; : 그 압축 파일(ZIP·7z)에 경로들을 넣는다(W2-06 — 탐색기 우클릭 'zip에 추가'). 메인 창 없이 진행 창만, 끝나면 짧은 안내.
+    /// --add-to-pick &lt;경로…&gt; 도 이 동사(<see cref="ParsedCommand.Archive"/> = null) — 넣을 압축 파일을 고르는 창부터('zip에 추가(기존 zip 고르기)').
+    /// </summary>
+    AddTo,
 }
 
 /// <summary>
-/// 해석 결과. <see cref="Paths"/> 는 <see cref="CommandVerb.Compress"/>·<see cref="CommandVerb.Paths"/> 일 때만 찬다.
+/// 해석 결과. <see cref="Paths"/> 는 <see cref="CommandVerb.Compress"/>·<see cref="CommandVerb.Paths"/>·<see cref="CommandVerb.AddTo"/>(넣을 경로 — W2-06) 일 때만 찬다.
 /// <see cref="Archive"/> 는 압축 파일 하나(여러 개면 첫 번째 — 예전 호출과 호환), <see cref="Archives"/> 는 전부(W2-05).
 /// </summary>
 public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? Dest, IReadOnlyList<string> Paths)
@@ -35,8 +40,9 @@ public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? De
     /// <summary>
     /// 메인 창을 띄울 명령인가(I1-6, W2-05). 탐색기 우클릭 풀기 동사('여기에 풀기'·'"이름"\ 에 풀기'·대화형 '--extract-to')는
     /// 메인 창 없이 진행 창만 — 일집이 이미 떠 있어도 메인 창을 앞으로 가져오지 않는다. 그 밖(열기·풀기 창·압축·경로)은 메인 창.
+    /// W2-06: '--add-to'(압축 파일에 넣기)도 메인 창 없이.
     /// </summary>
-    public bool ShowMainWindow => Verb is not (CommandVerb.ExtractHere or CommandVerb.ExtractToFolder or CommandVerb.ExtractTo);
+    public bool ShowMainWindow => Verb is not (CommandVerb.ExtractHere or CommandVerb.ExtractToFolder or CommandVerb.ExtractTo or CommandVerb.AddTo);
 }
 
 /// <summary>
@@ -56,10 +62,19 @@ public static class CommandLineParser
     public const string ExtractToKeyword = "--extract-to";
     public const string CompressKeyword = "--compress";
 
+    /// <summary>압축 파일에 넣기(W2-06): '--add-to 압축 경로…'.</summary>
+    public const string AddToKeyword = "--add-to";
+
+    /// <summary>
+    /// 기존 압축 파일을 골라 넣기(W2-06 — 탐색기 우클릭 'zip에 추가(기존 zip 고르기)'): '--add-to-pick 경로…'. 일집이 ZIP·7Z 고르는 창을 띄운다
+    /// (셸 메뉴가 따로 파일 고르는 창을 만들지 않아도 되게).
+    /// </summary>
+    public const string AddToPickKeyword = "--add-to-pick";
+
     /// <summary>알아보는 키워드 전부(셸 확장 계약 확인용).</summary>
     public static IReadOnlyList<string> Keywords { get; } = new[]
     {
-        OpenKeyword, ExtractKeyword, ExtractHereKeyword, ExtractToFolderKeyword, ExtractToKeyword, CompressKeyword,
+        OpenKeyword, ExtractKeyword, ExtractHereKeyword, ExtractToFolderKeyword, ExtractToKeyword, CompressKeyword, AddToKeyword, AddToPickKeyword,
     };
 
     public static ParsedCommand Parse(string[]? args)
@@ -90,6 +105,21 @@ public static class CommandLineParser
                 return args.Length >= 3 && !string.IsNullOrEmpty(args[1]) && !string.IsNullOrWhiteSpace(args[2])
                     ? new ParsedCommand(CommandVerb.ExtractTo, args[1], args[2], Array.Empty<string>())
                     : ParsedCommand.None;
+
+            case AddToKeyword:
+                {
+                    // W2-06: 첫 인자가 넣을 압축 파일, 나머지(빈 문자열 뺌)가 넣을 경로. 넣을 경로가 없으면 None.
+                    if (args.Length < 3 || string.IsNullOrEmpty(args[1])) return ParsedCommand.None;
+                    var items = args.Skip(2).Where(a => !string.IsNullOrEmpty(a)).ToList();
+                    return items.Count > 0 ? new ParsedCommand(CommandVerb.AddTo, args[1], null, items) : ParsedCommand.None;
+                }
+
+            case AddToPickKeyword:
+                {
+                    // W2-06: 넣을 경로만(빈 문자열 뺌) — 압축 파일은 일집이 고르는 창으로 묻는다(Archive = null). 넣을 경로가 없으면 None.
+                    var items = args.Skip(1).Where(a => !string.IsNullOrEmpty(a)).ToList();
+                    return items.Count > 0 ? new ParsedCommand(CommandVerb.AddTo, null, null, items) : ParsedCommand.None;
+                }
 
             case CompressKeyword:
                 {

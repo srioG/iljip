@@ -184,4 +184,34 @@ public sealed class ArchiveServiceLocator
         filters.Add("BZIP2 압축 파일 (*.bz2)|*.bz2");
         return string.Join("|", filters);
     }
+
+    // ───── W2-06(I2-3 압축 고치기)에서 더한 것 ─────
+
+    /// <summary>
+    /// 이 압축 파일을 고치는 편집기(확장자만 본다 — 파일을 읽지 않음). 고칠 수 없는 형식이면 null — 화면은 <see cref="ArchiveNotEditableException"/> 문구.
+    /// <list type="bullet">
+    /// <item>.zip(나뉘지 않은 것 — .zip.001·.z01 나눔 제외) → <see cref="Editing.ZipArchiveEditor"/>(앞에 실행 파일이 붙은 ZIP 은 고칠 때 알아내 거절).</item>
+    /// <item>.7z(.7z.001 나눔 제외, 7z.dll 을 쓸 수 있을 때) → <see cref="Editing.SevenZipArchiveEditor"/>.</item>
+    /// <item>그 밖(RAR·EGG·ALZ·TAR·GZ·ISO·자동 풀림 exe·속이 ZIP 인 문서 .docx 등) → null.</item>
+    /// </list>
+    /// </summary>
+    public static Editing.IArchiveEditor? EditorFor(string? archivePath)
+    {
+        if (string.IsNullOrEmpty(archivePath)) return null;
+        if (Editing.ZipArchiveEditor.IsEditablePath(archivePath)) return new Editing.ZipArchiveEditor();
+        if (Editing.SevenZipArchiveEditor.IsEditablePath(archivePath)) return new Editing.SevenZipArchiveEditor();
+        return null;
+    }
+
+    /// <summary>이 압축 파일을 고칠 수 있는가(<see cref="EditorFor"/> 가 null 이 아님).</summary>
+    public static bool CanEdit(string? archivePath) => EditorFor(archivePath) is not null;
+
+    /// <summary>
+    /// 고칠 수 없을 때의 안내: 7z(나뉘지 않은 .7z)인데 7z.dll 을 못 불러온 PC 면 그 이유(<see cref="ArchiveNotEditableException.SevenZipEngineMessage"/>),
+    /// 그 밖은 '이 형식은 고칠 수 없어요. ZIP이나 7Z로 다시 압축하면…'.
+    /// </summary>
+    public static string NotEditableMessage(string? archivePath) =>
+        archivePath is not null && archivePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) && !SevenZipLibrary.IsAvailable
+            ? ArchiveNotEditableException.SevenZipEngineMessage
+            : ArchiveNotEditableException.DefaultMessage;
 }

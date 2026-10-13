@@ -85,11 +85,15 @@ public class CommandLineParserTests
         Assert.Equal(args, cmd.Paths);
     }
 
-    /// <summary>알아보는 키워드 목록(셸 확장 계약 확인에 씀)은 각각 해석된다.</summary>
+    /// <summary>
+    /// 알아보는 키워드 목록(셸 확장 계약 확인에 씀)은 각각 해석된다. W2-06 에서 '--add-to'(압축 파일에 넣기)·'--add-to-pick'(기존 압축을 골라 넣기 — 검증 지적)을 더해 8개.
+    /// </summary>
     [Fact]
     public void 키워드_목록은_모두_해석된다()
     {
-        Assert.Equal(6, CommandLineParser.Keywords.Count);
+        Assert.Equal(8, CommandLineParser.Keywords.Count);
+        Assert.Contains(CommandLineParser.AddToKeyword, CommandLineParser.Keywords);
+        Assert.Contains(CommandLineParser.AddToPickKeyword, CommandLineParser.Keywords);
         foreach (var k in CommandLineParser.Keywords)
         {
             var cmd = CommandLineParser.Parse(new[] { k, "a.zip", "dest" });
@@ -134,6 +138,8 @@ public class CommandLineParserTests
     [InlineData(false, "--extract-here", "a.zip")]
     [InlineData(false, "--extract-to-folder", "a.zip", "b.zip")]
     [InlineData(false, "--extract-to", "a.zip", @"C:\풀 곳")]
+    [InlineData(false, "--add-to", "a.zip", "x.txt")]   // W2-06: 우클릭 'zip에 추가'도 메인 창 없이
+    [InlineData(true, "--add-to", "a.zip")]             // 넣을 것이 없음 = None → 메인 창
     [InlineData(true, "--open", "a.zip")]
     [InlineData(true, "--extract", "a.zip")]
     [InlineData(true, "--compress", "a.txt")]
@@ -143,5 +149,49 @@ public class CommandLineParserTests
     public void 우클릭_풀기만_메인_창_없이(bool showMainWindow, params string[] args)
     {
         Assert.Equal(showMainWindow, CommandLineParser.Parse(args).ShowMainWindow);
+    }
+
+    /// <summary>
+    /// W2-06(I2-3): '--add-to 압축 경로…' — 첫 인자가 넣을 압축 파일, 나머지(빈 문자열 뺌)가 넣을 경로. 넣을 경로가 없거나 압축 파일이 비면 None.
+    /// 키워드는 대소문자를 가린다('--ADD-TO' 는 경로 목록 — 다른 키워드와 같은 규칙).
+    /// </summary>
+    [Fact]
+    public void add_to는_압축_하나와_넣을_경로들()
+    {
+        var cmd = CommandLineParser.Parse(new[] { "--add-to", @"C:\받은 파일\a.zip", @"C:\자료\x.txt", "", @"C:\자료\폴더 y" });
+        Assert.Equal(CommandVerb.AddTo, cmd.Verb);
+        Assert.Equal(@"C:\받은 파일\a.zip", cmd.Archive);
+        Assert.Equal(new[] { @"C:\자료\x.txt", @"C:\자료\폴더 y" }, cmd.Paths);
+        Assert.Null(cmd.Dest);
+        Assert.False(cmd.ShowMainWindow);
+
+        var simple = CommandLineParser.Parse(new[] { "--add-to", "a.zip", "x", "y" });
+        Assert.Equal(CommandVerb.AddTo, simple.Verb);
+        Assert.Equal("a.zip", simple.Archive);
+        Assert.Equal(new[] { "x", "y" }, simple.Paths);
+
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to", "a.zip" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to", "", "x" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to", "a.zip", "" }).Verb);
+        Assert.Equal(CommandVerb.Paths, CommandLineParser.Parse(new[] { "--ADD-TO", "a.zip", "x" }).Verb);
+    }
+
+    /// <summary>
+    /// W2-06 검증 지적(우클릭 'zip에 추가(기존 zip 고르기)'): '--add-to-pick 경로…' — 넣을 경로만 받고 압축 파일은 비워 둔다(일집이 고르는 창으로 묻는다).
+    /// 같은 동사(AddTo)라 메인 창 없이. 넣을 경로가 없으면 None. '--add-to' 와 섞이지 않는다(통째로 같은지로만 비교).
+    /// </summary>
+    [Fact]
+    public void add_to_pick은_넣을_경로만_받고_압축은_고르게_한다()
+    {
+        var cmd = CommandLineParser.Parse(new[] { "--add-to-pick", @"C:\자료\x.txt", "", @"C:\자료\폴더 y" });
+        Assert.Equal(CommandVerb.AddTo, cmd.Verb);
+        Assert.Null(cmd.Archive);
+        Assert.Empty(cmd.Archives);
+        Assert.Equal(new[] { @"C:\자료\x.txt", @"C:\자료\폴더 y" }, cmd.Paths);
+        Assert.False(cmd.ShowMainWindow);
+
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to-pick" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to-pick", "" }).Verb);
+        Assert.Equal("a.zip", CommandLineParser.Parse(new[] { "--add-to", "a.zip", "x" }).Archive);
     }
 }

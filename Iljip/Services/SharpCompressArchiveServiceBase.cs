@@ -410,6 +410,88 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     }
 
     /// <summary>
+    /// 시험(W2-06 — 고친 압축을 바꿔 넣기 전 검사): 고른 항목을 끝까지 풀어 보기만 한다(디스크에 쓰지 않음). 해제와 같은 준비
+    /// (<see cref="PrepareExtract"/> — 한글 암호 바이트·WinZip AES 직접 풀기·CRC 확인)를 쓰므로 해제가 알아챌 손상은 여기서도 알아챈다.
+    /// 틀리면 해제와 같은 일집 예외. 확인한 파일 수를 돌려준다.
+    /// </summary>
+    /// <param name="include">시험할 항목(목록 이름 기준). 암호를 모를 때 암호 항목을 빼는 데 쓴다.</param>
+    /// <param name="onTestedBytes">지금까지 풀어 본 바이트(풀린 크기, 누적)를 읽을 때마다 알린다(진행 창 — W2-06 검증 지적 2차: ZIP 검사 동안 막대가 멈춰 보임). 다른 후보 암호로 다시 시험하면 0 부터 다시 센다.</param>
+    internal int TestEntriesSync(string archivePath, string? password, Func<string, bool> include, CancellationToken cancellationToken, Action<long>? onTestedBytes = null)
+    {
+        ExtractPlan plan;
+        try
+        {
+            plan = PrepareExtract(archivePath, password, include);
+        }
+        catch (Exception ex) when (ex is not ArchiveException && TranslateError(ex, archivePath, password, null, null) is { } translated)
+        {
+            throw translated;
+        }
+        try
+        {
+            return TestWithPlan(plan, archivePath, include, password, cancellationToken, onTestedBytes);
+        }
+        catch (ArchiveException ex) when (plan.Alternate is not null && ex is ArchivePasswordException or CorruptArchiveException)
+        {
+            return TestWithPlan(plan.Alternate, archivePath, include, password, cancellationToken, onTestedBytes);
+        }
+    }
+
+    private int TestWithPlan(ExtractPlan plan, string archivePath, Func<string, bool> include, string? password, CancellationToken cancellationToken, Action<long>? onTestedBytes)
+    {
+        IArchiveEntry? current = null;
+        string? currentPath = null;
+        int checkedFiles = 0;
+        try
+        {
+            using var archive = OpenForRead(archivePath, plan.Options);
+            var entries = archive.Entries.ToList();
+            var buffer = new byte[81920];
+            long tested = 0;
+            for (int index = 0; index < entries.Count; index++)
+            {
+                var entry = entries[index];
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.IsDirectory) continue;
+                string path = MapEntryKey(archivePath, entry.Key);
+                if (!include(path)) continue;
+                current = entry;
+                currentPath = path;
+                if (string.IsNullOrEmpty(plan.Options.Password) && entry.Size > 0 && IsEncrypted(entry))
+                    throw new PasswordRequiredException(entryPath: path);
+                var crc = plan.VerifyCrc ? new Crc32() : null;
+                using (var input = plan.OpenOverride?.Invoke(index, entry) ?? OpenEntryData(archivePath, entry))
+                {
+                    int read;
+                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        crc?.Update(new ArraySegment<byte>(buffer, 0, read));
+                        if (onTestedBytes is not null)
+                        {
+                            tested += read;
+                            onTestedBytes(tested);
+                        }
+                    }
+                }
+                if (crc is not null) VerifyCrc(entry, path, (uint)crc.Value, plan.PasswordConfirmed);
+                checkedFiles++;
+                current = null;
+                currentPath = null;
+            }
+            return checkedFiles;
+        }
+        catch (Exception ex)
+        {
+            var translated = ex as ArchiveException ?? TranslateError(ex, archivePath, password, current, currentPath);
+            if (plan.PasswordConfirmed && translated is WrongPasswordException { MayBeCorrupt: true } maybe)
+                translated = new CorruptArchiveException(ex, maybe.EntryPath ?? currentPath);
+            if (translated is null || ReferenceEquals(translated, ex)) throw;
+            throw translated;
+        }
+    }
+
+    /// <summary>
     /// B4: 풀린 내용의 CRC-32 를 항목에 적힌 값과 비교한다. WinZip AES 의 AE-2(암호 항목인데 CRC 칸이 0)는 CRC 를 적지 않으므로 건너뛴다
     /// (그 무결성은 AES 인증값이 맡음 — <see cref="WinZipAes"/>). 크기 0 항목은 CRC 0 과 비교된다(빈 내용의 CRC 가 0).
     /// 틀리면 손상. 단 암호 항목인데 판정이 암호를 충분히 확인하지 못했으면(<paramref name="passwordConfirmed"/> 아님 — ZipCrypto 항목 하나뿐 등)

@@ -52,7 +52,8 @@
 
                     <Button Style="{StaticResource ToolbarButton}" Command="{Binding AddFilesCommand}"
                             ToolTip="압축할 파일 추가"
-                            IsEnabled="{Binding IsArchiveMode, Converter={x:Static conv:NotBoolConverter.Instance}}">
+                            IsEnabled="{Binding IsArchiveMode, Converter={x:Static conv:NotBoolConverter.Instance}}"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconFileAdd}" Style="{StaticResource ToolIcon}" />
                             <TextBlock Text="파일 추가" Margin="7,0,0,0" VerticalAlignment="Center" />
@@ -61,7 +62,8 @@
 
                     <Button Style="{StaticResource ToolbarButton}" Command="{Binding AddFolderCommand}"
                             ToolTip="압축할 폴더 추가"
-                            IsEnabled="{Binding IsArchiveMode, Converter={x:Static conv:NotBoolConverter.Instance}}">
+                            IsEnabled="{Binding IsArchiveMode, Converter={x:Static conv:NotBoolConverter.Instance}}"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconFolderAdd}" Style="{StaticResource ToolIcon}" />
                             <TextBlock Text="폴더 추가" Margin="7,0,0,0" VerticalAlignment="Center" />
@@ -70,10 +72,48 @@
 
                     <Button Style="{StaticResource ToolbarButton}" Command="{Binding CompressCommand}"
                             ToolTip="담은 항목을 압축 (Ctrl+N)"
-                            IsEnabled="{Binding IsStagingMode}">
+                            IsEnabled="{Binding IsStagingMode}"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconArchive}" Style="{StaticResource ToolIcon}" />
                             <TextBlock Text="압축 실행" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- W2-06(I2-3): 압축 파일을 보는 중에는 고치기 단추(ZIP·7z — 그 밖의 형식은 누르면 '이 형식은 고칠 수 없어요' 안내) -->
+                    <Button Style="{StaticResource ToolbarButton}" Command="{Binding AddFilesToArchiveCommand}"
+                            ToolTip="이 압축 파일에 파일 넣기 (창에 끌어 놓아도 돼요)"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconFileAdd}" Style="{StaticResource ToolIcon}" />
+                            <TextBlock Text="파일 넣기" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource ToolbarButton}" Click="DeleteSelected_Click"
+                            ToolTip="고른 항목을 압축 파일에서 지우기 (Del)"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconDelete}" Style="{StaticResource ToolIcon}" />
+                            <TextBlock Text="지우기" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource ToolbarButton}" Click="RenameSelected_Click"
+                            ToolTip="고른 항목 이름 바꾸기 (F2)"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconRename}" Style="{StaticResource ToolIcon}" />
+                            <TextBlock Text="이름 바꾸기" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource ToolbarButton}" Command="{Binding NewFolderInArchiveCommand}"
+                            ToolTip="지금 폴더 안에 새 폴더 만들기"
+                            Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconFolderAdd}" Style="{StaticResource ToolIcon}" />
+                            <TextBlock Text="새 폴더" Margin="7,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
@@ -113,6 +153,13 @@
                         <TextBlock Text="☰" FontSize="16" Foreground="{DynamicResource FgMutedBrush}" />
                         <Button.ContextMenu>
                             <ContextMenu>
+                                <!-- W2-06(I2-3): 압축 고치기(ZIP·7z) -->
+                                <MenuItem Header="압축 파일에 파일 넣기..." Command="{Binding AddFilesToArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                                <MenuItem Header="압축 파일에 폴더 넣기..." Command="{Binding AddFolderToArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                                <MenuItem Header="새 폴더..." Command="{Binding NewFolderInArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                                <MenuItem Header="이름 바꾸기 (F2)" Click="RenameSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                                <MenuItem Header="지우기 (Del)" Click="DeleteSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                                <Separator />
                                 <MenuItem Header="설정..." Click="Settings_Click" />
                             </ContextMenu>
                         </Button.ContextMenu>
@@ -153,20 +200,33 @@
             <Grid Grid.Column="1">
                 <!-- 정렬은 VM 이 맡는다(Sorting 에서 기본 정렬을 막고 vm.SortBy — 폴더 먼저, 폴더를 옮겨도 유지, I0-5).
                      열 폭 손잡이·정렬 화살표는 Styles.xaml 의 DataGridColumnHeader 템플릿 -->
+                <!-- W2-06: 이름 열만 바꿀 수 있게(F2·메뉴 '이름 바꾸기'로만 — BeginningEdit 가 그 밖의 편집을 막음). 행 지우기는 끈다(Del 은 VM 이 묻고 지움) -->
                 <DataGrid x:Name="EntriesGrid"
                           ItemsSource="{Binding VisibleEntries}"
                           Margin="10,8"
+                          IsReadOnly="False"
+                          CanUserDeleteRows="False"
+                          CanUserAddRows="False"
                           Sorting="EntriesGrid_Sorting"
                           PreviewKeyDown="EntriesGrid_PreviewKeyDown"
                           MouseDoubleClick="EntriesGrid_MouseDoubleClick"
+                          BeginningEdit="EntriesGrid_BeginningEdit"
+                          CellEditEnding="EntriesGrid_CellEditEnding"
                           Visibility="{Binding IsEmptyState, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                     <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="선택 항목 압축 풀기" Click="ExtractSelected_Click" />
+                            <!-- W2-06: 열기(I1-3)·압축 고치기(I2-3) -->
+                            <MenuItem Header="열기" Click="OpenSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                            <Separator />
+                            <MenuItem Header="이름 바꾸기 (F2)" Click="RenameSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                            <MenuItem Header="지우기 (Del)" Click="DeleteSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                            <MenuItem Header="파일 넣기..." Command="{Binding AddFilesToArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                            <MenuItem Header="새 폴더..." Command="{Binding NewFolderInArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="이름" Width="3*" SortMemberPath="Name">
+                        <DataGridTemplateColumn Header="이름" Width="3*" SortMemberPath="Name" x:Name="ColName">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -187,17 +247,24 @@
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
+                            <!-- W2-06: 이름 바꾸기(F2) 칸 — 값은 화면이 읽어 VM 에 넘긴다(목록 항목은 바꾸지 않음, 바꾼 뒤 목록을 다시 읽음) -->
+                            <DataGridTemplateColumn.CellEditingTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Name, Mode=OneWay}" Margin="22,0,0,0"
+                                             VerticalContentAlignment="Center" Loaded="RenameBox_Loaded" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellEditingTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="크기"
+                        <DataGridTextColumn IsReadOnly="True" Header="크기"
                                             Binding="{Binding Size, Converter={StaticResource BytesToHuman}}"
                                             Width="110" />
-                        <DataGridTextColumn x:Name="ColCompressed" Header="압축 크기"
+                        <DataGridTextColumn IsReadOnly="True" x:Name="ColCompressed" Header="압축 크기"
                                             Binding="{Binding CompressedSize, Converter={StaticResource BytesToHuman}}"
                                             Width="110" />
-                        <DataGridTextColumn x:Name="ColRatio" Header="압축률"
+                        <DataGridTextColumn IsReadOnly="True" x:Name="ColRatio" Header="압축률"
                                             Binding="{Binding CompressionRatio, StringFormat={}{0:F1}%}"
                                             Width="80" />
-                        <DataGridTextColumn Header="수정한 날짜"
+                        <DataGridTextColumn IsReadOnly="True" Header="수정한 날짜"
                                             Binding="{Binding LastModified, StringFormat=yyyy-MM-dd HH:mm}"
                                             Width="150" />
                     </DataGrid.Columns>

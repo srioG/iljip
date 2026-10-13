@@ -17,6 +17,9 @@ public sealed class AppServices
     /// <summary>휴지통(풀고 나서 압축 파일 지우기 — I2-5). 영구 삭제는 하지 않는다.</summary>
     public IRecycleBin RecycleBin { get; init; } = new RecycleBin();
 
+    /// <summary>파일이 바뀌었다는 알림(W2-06 — 압축 속 파일을 고쳐 저장하면 '다시 넣을까요?', I3-3).</summary>
+    public IFileChangeSource FileChanges { get; init; } = new FileChangeSource();
+
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();
 }

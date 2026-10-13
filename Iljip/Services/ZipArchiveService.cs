@@ -165,13 +165,26 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
     }
 
     /// <summary>
+    /// 이미 모은 원본(파일마다 정해 준 항목 이름)으로 ZIP 을 쓴다(W2-06 — 압축 고치기의 '넣기'가 넣을 파일만 담은 임시 ZIP 을 만들 때).
+    /// 압축 고치기는 이 ZIP 의 압축된 데이터만 원래 압축으로 옮겨 담고 이름·암호는 그쪽에서 정하므로, 여기서는 암호 없이 수준만 맞춘다.
+    /// 잠긴 원본 건너뛰기·읽는 도중 막힌 파일 빼고 다시 쓰기·하나도 못 담으면 <see cref="NothingToCompressException"/> 은 <see cref="CompressAsync"/> 와 같다.
+    /// </summary>
+    /// 수준이 '저장만'이면 방식도 저장(0)으로 쓴다(만들기의 '저장만'은 예전처럼 Deflate 수준 0 — 그대로 둠).
+    internal static CompressResult WriteCollected(
+        SourceSet sources, string archivePath, CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+        => RewriteWithoutUnreadable(archivePath, dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken,
+            storedMethod: options.Level == CompressionLevelOption.Store));
+
+    /// <summary>
     /// ZIP 을 한 번 쓴다. <paramref name="dropped"/>(앞 회차에서 읽는 도중 막힌 파일)는 열지 않고 건너뜀으로 적는다.
     /// 담은 파일이 하나도 없고 건너뛴 것이 있으면 압축 파일을 만들지 않고 <see cref="NothingToCompressException"/>(I0-2).
     /// </summary>
     /// <param name="alsoSkip">이것도 담지 않는다(나눠 만들 때 저장 창에서 고른 이름 — 실제로 쓰는 곳은 임시 폴더, W2-03).</param>
+    /// <param name="storedMethod">true 면 파일을 방식 0(저장)으로 쓴다(W2-06 — 저장만 ZIP 에 넣는 파일).</param>
     private static CompressResult WriteZip(
         SourceSet sources, IReadOnlyDictionary<string, string> dropped, string archivePath,
-        CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken, string? alsoSkip = null)
+        CompressionOptions options, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken, string? alsoSkip = null,
+        bool storedMethod = false)
     {
         // 압축 파일을 원본 폴더 안에 저장하는 경우: 지금 쓰고 있는 자기 자신(나눠 만들 때는 저장 창에서 고른 이름도)은 담지 않는다 —
         // 못 열어 '건너뜀'으로 보이지 않게. 진행률의 총 파일 수·바이트에서도 미리 뺀다(W2-03 — 예전엔 총수에 들어가 끝에도 N-1/N 으로 보였다).
@@ -240,6 +253,7 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
                 // AES-256 (WinZip 호환). 0 이면 암호가 있을 때 ZipCrypto. 암호 없으면 무시됨.
                 AESKeySize = options.HasPassword && !zipCrypto ? 256 : 0
             };
+            if (storedMethod) entry.CompressionMethod = CompressionMethod.Stored;
 
             zipStream.PutNextEntry(entry);
 

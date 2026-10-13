@@ -30,6 +30,7 @@ public partial class MainViewModel
         // 한 번에 하나씩: 여러 압축을 골라 우클릭하면 파일마다 Iljip.exe 가 떠 단일 인스턴스 파이프로 거의 동시에 들어온다
         // (App.OnSecondInstanceLaunched 는 async void). 겹쳐 돌면 진행·암호 창이 섞이고 같은 '이름 (2)' 폴더를 둘이 고를 수 있어 차례로 처리한다.
         await _commandGate.WaitAsync();
+        _inCommandGate.Value = true;   // W2-06: 이 흐름에서 이어지는 고치기(끌어 놓기 → 넣기)가 차례를 다시 기다리지 않게
         try
         {
             // W2-05(I2-6): 풀기 동사 뒤 압축이 여러 개면 여러 개 풀기
@@ -101,6 +102,11 @@ public partial class MainViewModel
                         await CompressCommand.ExecuteAsync(null);
                     break;
 
+                case CommandVerb.AddTo:
+                    // W2-06: 보통은 메인 창 없이(ProcessShellCommandAsync) 오지만, 이 길로 와도 같게 넣는다
+                    await RunAddToAsync(cmd.Archive, cmd.Paths);
+                    break;
+
                 case CommandVerb.Paths:
                     {
                         // 키워드가 아니면 모두 경로로 간주 (드롭과 동일 처리)
@@ -118,6 +124,7 @@ public partial class MainViewModel
         }
         finally
         {
+            _inCommandGate.Value = false;
             _commandGate.Release();
         }
     }
@@ -143,6 +150,22 @@ public partial class MainViewModel
             return;
         }
 
+        // W2-06: 탐색기 우클릭 'zip에 추가'(--add-to 압축 경로… / 기존 zip 고르기는 --add-to-pick 경로… — 고르는 창부터) — 진행 창만, 끝나면 짧은 안내
+        // (RunEditAsync 가 명령 차례를 잡음)
+        if (cmd.Verb == CommandVerb.AddTo)
+        {
+            try
+            {
+                await RunAddToAsync(cmd.Archive, cmd.Paths);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("우클릭 넣기 중 오류", ex);
+                _ui.ShowError($"압축 파일에 넣지 못했어요.\n\n{ErrorMessages.ToPlainMessage(ex)}");
+            }
+            return;
+        }
+
         var archives = ExistingArchives(cmd);
         if (archives.Count == 0)
         {
@@ -159,6 +182,7 @@ public partial class MainViewModel
         }
 
         await _commandGate.WaitAsync();
+        _inCommandGate.Value = true;
         try
         {
             await RunExtractBatchAsync(archives, rule, fromShell: true);
@@ -170,6 +194,7 @@ public partial class MainViewModel
         }
         finally
         {
+            _inCommandGate.Value = false;
             _commandGate.Release();
         }
     }

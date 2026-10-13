@@ -69,6 +69,9 @@ public sealed class TestServices
     public FakeRecycleBin RecycleBin { get; } = new();
     public InMemorySettingsStore Settings { get; }
 
+    /// <summary>가짜 파일 바뀜 알림(W2-06 — 시험이 <see cref="FakeFileChangeSource.Raise"/> 로 '바뀜'을 알림).</summary>
+    public FakeFileChangeSource FileChanges { get; } = new();
+
     public TestServices(AppSettings? settings = null)
     {
         Settings = new InMemorySettingsStore(settings);
@@ -77,6 +80,7 @@ public sealed class TestServices
             Shell = Shell,
             Settings = Settings,
             RecycleBin = RecycleBin,
+            FileChanges = FileChanges,
         };
     }
 
@@ -88,5 +92,52 @@ public sealed class TestServices
         var s = new AppSettings();
         change(s.Extract);
         return new TestServices(s);
+    }
+}
+
+/// <summary>
+/// 가짜 파일 바뀜 알림(W2-06): 진짜 FileSystemWatcher·타이머를 쓰지 않는다. 감시를 건 경로를 기록하고, 시험이 <see cref="Raise"/> 로 알림을 보낸다.
+/// </summary>
+public sealed class FakeFileChangeSource : IFileChangeSource
+{
+    private readonly object _gate = new();
+    private readonly List<(string Path, Action OnChanged, Subscription Sub)> _subs = new();
+
+    /// <summary>감시를 건 경로(차례대로, 그만둔 것도 남음).</summary>
+    public List<string> Watched { get; } = new();
+
+    /// <summary>지금 감시 중인 경로 수.</summary>
+    public int ActiveCount
+    {
+        get { lock (_gate) return _subs.Count(s => !s.Sub.Disposed); }
+    }
+
+    public IDisposable Watch(string filePath, Action onChanged)
+    {
+        var sub = new Subscription();
+        lock (_gate)
+        {
+            Watched.Add(Path.GetFullPath(filePath));
+            _subs.Add((Path.GetFullPath(filePath), onChanged, sub));
+        }
+        return sub;
+    }
+
+    /// <summary>그 파일이 바뀌었다고 알린다(감시 중인 것만). 알린 수를 돌려준다.</summary>
+    public int Raise(string filePath)
+    {
+        string full = Path.GetFullPath(filePath);
+        List<Action> targets;
+        lock (_gate)
+            targets = _subs.Where(s => !s.Sub.Disposed && string.Equals(s.Path, full, StringComparison.OrdinalIgnoreCase)).Select(s => s.OnChanged).ToList();
+        foreach (var t in targets) t();
+        return targets.Count;
+    }
+
+    private sealed class Subscription : IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public void Dispose() => Disposed = true;
     }
 }
