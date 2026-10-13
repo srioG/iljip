@@ -33,18 +33,19 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         try
         {
             var options = BuildReaderOptions(password);
-            using var archive = OpenForRead(archivePath, options);
+            var opened = OpenNamed(archivePath, options);
+            using var archive = opened.Archive;
 
             var entries = new List<ArchiveEntry>();
-            foreach (var e in archive.Entries)
+            foreach (var e in opened.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // e.Key는 ReaderOptions.ArchiveEncoding.CustomDecoder(=DecodeBytes)로 이미
+                // e.Key는 ReaderOptions.ArchiveEncoding.CustomDecoder(=이름 방식 판정 — OpenNamed)로 이미
                 // 올바르게 디코드된 상태다. 여기서 KoreanFileNameDecoder.Decode를 또 적용하면
                 // (이중 디코드) 비한글 비ASCII 파일명이 CP437→CP949 오재해석으로 손상될 수 있어
-                // 다시 디코드하지 않는다.
-                string decoded = MapEntryKey(archivePath, e.Key);
+                // 다시 디코드하지 않는다. 화면 이름은 NFC(맥 NFD 이름 — W2-09, I2-10).
+                string decoded = EntryNames.Nfc(MapEntryKey(archivePath, e.Key));
 
                 entries.Add(new ArchiveEntry
                 {
@@ -85,17 +86,18 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     /// 선택 해제의 '고른 항목인가' 판정. 선택자 정규화: 파일은 정확히 일치, 폴더는 그 하위 전체를 포함
     /// ('\'·끝 '/'·앞 '/'·대소문자 차이는 같은 것으로 봄). 7z.dll·압축된 tar·자동 풀림 exe 서비스도 같은 규칙을 쓴다(W2-01).
     /// 앞 '/' 도 뗀다 — '/abs.txt' 같은 항목을 고르면 아무 알림 없이 빠지던 것. 고른 뒤 경로 공격 검사가 막는다.
+    /// W2-09(I2-10): 양쪽을 NFC 로 맞춰 비교한다 — 목록의 완성형 이름으로 골라도, 압축에 적힌 자모 분리(NFD) 이름으로 골라도 같은 항목.
     /// </summary>
     internal static Func<string, bool> EntrySelector(IReadOnlyCollection<string> entryPaths)
     {
         var selectors = entryPaths
-            .Select(p => p.Replace('\\', '/').Trim('/'))
+            .Select(EntryNames.SelectorKey)
             .Where(p => p.Length > 0)
             .ToList();
 
         return decodedPath =>
         {
-            string d = decodedPath.Replace('\\', '/').Trim('/');
+            string d = EntryNames.SelectorKey(decodedPath);
             foreach (var s in selectors)
             {
                 if (d.Equals(s, StringComparison.OrdinalIgnoreCase)) return true;
@@ -260,15 +262,16 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         {
             ledger.EnsureDirectory(destinationFolder);
 
-            using var archive = OpenForRead(archivePath, plan.Options);
-            var entries = archive.Entries.ToList();
+            var opened = OpenNamed(archivePath, plan.Options);
+            using var archive = opened.Archive;
+            var entries = opened.Entries;
 
             long totalBytes = 0;
             int totalFiles = 0;
             foreach (var e in entries)
             {
                 if (e.IsDirectory) continue;
-                string dp = MapEntryKey(archivePath, e.Key);   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
+                string dp = EntryNames.Nfc(MapEntryKey(archivePath, e.Key));   // CustomDecoder가 이미 디코드 (이중 디코드 방지), 화면과 같은 NFC 이름(W2-09)
                 if (!shouldExtract(dp)) continue;
                 totalBytes += e.Size;
                 totalFiles++;
@@ -282,7 +285,9 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 var entry = entries[index];
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string decodedPath = MapEntryKey(archivePath, entry.Key);   // CustomDecoder가 이미 디코드 (이중 디코드 방지)
+                // CustomDecoder가 이미 디코드 (이중 디코드 방지). 화면·디스크 이름은 NFC(W2-09, I2-10 — 맥 NFD 이름도 완성형으로 풀림).
+                // 항목은 엔진 객체 그대로 쓰므로 이름만 바뀐다. NFC 로 같아지는 두 항목은 두 번째가 '이름 (1)'(OutputFiles — 이번 해제가 만든 파일과 겹침).
+                string decodedPath = EntryNames.Nfc(MapEntryKey(archivePath, entry.Key));
                 if (!shouldExtract(decodedPath)) continue;
                 current = entry;
                 currentPath = decodedPath;
@@ -444,8 +449,9 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         int checkedFiles = 0;
         try
         {
-            using var archive = OpenForRead(archivePath, plan.Options);
-            var entries = archive.Entries.ToList();
+            var opened = OpenNamed(archivePath, plan.Options);
+            using var archive = opened.Archive;
+            var entries = opened.Entries;
             var buffer = new byte[81920];
             long tested = 0;
             for (int index = 0; index < entries.Count; index++)
@@ -453,7 +459,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 var entry = entries[index];
                 cancellationToken.ThrowIfCancellationRequested();
                 if (entry.IsDirectory) continue;
-                string path = MapEntryKey(archivePath, entry.Key);
+                string path = EntryNames.Nfc(MapEntryKey(archivePath, entry.Key));
                 if (!include(path)) continue;
                 current = entry;
                 currentPath = path;
@@ -632,6 +638,66 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
 
     /// <summary>목록·해제에서 압축 파일을 여는 곳. 기본은 <see cref="OpenTyped"/>. 형식 하나만 다루는 파생 클래스가 바꿀 수 있다.</summary>
     protected virtual IArchive OpenForRead(string archivePath, ReaderOptions options) => OpenTyped(archivePath, options);
+
+    /// <summary>
+    /// 목록·해제·시험이 압축 파일을 여는 길(W2-09): <see cref="OpenForRead"/> 로 열고 항목을 모두 읽은 뒤, 이름 글자 방식을 압축 파일 하나에 하나로 정한다
+    /// (<see cref="OpenWithNameDetection"/> — 일본어·중국어 이름이면 그 방식으로 한 번 더 연다). 돌려준 압축은 호출자가 닫는다.
+    /// </summary>
+    protected (IArchive Archive, List<IArchiveEntry> Entries) OpenNamed(string archivePath, ReaderOptions options) =>
+        OpenWithNameDetection(o => OpenForRead(archivePath, o), options);
+
+    /// <summary>
+    /// 이름 방식을 정하며 연다(W2-09, I2-10): 먼저 이름을 모으며 예전 규칙으로 열어 항목을 모두 읽고(<see cref="NameCollector"/>), 모은 날 이름으로 방식을 정한다
+    /// (<see cref="ArchiveNameEncodingDetector"/>). 정한 방식으로 풀어도 이름이 하나도 안 바뀌면(한국어·UTF-8·ASCII 압축 — 거의 모두) 그대로 돌려주고,
+    /// 바뀌면(Shift-JIS·GBK 압축 등) 처음 연 것을 닫고 정한 방식으로 다시 연다 — 열기는 두 번이지만 그런 압축은 드물다.
+    /// <paramref name="options"/> 의 암호·암호 인코딩은 그대로 쓰고 이름 풀기만 바꾼다.
+    /// </summary>
+    internal static (IArchive Archive, List<IArchiveEntry> Entries) OpenWithNameDetection(Func<ReaderOptions, IArchive> open, ReaderOptions options)
+    {
+        var collector = new NameCollector();
+        var archive = open(WithNameDecoder(options, collector.Decode));
+        NameDecoder decided;
+        try
+        {
+            var entries = archive.Entries.ToList();
+            decided = collector.Decide();
+            if (collector.AgreesWith(decided)) return (archive, entries);
+        }
+        catch
+        {
+            archive.Dispose();
+            throw;
+        }
+        archive.Dispose();
+
+        var again = open(WithNameDecoder(options, decided.Decode));
+        try
+        {
+            return (again, again.Entries.ToList());
+        }
+        catch
+        {
+            again.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>이름 풀기만 바꾼 옵션 사본(암호·암호 인코딩·기본 인코딩은 그대로 — 받은 옵션 객체는 건드리지 않음).</summary>
+    private static ReaderOptions WithNameDecoder(ReaderOptions options, Func<byte[], int, int, EncodingType, string> decoder)
+    {
+        var src = options.ArchiveEncoding;
+        return options with
+        {
+            ArchiveEncoding = new ArchiveEncoding
+            {
+                Default = src.Default,
+                Password = src.Password,
+                UTF8 = src.UTF8,
+                Forced = src.Forced,
+                CustomDecoder = decoder,
+            },
+        };
+    }
 
     /// <summary>
     /// 해제할 때 항목의 '풀린 내용' 스트림을 여는 곳. 기본은 엔진 그대로(<see cref="IArchiveEntry.OpenEntryStream"/>).

@@ -45,7 +45,7 @@ public sealed class RarArchiveService : SevenZipEngineServiceBase
             VolumeCheck = multiVolume ? () => ArchiveCompleteness.CheckRarVolumes(archivePath) : null,
             // RAR4 의 비유니코드 이름(CP949 등)은 다른 형식과 같은 한글 판별로 덮어쓴다(7z.dll 은 OEM 코드 페이지로 읽음).
             NameResolver = rar4 && !multiVolume && !info.HeaderEncrypted
-                ? data => NamesFromSharpCompress(() => SharpCompress.Archives.Rar.RarArchive.OpenArchive(archivePath, NameReaderOptions()), data)
+                ? data => NamesFromSharpCompress(options => SharpCompress.Archives.Rar.RarArchive.OpenArchive(archivePath, options), data)
                 : null,
         };
     }

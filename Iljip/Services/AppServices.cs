@@ -26,6 +26,9 @@ public sealed class AppServices
     /// <summary>방금 만든 압축 파일 시험(W2-07 — '다 만들고 시험하기'·원본 지우기 전 확인 I3-4. W2-08 이 키움).</summary>
     public ICreatedArchiveTester CompressTester { get; init; } = CreatedArchiveTester.Instance;
 
+    /// <summary>'잠깐 두는' 폴더(W2-09 검증 지적 — 임시 폴더의 압축은 풀기 창이 바탕 화면을 권하고, 일집 임시 폴더에는 풀지 않음).</summary>
+    public TempLocations TempLocations { get; init; } = TempLocations.System;
+
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();
 }

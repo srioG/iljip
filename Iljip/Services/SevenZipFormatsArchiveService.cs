@@ -51,7 +51,7 @@ public sealed class SevenZipFormatsArchiveService : IArchiveService
             // ZIPX 이름: 머리의 날 이름 바이트를 SharpCompress 로 읽어 다른 ZIP 과 같은 한글 판별로(못 읽으면 7z.dll 이름 — OEM 코드 페이지)
             NameResolver = format == InArchiveFormat.Zip
                 ? data => SevenZipEngineServiceBase.NamesFromSharpCompress(
-                    () => SharpCompress.Archives.Zip.ZipArchive.OpenArchive(archivePath, SevenZipEngineServiceBase.NameReaderOptions()), data)
+                    options => SharpCompress.Archives.Zip.ZipArchive.OpenArchive(archivePath, options), data)
                 : null,
         };
     }

@@ -16,7 +16,8 @@
         TextOptions.TextRenderingMode="ClearType"
         AllowDrop="True"
         PreviewDragOver="Window_DragOver"
-        PreviewDrop="Window_Drop">
+        PreviewDrop="Window_Drop"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.DataContext>
         <vm:MainViewModel />
@@ -170,13 +171,16 @@
 
         <!-- ===== 본문 ===== -->
         <Grid Grid.Row="1">
+            <!-- W2-09(I2-14): 트리 | 가르는 막대 | 목록. 트리 너비는 코드가 설정(ui.treeWidth — 기본 260)으로 정하고, 압축을 보지 않을 때는 0(트리를 숨김).
+                 막대로 바꾼 너비는 창을 닫을 때 한 번 저장한다. -->
             <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="TreeColumn" Width="0" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="240" />
             </Grid.ColumnDefinitions>
 
             <!-- 좌측 폴더 트리 (압축 파일을 열었을 때만 표시) -->
-            <Border Grid.Column="0" Width="220"
+            <Border Grid.Column="0"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0"
                     Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
@@ -196,14 +200,56 @@
                 </TreeView>
             </Border>
 
-            <!-- 우측: 현재 폴더 목록 + 빈 상태 -->
-            <Grid Grid.Column="1">
+            <!-- 트리와 목록 사이 가르는 막대(끌어서 트리 너비 바꾸기) -->
+            <GridSplitter x:Name="TreeSplitter" Grid.Column="1" Width="5"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                          Background="Transparent" Cursor="SizeWE" ToolTip="끌어서 폴더 칸 너비 바꾸기"
+                          DragCompleted="TreeSplitter_DragCompleted"
+                          Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}" />
+
+            <!-- 우측: 이름으로 찾기 + 현재 폴더 목록 + 빈 상태 -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- W2-09(I2-14): 이름으로 찾기 — 모든 폴더에서(치기를 멈추면 찾음, Esc 로 지움, Ctrl+F 로 이 칸에) -->
+                <DockPanel Grid.Row="0" Margin="10,8,10,0"
+                           Visibility="{Binding IsArchiveMode, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Margin="4,0,0,0" ToolTip="찾기 지우기 (Esc)"
+                            Command="{Binding ClearSearchCommand}"
+                            Visibility="{Binding IsSearching, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <TextBlock Text="✕" FontSize="12" Foreground="{DynamicResource FgMutedBrush}" />
+                    </Button>
+                    <Grid>
+                        <TextBox x:Name="SearchBox" Height="28" VerticalContentAlignment="Center"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 PreviewKeyDown="SearchBox_PreviewKeyDown" ToolTip="이름으로 찾기 — 모든 폴더에서 (Ctrl+F)" />
+                        <TextBlock x:Name="SearchPlaceholder" Text="이름으로 찾기 (모든 폴더)" Margin="8,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource FgMutedBrush}" IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </DockPanel>
                 <!-- 정렬은 VM 이 맡는다(Sorting 에서 기본 정렬을 막고 vm.SortBy — 폴더 먼저, 폴더를 옮겨도 유지, I0-5).
                      열 폭 손잡이·정렬 화살표는 Styles.xaml 의 DataGridColumnHeader 템플릿 -->
                 <!-- W2-06: 이름 열만 바꿀 수 있게(F2·메뉴 '이름 바꾸기'로만 — BeginningEdit 가 그 밖의 편집을 막음). 행 지우기는 끈다(Del 은 VM 이 묻고 지움) -->
                 <DataGrid x:Name="EntriesGrid"
+                          Grid.Row="1"
                           ItemsSource="{Binding VisibleEntries}"
                           Margin="10,8"
+                          SelectionChanged="EntriesGrid_SelectionChanged"
                           IsReadOnly="False"
                           CanUserDeleteRows="False"
                           CanUserAddRows="False"
@@ -255,6 +301,9 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
                         </DataGridTemplateColumn>
+                        <!-- W2-09(I2-14): 찾는 중에만 보이는 '경로'(들어 있는 폴더) -->
+                        <DataGridTextColumn IsReadOnly="True" x:Name="ColFolder" Header="경로"
+                                            Binding="{Binding FolderPath}" Width="2*" Visibility="Collapsed" />
                         <DataGridTextColumn IsReadOnly="True" Header="크기"
                                             Binding="{Binding Size, Converter={StaticResource BytesToHuman}}"
                                             Width="110" />
@@ -271,7 +320,7 @@
                 </DataGrid>
 
                 <!-- 빈 상태 안내 (클릭 통과) -->
-                <Border Visibility="{Binding IsEmptyState, Converter={x:Static conv:BoolToVisibility.Instance}}"
+                <Border Grid.RowSpan="2" Visibility="{Binding IsEmptyState, Converter={x:Static conv:BoolToVisibility.Instance}}"
                         IsHitTestVisible="False">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Path Data="{StaticResource IconBox}" Width="76" Height="76" Stretch="Uniform"
@@ -299,14 +348,19 @@
                 Background="{DynamicResource StatusBarBgBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0">
-            <Grid Margin="12,5">
+            <DockPanel Margin="12,5">
+                <!-- W2-09(I2-14): 고른 것의 수·크기('선택: 3개 · 12.4MB' — 폴더는 그 아래 전부) -->
+                <TextBlock x:Name="SelectionTextBlock" DockPanel.Dock="Right" Text="{Binding SelectionText}"
+                           FontSize="12" Margin="12,0,0,0"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           VerticalAlignment="Center" />
                 <TextBlock Text="{Binding StatusText}"
                            FontSize="12"
                            Foreground="{DynamicResource FgMutedBrush}"
                            HorizontalAlignment="Left"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
-            </Grid>
+            </DockPanel>
         </Border>
     </Grid>
 

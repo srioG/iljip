@@ -18,7 +18,8 @@ public static class Known
     // W2-02 에서 I2-1(7z 만들기)을 메워 KnownGapTests.압축_7z_왕복이_원본과_같다 의 Skip 을 풀었다(I2_1 사유 삭제).
     // 같은 묶음에서 I1-7 의 남은 몫(목록까지 잠긴 압축 전용 예외 ListPasswordRequiredException·열 때 '암호가 맞지 않아요' 경고)도 메움 — ListPasswordFlowTests.
     // W2-03 에서 I2-2 의 '나눠 만들기'(7Z .7z.001 …·ZIP PKZIP 나눔 .z01 … .zip)를 메웠다 — 쓰는 Skip 이 없어 I2_2 사유를 지웠다(새 계약은 Contract/SplitCreateTests.cs).
-    public const string I2_10 = "known gap I2-10: 맥 ZIP 의 NFD(자모 분리) 한글 이름을 NFC 로 바꾸지 않음 — 목록·풀린 파일 이름이 자모 분리 그대로";
+    // W2-09 에서 I2-10(맥 ZIP 의 NFD 한글 이름 → NFC 로 보이고 NFC 로 풂)을 메워 BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다 의 Skip 을 풀었다
+    // (I2_10 사유 삭제 — 남은 '알려진 빈틈' Skip 없음). 일본어(Shift-JIS)·중국어(GBK) 이름 판별은 Contract/NameEncodingTests.cs.
 
     // ── 이번에 발견한 버그 ─────────────────────────
     // 모두 고쳤다(남은 Bn Skip 없음). B1·B2·B6·B7·B8·B9·B10 과 TAR-빈폴더는 W1-A(SharpCompress 0.50.5 업그레이드 + 서비스 우회),
@@ -66,7 +67,7 @@ public static class FixtureSets
     /// <summary>한글 암호(CP949 바이트) ZIP — 예전 B3, W1-C 에서 해제도 고침(BandizipFixtureTests.반디집_한글암호_ZIP이_풀린다).</summary>
     public static readonly string[] KoreanPasswordZip = { "zip_zipcrypto_korean_pw", "zip_aes256_korean_pw" };
 
-    /// <summary>NFD 이름 ZIP — 내용은 맞게 풀리지만 이름이 NFD 그대로(I2-10).</summary>
+    /// <summary>NFD 이름 ZIP — 목록·풀린 이름 모두 NFC(I2-10, W2-09 에서 고침).</summary>
     public static readonly string[] Nfd = { "nfd_bandizip_default", "nfd_bandizip_utf8", "nfd_python_efs", "nfd_python_noflag" };
 
     /// <summary>숫자 분할(I2-2 의 풀기, W2-01 에서 고침).</summary>

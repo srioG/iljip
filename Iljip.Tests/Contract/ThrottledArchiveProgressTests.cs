@@ -57,6 +57,22 @@ public class ThrottledArchiveProgressTests
         Assert.Equal(100.0, seen[^1].Percentage);
     }
 
+    /// <summary>
+    /// (W2-07 검증 지적) 단계 알림(<see cref="ArchiveProgress.IsStage"/> — '만든 압축 파일을 시험하는 중' 등 한 번만 오는 것)은 간격과 상관없이 늘 통과한다.
+    /// 통과한 단계 알림도 간격 계산에 들어가 바로 뒤의 중간 보고는 걸러진다.
+    /// </summary>
+    [Fact]
+    public void 단계_알림은_간격과_상관없이_언제나_통과한다()
+    {
+        var (p, seen) = Make(intervalMs: 60_000);
+        p.Report(Mid(1));
+        p.Report(Mid(2));                                                          // 걸러짐
+        p.Report(new ArchiveProgress { CurrentFile = "시험하는 중", IsStage = true });   // 직전 보고 바로 뒤라도 통과
+        p.Report(new ArchiveProgress { CurrentFile = "맞춰 보는 중", IsStage = true });  // 연달아도 통과
+        p.Report(Mid(3));                                                          // 걸러짐
+        Assert.Equal(new[] { "a.txt", "시험하는 중", "맞춰 보는 중" }, seen.Select(s => s.CurrentFile));
+    }
+
     [Fact]
     public void 간격이_지나면_다음_중간보고가_통과한다()
     {

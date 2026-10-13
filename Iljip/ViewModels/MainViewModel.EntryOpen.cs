@@ -62,7 +62,8 @@ public partial class MainViewModel
     {
         if (entry.IsDirectory)
         {
-            NavigateToFolder(EditPlanner<object>.Normalize(entry.Path));
+            // 두 번 누르기와 같게(W2-09 검증 지적): 찾은 결과의 폴더면 찾기를 지우고 그 폴더로 — 예전엔 찾은 결과 목록이 그대로 남아 Enter·우클릭 '열기'가 아무 일도 안 한 것처럼 보였다
+            GoToFolder(EditPlanner<object>.Normalize(entry.Path));
             return true;
         }
         if (!IsArchiveMode || CurrentArchivePath is not { } archive) return false;

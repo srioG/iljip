@@ -147,8 +147,8 @@ public class BandizipFixtureTests
         TreeAssert.ExtractedTreeEquals(dest, fx.Expected, nfc: true, context: id);
     }
 
-    /// <summary>[I2-10] NFD 이름 ZIP 의 목록·풀린 이름이 반디집처럼 NFC(완성형)여야 한다.</summary>
-    [Theory(Skip = Known.I2_10)]
+    /// <summary>[I2-10] NFD 이름 ZIP 의 목록·풀린 이름이 반디집처럼 NFC(완성형)여야 한다(W2-09 에서 고침 — Skip 풀림).</summary>
+    [Theory]
     [MemberData(nameof(Nfd))]
     public async Task NFD_이름이_NFC로_보이고_NFC로_풀린다(string id)
     {

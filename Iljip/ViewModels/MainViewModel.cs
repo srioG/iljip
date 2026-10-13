@@ -172,7 +172,10 @@ public partial class MainViewModel : ObservableObject
                     Entries.Add(e);
 
                 if (!string.Equals(CurrentArchivePath, archivePath, StringComparison.OrdinalIgnoreCase))
+                {
                     RetireWorkspace();   // W2-06: 앞 압축의 작업 폴더는 앱을 닫을 때까지 둔다(감시도 그대로)
+                    ResetSearch();       // W2-09: 다른 압축을 열면 찾기를 지운다
+                }
                 CurrentArchivePath = archivePath;
                 _archivePassword = string.IsNullOrEmpty(password) ? null : password;
                 BuildFolderTree();
@@ -361,10 +364,12 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var folder = _ui.PickFolder("압축을 풀 폴더를 선택하세요");
-        if (folder is null) return;
+        // W2-09(I2-13): 폴더 고르기 창 대신 풀기 창(풀 곳·최근 푼 곳·폴더 만들기·휴지통·폴더 열기)
+        string archivePath = CurrentArchivePath;
+        var target = AskExtractTarget(new[] { archivePath }, selectedOnly: false, "압축을 풀 폴더를 선택하세요");
+        if (target is null) return;
 
-        await ExtractToFolderAsync(CurrentArchivePath, folder);
+        await ExtractWithTargetAsync(archivePath, target, null);
     }
 
     /// <summary>
@@ -379,7 +384,11 @@ public partial class MainViewModel : ObservableObject
     /// W2-05: 같은 이름 파일은 설정(extract.onCollision — 기본 '묻기')대로(<see cref="ExtractionScope"/> — ‘남은 파일도 똑같이’ 답은 암호를 다시 물어 다시 풀 때도 유지).
     /// 전체를 다 풀었고 건너뛴 파일이 없으면 설정(extract.deleteArchiveAfter)에 따라 압축 파일을 휴지통으로(<see cref="RecycleArchiveAfterExtract"/>).
     /// </remarks>
-    public async Task<bool> ExtractToFolderAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths = null)
+    public Task<bool> ExtractToFolderAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths = null) =>
+        ExtractToFolderCoreAsync(archivePath, destFolder, selectedPaths, deleteArchiveAfter: null);
+
+    /// <param name="deleteArchiveAfter">다 풀고 압축 파일을 휴지통으로 — null 이면 설정(extract.deleteArchiveAfter), 풀기 창(W2-09)은 그 창에서 고른 값.</param>
+    private async Task<bool> ExtractToFolderCoreAsync(string archivePath, string destFolder, IReadOnlyCollection<string>? selectedPaths, bool? deleteArchiveAfter)
     {
         var service = _locator.ResolveByContent(archivePath);
         if (service is null) return false;
@@ -413,7 +422,7 @@ public partial class MainViewModel : ObservableObject
                 StatusText = $"압축 해제 완료: {destFolder}";
                 if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
                 // I2-5: 전체를 오류 없이 다 풀었고 건너뛴 파일이 없을 때만(선택 항목만 푼 것은 지우지 않음)
-                if (selectedPaths is null && RecycleArchiveAfterExtract(archivePath, scope.Skipped) is { } note)
+                if (selectedPaths is null && RecycleArchiveAfterExtract(archivePath, scope.Skipped, deleteArchiveAfter) is { } note)
                     _ui.ShowWarning(note);
                 return true;
             }
@@ -464,10 +473,12 @@ public partial class MainViewModel : ObservableObject
             .ToList();
         if (paths.Count == 0) return;
 
-        var folder = _ui.PickFolder("선택한 항목을 풀 폴더를 선택하세요");
-        if (folder is null) return;
+        // W2-09(I2-13): 풀기 창 — 고른 항목만 푸므로 '다 풀고 압축 파일을 휴지통으로' 칸은 없다
+        string archivePath = CurrentArchivePath;
+        var target = AskExtractTarget(new[] { archivePath }, selectedOnly: true, "선택한 항목을 풀 폴더를 선택하세요");
+        if (target is null) return;
 
-        await ExtractToFolderAsync(CurrentArchivePath, folder, paths);
+        await ExtractWithTargetAsync(archivePath, target, paths);
     }
 
     /// <summary>우측 목록에서 폴더를 더블클릭했을 때 해당 폴더로 이동.</summary>
@@ -525,6 +536,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         FolderTree.Add(root);
+        InvalidateBrowseCaches();   // W2-09: 찾기용 이름 목록·폴더 크기는 새 목록으로 다시
         SelectedFolder = root; // → RefreshVisibleEntries
     }
 
@@ -537,7 +549,11 @@ public partial class MainViewModel : ObservableObject
         VisibleEntries.Clear();
 
         IEnumerable<ArchiveEntry> items;
-        if (IsArchiveMode && SelectedFolder is not null)
+        if (IsArchiveMode && IsSearching)
+        {
+            items = FindByName(_appliedSearch);   // W2-09(I2-14): 모든 폴더에서 이름으로 찾은 것(경로 열이 보임)
+        }
+        else if (IsArchiveMode && SelectedFolder is not null)
         {
             items = SelectedFolder.Children
                 .Select(child => new ArchiveEntry
@@ -604,12 +620,15 @@ public partial class MainViewModel : ObservableObject
     private void CloseView()
     {
         RetireWorkspace();   // W2-06: 작업 폴더는 앱을 닫을 때까지 둔다
+        ResetSearch();       // W2-09: 찾기도 지운다
         Entries.Clear();
         CurrentArchivePath = null;
         _archivePassword = null;
         FolderTree.Clear();
+        InvalidateBrowseCaches();
         SelectedFolder = null;
         VisibleEntries.Clear();
+        SelectionText = string.Empty;
     }
 
     /// <summary>

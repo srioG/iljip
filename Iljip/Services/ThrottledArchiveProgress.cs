@@ -12,6 +12,8 @@ namespace Iljip.Services;
 /// 통과한 것만 캡처된 SynchronizationContext(보통 UI)로 Post 한다.
 ///
 /// 단, 완료 보고(CurrentFile이 비어 있음)는 항상 통과시켜 진행바가 99%에서 멈추지 않도록 한다.
+/// 단계 알림(<see cref="ArchiveProgress.IsStage"/> — '만든 압축 파일을 시험하는 중' 등 한 번만 오는 것)도 항상 통과시킨다(W2-07 검증 지적:
+/// 압축이 끝나자마자 오는 시험 단계 알림이 40ms 안이라 버려져 창이 '압축 100%'에 멈춘 것처럼 보였다). 통과한 단계 알림도 간격 계산에 넣는다.
 /// 첫 중간 보고는 바로 통과시키고, 그다음부터 간격마다 통과시킨다.
 /// </summary>
 public sealed class ThrottledArchiveProgress : IProgress<ArchiveProgress>
@@ -42,7 +44,7 @@ public sealed class ThrottledArchiveProgress : IProgress<ArchiveProgress>
         if (!isFinal)
         {
             long now = _stopwatch.ElapsedMilliseconds;
-            if (_reportedOnce && now - _lastReportMs < _intervalMs)
+            if (!value.IsStage && _reportedOnce && now - _lastReportMs < _intervalMs)
                 return;
             _reportedOnce = true;
             _lastReportMs = now;

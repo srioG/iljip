@@ -300,7 +300,8 @@ internal static class SevenZipEngine
                 display = data.Count == 1 ? ArchiveNaming.SingleStreamName(src.ArchivePath) : $"{ArchiveNaming.FallbackName} {afi.Index}";
             else
                 display = raw;
-            display = display.Replace('\\', '/').TrimEnd('/');
+            // W2-09: 맥 ZIP 의 NFD 한글 이름은 NFC 로 보이고 NFC 로 푼다(임시 폴더 안 자리는 7z.dll 이 쓰는 원래 이름 그대로)
+            display = EntryNames.Nfc(display.Replace('\\', '/').TrimEnd('/'));
 
             // 시각이 없는 항목(xz·ISO 폴더)은 SharpSevenZip 이 '지금'을 채운다 → 여는 동안의 시각이면 '모름'으로 둔다.
             DateTime t = afi.LastWriteTime;

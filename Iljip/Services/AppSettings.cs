@@ -27,12 +27,17 @@ public sealed class AppSettings
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 
+    /// <summary>화면(ui.*) — W2-09(트리 너비).</summary>
+    public UiSettings Ui { get; set; } = new();
+
     /// <summary>읽은 JSON 에 묶음이 null 로 들어 있었을 때 기본값으로 채운다.</summary>
     internal AppSettings Normalize()
     {
         Extract ??= new ExtractSettings();
         Compress ??= new CompressSettings();
         Compress.ExcludePatterns ??= new List<string>(PatternFileFilter.DefaultPatterns);
+        Extract.RecentFolders ??= new List<string>();
+        Ui ??= new UiSettings();
         return this;
     }
 
@@ -53,6 +58,82 @@ public sealed class ExtractSettings
 
     /// <summary>extract.deleteArchiveAfter — 다 풀고 나서 압축 파일(나뉜 조각 모두)을 휴지통으로(W2-05, I2-5). 기본 꺼짐. 오류·건너뛴 파일·취소가 없을 때만.</summary>
     public bool DeleteArchiveAfter { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    /// <summary>extract.makeFolder — 풀기 창의 '압축파일명으로 폴더 만들기'(W2-09, I2-13). 기본 켬, 창에서 고른 값을 기억.</summary>
+    public bool MakeFolder { get; set; } = true;
+
+    /// <summary>extract.recentFolders — 최근에 푼 곳(W2-09, I2-13). 가장 최근이 맨 앞, 최대 <see cref="MaxRecentFolders"/>개, 대소문자 무시로 겹치지 않음.</summary>
+    public List<string> RecentFolders { get; set; } = new();
+
+    /// <summary>
+    /// extract.dialogOpenFolderAfter — 풀기 창의 '다 풀면 폴더 열기'(W2-09, I2-13). 기본 꺼짐(예전 일집 안 풀기는 폴더를 열지 않았음), 창에서 고른 값을 기억.
+    /// 탐색기 우클릭 풀기의 <see cref="OpenFolderAfter"/> 와는 따로다(그쪽은 ☰ ▸ 설정에서만).
+    /// </summary>
+    public bool DialogOpenFolderAfter { get; set; }
+
+    /// <summary>최근 푼 곳을 몇 개까지 기억하나.</summary>
+    public const int MaxRecentFolders = 10;
+
+    /// <summary>
+    /// 푼 곳을 최근 목록 맨 앞에 넣는다(같은 폴더 — 대소문자·끝 '\' 무시 — 가 있으면 빼고 앞으로). 최대 <see cref="MaxRecentFolders"/>개.
+    /// 저장은 하지 않는다(부르는 쪽이 작업이 끝날 때 한 번).
+    /// </summary>
+    public void PushRecentFolder(string folder)
+    {
+        string f = TrimFolder(folder);
+        if (f.Length == 0) return;
+        RecentFolders ??= new List<string>();
+        RecentFolders.RemoveAll(x => string.Equals(TrimFolder(x), f, StringComparison.OrdinalIgnoreCase));
+        RecentFolders.Insert(0, f);
+        if (RecentFolders.Count > MaxRecentFolders) RecentFolders.RemoveRange(MaxRecentFolders, RecentFolders.Count - MaxRecentFolders);
+    }
+
+    /// <summary>
+    /// 풀기 창에 보일 최근 폴더 — 지금 있는 폴더만(USB 를 뺐거나 지운 폴더는 숨김), 순서 그대로, 겹치는 것은 하나만.
+    /// 네트워크 폴더(NAS·공유 폴더)는 있는지 보지 않고 보인다(W2-09 검증 지적 — 끊긴 NAS 를 보다가 창이 몇 초씩 굳음. [풀기] 때 확인 — <see cref="FolderProbe"/>).
+    /// </summary>
+    public IReadOnlyList<string> VisibleRecentFolders(Func<string, bool>? exists = null)
+    {
+        exists ??= FolderProbe.ExistsOrNetwork;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var x in RecentFolders ?? new List<string>())
+        {
+            string f = TrimFolder(x);
+            if (f.Length == 0 || !seen.Add(f)) continue;
+            bool ok;
+            try { ok = exists(f); }
+            catch { ok = false; }
+            if (ok) result.Add(f);
+            if (result.Count == MaxRecentFolders) break;
+        }
+        return result;
+    }
+
+    /// <summary>폴더 경로 다듬기: 앞뒤 공백, 끝 '\'(드라이브 뿌리 'C:\' 는 그대로).</summary>
+    internal static string TrimFolder(string? folder)
+    {
+        string f = (folder ?? string.Empty).Trim();
+        while (f.Length > 3 && (f.EndsWith('\\') || f.EndsWith('/'))) f = f[..^1];
+        return f;
+    }
+}
+
+/// <summary>ui.* — 화면(W2-09).</summary>
+public sealed class UiSettings
+{
+    /// <summary>기본 트리 너비(화소).</summary>
+    public const double DefaultTreeWidth = 260;
+
+    /// <summary>ui.treeWidth — 왼쪽 폴더 트리 너비(I2-14 — 가르는 막대로 바꾸면 창을 닫을 때 한 번 저장). 기본 260.</summary>
+    public double TreeWidth { get; set; } = DefaultTreeWidth;
+
+    /// <summary>쓸 수 있는 트리 너비로(너무 좁거나 넓거나 숫자가 아니면 기본값).</summary>
+    public static double ClampTreeWidth(double width) =>
+        double.IsFinite(width) && width >= 80 && width <= 2000 ? width : DefaultTreeWidth;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }

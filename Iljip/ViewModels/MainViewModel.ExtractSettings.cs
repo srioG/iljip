@@ -32,9 +32,10 @@ public partial class MainViewModel
     /// 지웠고 그 압축을 보고 있었으면 화면을 비운다. 사용자에게 알릴 말이 있으면 돌려준다(없으면 null — 지웠거나 지울 일이 아님).
     /// 창 없이 풀기(--extract-to)는 이 길을 타지 않는다(설정을 읽지 않음 — 재사용장치 계약).
     /// </summary>
-    internal string? RecycleArchiveAfterExtract(string archivePath, int skipped)
+    /// <param name="enabled">지울지 — null 이면 설정(extract.deleteArchiveAfter). 풀기 창(W2-09)은 그 창에서 고른 값(이번에만)을 넘긴다.</param>
+    internal string? RecycleArchiveAfterExtract(string archivePath, int skipped, bool? enabled = null)
     {
-        if (!Settings.Extract.DeleteArchiveAfter) return null;
+        if (!(enabled ?? Settings.Extract.DeleteArchiveAfter)) return null;
         if (skipped > 0) return null;   // 사용자가 건너뛴 파일이 있으면 압축 파일이 아직 필요할 수 있다
         if (AppPaths.IsUnderTemp(archivePath)) return null;
         if (!File.Exists(archivePath)) return null;

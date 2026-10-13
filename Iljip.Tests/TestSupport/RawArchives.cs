@@ -164,7 +164,8 @@ public static class RawZip
 public static class RawTar
 {
     /// <param name="Type">ustar 형식 문자: '0' 일반 파일, '1' 하드 링크, '2' 심볼릭 링크, '5' 폴더.</param>
-    public sealed record Entry(string Name, byte[] Data, char Type = '0', string LinkName = "");
+    /// <param name="RawName">주면 이름 칸에 이 바이트를 그대로 쓴다(100바이트 이하 — Shift-JIS·GBK 같은 옛 방식 이름 재현, W2-09).</param>
+    public sealed record Entry(string Name, byte[] Data, char Type = '0', string LinkName = "", byte[]? RawName = null);
 
     public static void Write(string path, params (string Name, byte[] Data)[] items) =>
         Write(path, items.Select(i => new Entry(i.Name, i.Data)).ToArray());
@@ -172,10 +173,10 @@ public static class RawTar
     public static void Write(string path, params Entry[] items)
     {
         using var fs = File.Create(path);
-        foreach (var (name, data, type, linkName) in items)
+        foreach (var (name, data, type, linkName, rawName) in items)
         {
             var h = new byte[512];
-            byte[] nb = Encoding.UTF8.GetBytes(name);
+            byte[] nb = rawName ?? Encoding.UTF8.GetBytes(name);
             byte[] prefix = Array.Empty<byte>();
             if (nb.Length > 100)
             {

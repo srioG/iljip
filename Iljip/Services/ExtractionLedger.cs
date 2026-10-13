@@ -16,15 +16,34 @@ internal sealed class ExtractionLedger
     private readonly List<string> _createdDirectories = new();
     private readonly List<string> _createdFiles = new();
 
-    /// <summary>폴더를 만든다(없는 조상까지). 새로 생긴 폴더만 위에서부터 차례로 장부에 적는다.</summary>
+    /// <summary>
+    /// 폴더를 만든다(없는 조상까지). 새로 생긴 폴더만 위에서부터 차례로 장부에 적는다.
+    /// 만들 자리에 '이번 해제가 만든 파일'이 있으면(W2-09 검증 지적 — 맥 NFD 파일 '보고서' 뒤에 폴더 '보고서/' 가 오면 NFC 로 같은 이름) 그 파일을
+    /// '보고서 (1)' 로 비켜 두고 폴더를 만든다 — 폴더가 먼저 오면 파일이 '보고서 (1)' 이 되는 것(<see cref="OutputFiles"/>)과 같은 결과.
+    /// 원래 있던 사용자 파일은 옮기지 않는다(그때는 예전처럼 '같은 이름의 파일이나 폴더가 이미 있어 만들 수 없어요').
+    /// </summary>
     public void EnsureDirectory(string fullPath)
     {
         if (string.IsNullOrEmpty(fullPath) || Directory.Exists(fullPath)) return;
         var missing = new Stack<string>();
         for (string? d = Path.GetFullPath(fullPath); !string.IsNullOrEmpty(d) && !Directory.Exists(d); d = Path.GetDirectoryName(d))
             missing.Push(d);
+        foreach (var d in missing)   // 위에서부터
+            if (File.Exists(d)) MoveCreatedFileAside(d);
         Directory.CreateDirectory(fullPath);
         while (missing.Count > 0) _createdDirectories.Add(missing.Pop());
+    }
+
+    /// <summary>이번 해제가 만든 파일이면 '이름 (1)' 로 옮기고 장부를 고친다. 아니면(사용자 파일) 그대로 — 폴더 만들기가 예전처럼 실패한다.</summary>
+    private void MoveCreatedFileAside(string path)
+    {
+        int at = _createdFiles.FindLastIndex(f => string.Equals(Path.GetFullPath(f), path, StringComparison.OrdinalIgnoreCase));
+        if (at < 0) return;
+        string original = _createdFiles[at];
+        string moved = OutputFiles.MoveNew(original, original);   // 원래 이름은 자기 자신이 차지 → '이름 (1)' …
+        _createdFiles[at] = moved;
+        ExtractionScope.Current?.NoteRemoved(original);
+        ExtractionScope.Current?.NoteCreated(moved);
     }
 
     /// <summary>

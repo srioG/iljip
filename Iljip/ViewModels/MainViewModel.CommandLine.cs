@@ -39,9 +39,10 @@ public partial class MainViewModel
             {
                 if (cmd.Verb == CommandVerb.Extract)
                 {
-                    var folder = _ui.PickFolder($"압축 파일 {many.Count}개를 풀 폴더를 선택하세요");
-                    if (folder is not null)
-                        await RunExtractBatchAsync(many, new ExtractTargetRule(ExtractTargetKind.NamedFolderIn, folder), fromShell: false);
+                    // W2-09(I2-13): 폴더 고르기 창 대신 풀기 창(폴더 만들기를 끄면 고른 폴더에 모두 바로)
+                    var target = AskExtractTarget(many, selectedOnly: false, $"압축 파일 {many.Count}개를 풀 폴더를 선택하세요");
+                    if (target is not null)
+                        await RunExtractBatchWithTargetAsync(many, target);
                 }
                 else
                 {
@@ -234,12 +235,13 @@ public partial class MainViewModel
             await OpenArchiveAsync(archives[0]);
             return;
         }
-        int choice = _ui.Choose($"압축 파일 {archives.Count}개를 골랐어요. 모두 풀까요?\n(고른 폴더 안에 압축마다 '이름' 폴더를 만들어 풀어요)",
+        int choice = _ui.Choose($"압축 파일 {archives.Count}개를 골랐어요. 모두 풀까요?\n(다음 창에서 풀 곳을 골라요 — 압축마다 '이름' 폴더를 만들어 풀 수 있어요)",
             new[] { "모두 풀기", "취소" }, defaultIndex: 0);
         if (choice != 0) return;
-        var folder = _ui.PickFolder($"압축 파일 {archives.Count}개를 풀 폴더를 선택하세요");
-        if (folder is null) return;
-        await RunExtractBatchAsync(archives, new ExtractTargetRule(ExtractTargetKind.NamedFolderIn, folder), fromShell: false);
+        // W2-09(I2-13): 폴더 고르기 창 대신 풀기 창
+        var target = AskExtractTarget(archives, selectedOnly: false, $"압축 파일 {archives.Count}개를 풀 폴더를 선택하세요");
+        if (target is null) return;
+        await RunExtractBatchWithTargetAsync(archives, target);
     }
 
     /// <summary>
@@ -248,7 +250,10 @@ public partial class MainViewModel
     /// - 우클릭(<paramref name="fromShell"/>)이고 '이름' 폴더·지정 폴더에 풀었으면 설정에 따라 결과 폴더 열기(I1-6).
     /// - 하나면 실패만 쉬운 한국어 창으로(암호 창 취소는 조용히), 여럿이면 요약 창(모두 풀었고 폴더를 열었으면 띄우지 않음).
     /// </summary>
-    internal async Task<BatchResult> RunExtractBatchAsync(IReadOnlyList<string> archives, ExtractTargetRule rule, bool fromShell)
+    /// <param name="target">
+    /// 풀기 창의 답(W2-09) — 있으면 휴지통·폴더 열기를 설정 대신 그 답대로 하고(폴더 열기는 하나면 그 폴더, 여럿이면 고른 풀 곳 한 번), 없으면 설정대로(예전과 같음).
+    /// </param>
+    internal async Task<BatchResult> RunExtractBatchAsync(IReadOnlyList<string> archives, ExtractTargetRule rule, bool fromShell, ExtractTarget? target = null)
     {
         var batch = new BatchExtractor(_locator, _ui, CreateCollisionResolver(), rule, archives);
         if (fromShell)
@@ -273,13 +278,19 @@ public partial class MainViewModel
         if (!result.Cancelled)
         {
             foreach (var o in result.Outcomes.Where(o => o.Succeeded))
-                if (RecycleArchiveAfterExtract(o.ArchivePath, o.Skipped) is { } note)
+                if (RecycleArchiveAfterExtract(o.ArchivePath, o.Skipped, target?.DeleteArchiveAfter) is { } note)
                     notes.Add(note);
         }
 
         // I1-6: 우클릭으로 새 폴더(또는 지정 폴더)에 풀었으면 결과 폴더를 연다(설정). '여기에 풀기'는 이미 보던 폴더라 열지 않는다.
+        // W2-09: 풀기 창으로 풀었으면 그 창의 '다 풀면 폴더 열기'대로.
         bool opened = false;
-        if (fromShell && rule.Kind != ExtractTargetKind.Here && Settings.Extract.OpenFolderAfter && !result.Cancelled)
+        if (target is not null)
+        {
+            if (target.OpenFolderAfter && !result.Cancelled)
+                opened = OpenResultFolder(result, target.Folder);
+        }
+        else if (fromShell && rule.Kind != ExtractTargetKind.Here && Settings.Extract.OpenFolderAfter && !result.Cancelled)
             opened = OpenResultFolder(result);
 
         int total = result.Total;
@@ -308,7 +319,8 @@ public partial class MainViewModel
     /// 우클릭 풀기 뒤 결과 폴더 열기(I1-6). 하나를 풀었으면 그 폴더, 여럿을 풀었으면 모두 같은 곳에 생겼을 때 그 위 폴더를 한 번(창이 여러 개 뜨지 않게).
     /// 진짜 탐색기는 <see cref="AppServices.Shell"/>(시험은 가짜 — 호출만 기록).
     /// </summary>
-    private bool OpenResultFolder(BatchResult result)
+    /// <param name="chosenFolder">풀기 창에서 고른 풀 곳(W2-09) — 여럿을 풀었으면 이 폴더를 한 번 연다.</param>
+    private bool OpenResultFolder(BatchResult result, string? chosenFolder = null)
     {
         var done = result.Outcomes.Where(o => o.Succeeded && o.Destination is not null).ToList();
         if (done.Count == 0) return false;
@@ -317,6 +329,11 @@ public partial class MainViewModel
             if (done.Count == 1)
             {
                 _services.Shell.OpenFolder(done[0].Destination!);
+                return true;
+            }
+            if (chosenFolder is not null)
+            {
+                _services.Shell.OpenFolder(chosenFolder);
                 return true;
             }
             var parents = done.Select(o => Path.GetDirectoryName(o.Destination!.TrimEnd(Path.DirectorySeparatorChar)))

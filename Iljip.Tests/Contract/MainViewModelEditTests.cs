@@ -94,6 +94,46 @@ public class MainViewModelEditTests
         Assert.Single(ui.ProgressSessions);
     }
 
+    /// <summary>
+    /// [W2-09 검증 지적] 겉보기 이름이 같은 두 줄(맥 NFD·NFC '보고서.txt'): 한 줄만 골라 지우면 둘 다 지우지 않고 쉬운 말로 알리며 압축 파일은 그대로,
+    /// 두 줄을 다 고르면 둘 다 지운다. 찾은 결과에서 폴더와 그 안 파일을 함께 골라도 지워진다.
+    /// </summary>
+    [Fact]
+    public async Task 겉보기_이름이_같은_두_줄은_하나만_골라_지우지_않는다()
+    {
+        using var t = new TempDir("vdeldup");
+        string zip = t.P("dup.zip");
+        RawZip.Write(zip,
+            new RawZip.Item(System.Text.Encoding.UTF8.GetBytes("하위/보고서.txt"), new byte[] { 1 }, true),
+            new RawZip.Item(System.Text.Encoding.UTF8.GetBytes("하위/보고서.txt".Normalize(System.Text.NormalizationForm.FormD)), new byte[] { 2 }, true),
+            new RawZip.Item(System.Text.Encoding.UTF8.GetBytes("하위/기타.txt"), new byte[] { 3 }, true),
+            new RawZip.Item(System.Text.Encoding.UTF8.GetBytes("남김.txt"), new byte[] { 4 }, true));
+        string sha = TreeAssert.Sha256(zip);
+        var (vm, ui) = await Open(zip);
+        ui.ChooseByLabel = "지우기";
+        var twins = vm.Entries.Where(e => e.Path == "하위/보고서.txt").ToList();
+        Assert.Equal(2, twins.Count);
+
+        await Run(() => vm.DeleteEntriesAsync(new[] { twins[1] }), "한 줄만 지우기");
+        Assert.Contains("2개 있어 어느 것을 지울지 알 수 없어요", Assert.Single(ui.Errors));
+        Assert.Equal(sha, TreeAssert.Sha256(zip));
+
+        await Run(() => vm.DeleteEntriesAsync(vm.Entries.Where(e => e.Path == "하위/보고서.txt").ToList()), "두 줄 지우기");
+        Assert.Single(ui.Errors);
+        Assert.Equal(new[] { "남김.txt", "하위/기타.txt" }, await Files(zip));
+
+        // 찾은 결과: 폴더 '하위' 와 그 안 '기타.txt' 를 함께 골라 지우기
+        vm.SearchText = "하위";
+        vm.ApplySearchNow();
+        var folder = Assert.Single(vm.VisibleEntries);
+        vm.SearchText = "기타";
+        vm.ApplySearchNow();
+        var inner = Assert.Single(vm.VisibleEntries);
+        await Run(() => vm.DeleteEntriesAsync(new[] { folder, inner }), "폴더와 안 파일 지우기");
+        Assert.Single(ui.Errors);
+        Assert.Equal(new[] { "남김.txt" }, await Files(zip));
+    }
+
     // ───────────────────────────── 이름 바꾸기·새 폴더·넣기 ─────────────────────────────
 
     [Fact]

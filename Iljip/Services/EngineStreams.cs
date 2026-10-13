@@ -27,9 +27,13 @@ internal sealed class CancellableSeekableReadStream : Stream
     {
         _token.ThrowIfCancellationRequested();
         int n = _inner.Read(buffer);
+        BytesRead += n;
         _onPosition?.Invoke(_inner.Position, _inner.Length);
         return n;
     }
+
+    /// <summary>지금까지 읽은 바이트 수(위치와 달리 되감아도 줄지 않음 — W2-06 검사 진행률).</summary>
+    public long BytesRead { get; private set; }
 
     public override bool CanRead => true;
     public override bool CanSeek => true;

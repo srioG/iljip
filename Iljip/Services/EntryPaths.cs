@@ -13,6 +13,8 @@ namespace Iljip.Services;
 ///   탐색기·PowerShell 로 열거나 지우기 어려운 파일이 생긴다.
 /// 이름 끝의 점·공백('dot.')은 Windows 가 떼어 낸 이름('dot')으로 만들어지므로 손대지 않는다(예전과 같음).
 /// 화면 목록·선택 비교는 원래 이름을 쓴다 — 바뀌는 것은 디스크에 쓰는 이름뿐이다.
+/// W2-09: 맥에서 만든 ZIP 의 한글 이름(NFD — 'ㅂㅗㄱㅗㅅㅓ' 처럼 자모가 풀린 꼴)은 NFC(완성형)로 모아 쓴다(<see cref="EntryNames.Nfc"/>).
+/// 화면 목록도 NFC 로 보이므로 화면 이름과 디스크 이름이 같다.
 /// </summary>
 public static class EntryPaths
 {
@@ -28,7 +30,7 @@ public static class EntryPaths
     /// <summary>항목 이름('/'·'\' 구분) → 대상 폴더 아래에 만들 상대 경로('\' 구분).</summary>
     public static string ToSafeRelative(string entryPath)
     {
-        var parts = entryPath.Replace('/', '\\').Split('\\');
+        var parts = EntryNames.Nfc(entryPath).Replace('/', '\\').Split('\\');
         for (int i = 0; i < parts.Length; i++)
             parts[i] = SafeComponent(parts[i]);
         return string.Join('\\', parts);

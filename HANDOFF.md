@@ -62,9 +62,19 @@
 - **W2-07(2026-10-13)**: 압축은 **한 화면 압축 창**(이름·만들 곳·형식·수준·암호·나누기·확인란 — 예전 저장 창 → 옵션 창 두 번을 하나로, 마지막 값 기억), 각각 따로 압축(원본마다 하나·끝에 요약),
   이름에 날짜(`보고서_20261013.zip` — 세 모양, GZ·BZ2 는 `보고서_20261013.xlsx.gz`), 쓸모없는 파일 빼기(Thumbs.db·desktop.ini·~$ 등 — 목록은 압축 창·☰ ▸ 설정에서 고침), 다 만들고 시험하기, 시험을 통과하면 묻고 원본을 휴지통으로(기본 끔 —
   압축 창은 기억하지 않고 ☰ ▸ 설정에서만 켜 둠), '만들 곳' 처음 값은 ☰ ▸ 설정(원본이 있는 폴더·마지막으로 만든 곳·정해 둔 폴더)
+- **W2-09(2026-10-13)**: 맥 ZIP 의 자모 분리(NFD) 한글 이름을 붙은 글자(NFC)로 보이고 풂, 일본어(Shift-JIS)·중국어(GBK) 이름 판별(한국어 먼저), **풀기 창**(풀 곳·최근 푼 곳 10개·'압축파일명으로 폴더 만들기'·
+  '다 풀고 휴지통으로'·'다 풀면 폴더 열기' — 툴바 [압축 풀기]·선택 항목 풀기·`--extract` 가 폴더 고르기 창 대신), 이름으로 찾기(모든 폴더, Ctrl+F·Esc), Backspace = 위 폴더, 상태 줄 '선택: 3개 · 12.4MB',
+  트리|목록 가르는 막대(너비 기억)
 - C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
 
-## 현재 진행 단계 (2026-10-13 W2-07 후)
+## 현재 진행 단계 (2026-10-13 W2-09 후)
+
+**W2-09(맥 NFD·일본어·중국어 이름 I2-10·풀기 창 I2-13·찾기·Backspace·선택 합계·트리 너비 I2-14) 작업 + 검증 지적 수정 1차 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음).
+계약 테스트 실패 0(전체 1843 — 통과 1843·건너뜀 0 — 마지막 Skip I2-10 을 풀었다. W2-09 직후 1816). 아래 변경 이력 'W2-09'·'W2-09 검증 지적 수정(1차)'. W2-08(만든 압축 시험 등)은 검증에서 되돌려져 `stash@{0}`(`iljip-wave2-W2-08-failed`)에 있다.
+**★ 커밋할 때 꼭 같이 넣을 것(HEAD 5a95fa6 만으로는 빌드가 안 됨)**: W2-07 검증 지적 수정 2차의 몫이 W2-07 커밋에 빠지고 W2-08 stash 로 쓸려 들어가 있었다 —
+`Iljip/Models/ArchiveProgress.cs`(`IsStage`)·`Iljip/Services/ThrottledArchiveProgress.cs`(단계 알림은 늘 통과)·`Iljip/Services/EngineStreams.cs`(`BytesRead` 4줄)·
+`Iljip.Tests/Contract/ThrottledArchiveProgressTests.cs`(시험 1개)·`Iljip.Tests/Contract/ArchiveEditReviewTests.cs`(새 파일). 이번 묶음 시작 때 stash 를 건드리지 않고(`git diff HEAD stash@{0} -- 파일`·`git show stash@{0}^3:…` 를 읽어
+작업 폴더에 `git apply`) 이 다섯만 되살렸다(W2-08 의 다른 변경은 넣지 않음) — 되살린 뒤 기준 통과 1746·건너뜀 1·전체 1747(W2-07 2차 기록과 같음). 그 전(W2-07) 기록:
 
 **W2-07(각각 따로 I2-4·압축 후 원본 지우기 I3-4·이름에 날짜 I3-5·쓸모없는 파일 빼기 I3-6·설정 기억과 한 화면 압축 창 I2-12) 작업 + 검증 지적 수정 1차·2차 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`stash` 안 함, stash 두 개는 손대지 않음).
 계약 테스트 실패 0(전체 1747 — 통과 1746·건너뜀 1: I2-10). 아래 변경 이력 'W2-07'·'W2-07 검증 지적 수정(1차)'·'(2차)'. 주의: W2-06 커밋(88814ba)에 `Iljip/Services/EngineStreams.cs` 의 4줄(`BytesRead`)과 `Iljip.Tests/Contract/ArchiveEditReviewTests.cs` 가 빠져 있어
@@ -94,7 +104,7 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
 2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
 3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함), W2-02 에서 7z 만들기(I2-1) 끝, W2-03 에서 분할 만들기(I2-2) 끝
-   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)도 볼 것
+   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)도 볼 것
 
 ### MSIX 셸 확장(예전 진행 상황 — 그대로)
 
@@ -206,6 +216,9 @@ dotnet run --project Iljip
       '기존 zip 고르기' 메뉴는 `Iljip.exe --add-to-pick <고른 파일…>`(일집이 압축 고르기 창을 띄움 — W2-06 검증 지적에서 명령줄 끝)
 - [x] **W2-07**: 한 화면 압축 창·설정 기억(I2-12)·각각 따로(I2-4)·압축 후 원본 휴지통(I3-4)·이름에 날짜(I3-5)·쓸모없는 파일 빼기(I3-6)
 - [ ] W2-07 남은 확인: MANUAL_CHECKLIST 14절(압축 창 모양·칸 순서·Tab·작은 화면, 진짜 휴지통으로 옮기고 되살리기, 네트워크 드라이브·USB, 회사 PC DLP·OneDrive 폴더, 엑셀이 만든 `~$` 파일)
+- [x] **W2-09**: 맥 NFD 이름·일본어·중국어 이름(I2-10), 풀기 창(I2-13), 이름으로 찾기·Backspace·선택 합계·트리 너비(I2-14)
+- [ ] W2-09 남은 확인: MANUAL_CHECKLIST 15절(진짜 맥·일본어·중국어 Windows 산출물, 풀기 창 모양·Tab·작은 화면, 찾은 결과가 많을 때 목록 속도, 가르는 막대 끌기·기억)
+- [ ] (선택) 이름 글자 방식 손으로 고르기 메뉴(한국어·일본어·중국어·UTF-8) — 자동 판별이 틀릴 때(짧은 중국어 이름 한두 개 등). W2-09 는 자동만
 - [ ] 다크 모드
 - [ ] 미리보기 (압축 내부 텍스트/이미지)
 - [ ] 압축 파일 내부 폴더 트리 탐색 (현재 flat list)
@@ -561,6 +574,50 @@ dotnet run --project Iljip
   위험·못 본 것: 진짜 진행 창에서 시험 중 움직이는 막대·큰 폴더 훑기 중 [취소]·엑셀로 연 원본의 휴지통 일부 실패는 MANUAL_CHECKLIST 14절(검증 지적 2차 줄). 속이 TAR 가 아닌 '.tar' 파일을 GZ 로 만든
   '.tar.gz' 는 일집으로 열면 TAR 로 펼치려 해 제대로 안 보일 수 있음(만들기·시험은 됨 — 열기 라우팅은 일부러 그대로 둠). 엔진의 원본 모으기가 취소를 받게 돼 그 사이 취소는 예전보다 빨리 '취소'로 끝남(정리 규칙은 같음).
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
+- **2026-10-13 W2-09 — 맥 NFD·일본어·중국어 이름(I2-10)·풀기 창(I2-13)·찾기·Backspace·선택 합계·트리 너비(I2-14)(커밋 전, 배포 안 함)**:
+  시작 전: HEAD(5a95fa6)가 빌드되지 않아(W2-07 검증 2차 몫이 W2-08 stash 로 쓸려 감) 다섯 파일만 stash 에서 읽어 되살림 — 위 '현재 진행 단계'(커밋 때 같이 넣을 것).
+  ① I2-10 이름: 새 `Services/EntryNames.cs`(NFC·고르기 열쇠) — 목록 이름(SharpCompress·7z.dll `SevenZipEngine.BuildItems`·EGG/ALZ), 디스크에 쓰는 이름(`EntryPaths.ToSafeRelative`), 고르기 비교 양쪽(`EntrySelector`·EGG),
+  고치기 열쇠(`EditPlanner.Normalize` → `ArchiveTester`·7z 고치기도 같이)를 NFC 로. 그대로 둔 바이트는 그대로 옮김(ZIP 고치기). NFC 로 같아지는 두 항목은 같은 실행 안 겹침 규칙대로 둘째가 '이름 (1)'.
+  새 `Services/ArchiveNameEncoding.cs`(`ArchiveNameEncodingDetector`·`NameDecoder`·`NameCollector`): UTF-8 표시 없는 옛 방식 이름 전체로 압축 하나에 방식 하나 — 한국어 먼저.
+  ★ 설계의 'CP949 로 엄격히 풀리고 한글 1자 이상이면 한국어'는 실측에서 틀림: Shift-JIS 가나·한자는 CP949 확장 음절로('テスト資料' → '깻깥깸랍됨'), GBK 간체는 완성형 한글+한자 섞임으로('测试文件' → '꿎桿匡숭') 다 풀린다 —
+  그래서 KS X 1001 완성형 음절·자주 쓰는 음절(약 600자) 비율·한자/확장 음절 수로 가르고, 그다음 Shift-JIS(가나·한자 80% 이상), GBK(GB2312 한자 60% 이상), 모두 아니면 예전 규칙(이름마다 — CP437 보존).
+  실험(말뭉치, 이름 하나씩): 한국어 이름 192개 중 190개 한국어(틀린 것은 '韓國語 교재' 처럼 한자가 많은 이름), 일본어 65/65, 중국어 이름 하나씩은 31/61 만 중국어(나머지는 한국어 — 짧은 이름은 CP949·GBK 둘 다 그럴듯, '한국어 우선' 위험 그대로),
+  압축 단위(이름 여럿)는 모두 맞음. 바이트 모양을 먼저 보고 맞을 때만 엄격히 풀어 예외 흐름 비용을 줄임(8a04404 교훈).
+  SharpCompress 로 여는 길(ZIP·TAR·압축된 TAR·7z.dll 이 없을 때의 RAR, ZIPX·RAR4 의 이름 대조 `NamesFromSharpCompress`)은 처음 열 때 이름을 모아 정하고, 정한 방식으로 풀어도 같으면(한국어·UTF-8 대부분) 그대로,
+  다르면 한 번 더 엶(`SharpCompressArchiveServiceBase.OpenWithNameDetection`). ZIP 중앙 디렉터리를 직접 읽는 암호 판정(`ZipPasswordProbe`)·압축 고치기(`ZipRawRewriter`)도 같은 규칙(`Services/ZipEntryNames.cs` — 이름·항목 주석·압축 주석으로 정하고 0x7075 이름 우선, SharpCompress 와 같게).
+  `KoreanFileNameDecoder` 는 그대로(정하지 않음일 때 씀).
+  ② I2-13 풀기 창: 새 `Views/ExtractOptionsDialog.xaml`·순수 VM `ViewModels/ExtractOptionsViewModel.cs`, 모델 `Models/ExtractTarget.cs`(`ExtractTargetRequest`·`ExtractTarget(Folder, MakeFolder, DeleteArchiveAfter, OpenFolderAfter)`),
+  `IUserInteraction.AskExtractTarget`(덧붙임 — `WpfUserInteraction`·가짜 둘 다). 툴바 [압축 풀기]·Ctrl+E·선택 항목 풀기·`--extract`(하나·여럿)·열기 창에서 여럿 고르기가 폴더 고르기 창 대신 씀(새 `MainViewModel.ExtractDialog.cs`).
+  최종 풀 곳 = 폴더 만들기면 `ArchiveNaming.UniqueFolder(고른 곳, FolderNameFor(압축))`, 아니면 고른 곳(여럿이면 `NamedFolderIn`/`Into`). 못 풀면 만든 폴더에 파일이 없을 때 지움.
+  설정 덧붙임: `extract.makeFolder`(기본 켬·기억)·`extract.recentFolders`(맨 앞·대소문자 무시로 겹치지 않음·10개, 창에는 지금 있는 것만)·`extract.dialogOpenFolderAfter`(기본 꺼짐·기억 — 우클릭 풀기의 `openFolderAfter` 와 따로)·`ui.treeWidth`.
+  휴지통은 창의 처음 값이 설정(`deleteArchiveAfter`)이고 창에서 켠 것은 이번에만. 다 풀면 고른 곳을 최근 맨 앞에 — 바뀐 것이 있을 때만 끝에 한 번 저장. 창 없이 풀기·우클릭 '여기에/이름 폴더에'는 그대로(설정 안 읽음).
+  가짜 `ExtractTargetAnswer` 가 없으면 예전 `FolderToPick` 답으로(하나는 그 폴더에 바로, 여럿은 '이름' 폴더마다) — 기존 화면 시험이 그대로 통과. '모두 풀까요?' 문구 괄호만 '(다음 창에서 풀 곳을 골라요…)'.
+  ③ I2-14 둘러보기(새 `MainViewModel.Browse.cs`): 이름으로 찾기(`SearchText` — 200ms 기다림, NFC·소문자 이름 목록을 처음 찾을 때 한 번 만듦, 모든 폴더의 파일·폴더, '경로' 열 `ArchiveEntry.FolderPath` — 정렬 열에도 넣음,
+  Esc·✕·트리에서 폴더 고르기·찾은 폴더 두 번 누르기로 지움, 다른 압축을 열면 지움, 고친 뒤 다시 읽으면 새 목록에서 다시 찾음). 10만 개: 열기 1.6초, 첫 찾기(이름 목록 만들기 포함) 87ms, 찾기 약 5ms.
+  Backspace = `UpCommand`(위 폴더, 찾는 중이면 찾기 지우기 — 이름 고치는 중엔 그 칸에), Ctrl+F = 찾기 칸. 상태 줄 오른쪽 '선택: 3개 · 12.4MB'(폴더는 트리로 그 아래 전부 — 한 번 계산해 둠, 크기를 모르는 항목은 '약').
+  트리|목록 사이 `GridSplitter`(트리 칸은 압축을 볼 때만 — 너비는 `ui.treeWidth`, 기본 260, 창을 닫을 때 바뀌었으면 한 번 저장). 새 폴더 이름 제안은 찾는 중이면 트리의 지금 폴더로.
+  시험: 새 66개(`NameEncodingTests` 28·`ExtractDialogTests` 19·`ExtractDialogXamlTests` 1·`BrowseTests` 17·`BrowseXamlTests` 1) + Skip 해제 `BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다`(4행), `Known.I2_10` 삭제.
+  기대가 바뀐 기존 시험 없음(`SortingTests` 의 '목록 열은 모두 정렬할 수 있는 열' 계약에 맞춰 '경로' 열을 정렬 열로 넣음). 가짜에 더한 것: `FakeUserInteraction.AskExtractTarget`·`ExtractTargetAnswer`, `RawTar.Entry.RawName`.
+  계약 테스트: 전체 1816 — 통과 1816·건너뜀 0·**실패 0**(되살린 기준 1747 에서).
+  위험·못 본 것: 진짜 맥·일본어·중국어 Windows 산출물·창 모양·찾은 결과 수만 개일 때 WPF 목록 그리기는 MANUAL_CHECKLIST 15절. 짧은 중국어 이름 한두 개뿐인 압축은 한국어로 보일 수 있음(손으로 고르는 메뉴는 안 만듦 — 향후 작업).
+  7z.dll 이 OEM 코드 페이지로 읽는 LZH·CAB·ISO 이름과 ALZ 이름은 다시 판별하지 않음(한국어 판별 그대로). 시간을 재는 `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…` 가 이번 첫 전체 실행에서 3084ms 로 한 번 실패(W2-06 때와 같은 바쁜 PC 현상 — 따로 돌리면 통과, 7z 만들기 길은 손대지 않음).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
+- **2026-10-14 W2-09 검증 지적 수정(1차, 커밋 전, 배포 안 함)**: 지적 7개를 직접 확인 — 모두 맞아 고침(파일·폴더 이름 겹침의 '영어 IOException'은 화면에서는 이미 쉬운 말이었고, 멈추고 파일이 남는 것만 맞음).
+  ① (major) 한자가 많은 한국어 이름이 중국어로 읽힘: `ArchiveNameEncoding.cs` — GBK 로 읽은 글자에 사용자 정의 글자(U+E000~F8FF)가 있거나 GB2312 2급 한자(머리 D8~F7)가 한자의 25%를 넘으면 중국어 아님
+  (KS X 1001 한자는 소리 차례라 '사~힐' 소리 약 4분의 3이 GBK 로는 2급·사용자 정의 구역 — 실측: 진짜 중국어 이름의 2급 비율 0.1~0.3%, 한국어 한자 66%+PUA 10%), `LooksKorean` 에 '확장 음절 없고 자주 쓰는 한글 2자 이상·80% 이상' 줄,
+  중국어·일본어가 아니고 CP949 완성형으로 다 풀리면 한국어(한자뿐인 '會議錄.hwp' 도 바르게 — 예전 규칙은 CP437). 자주 쓰는 음절에 '폴·플·클·캔·및·워·텍·딩·런'(이 PC 실제 이름에서 자주 빠지던 것 — '새 폴더'·'샘플'·'스캔').
+  실험(scratch `encprobe`): 이 PC 실제 이름 53,704개(폴더 6,286개) 예전 규칙보다 나빠진 이름 0, 한자 섞인 한국어 모의 압축 6만 개에서 예전 규칙보다 나빠진 이름 18,828 → 0, 중국어 압축이 한국어로 보이는 비율 이름 1개 33.0→34.3%·3개 10.5→11.4%, 일본어 그대로 100%.
+  ② (major) 풀기 창 처음 풀 곳: 새 `Services/TempLocations.cs`(`AppServices.TempLocations` — 일집 임시 폴더·%TEMP%·LOCALAPPDATA\Temp·INetCache·Windows\Temp)면 바탕 화면(없으면 최근, 그것도 없으면 빈 칸),
+  그런 곳은 최근 푼 곳에 넣지도 보이지도 않음, 일집 임시 폴더는 창에서 골라도 "일집 임시 폴더에는 풀 수 없어요…"(`ExtractOptionsViewModel.CheckPath`). 시험은 가짜 위치(`TestServices(…, tempLocations)` — 기본은 시스템 임시·바탕 화면 없음: 픽스처가 진짜 %TEMP% 아래라서).
+  ③ NFC 로 같은 두 파일 고치기: `EditPlanner.Delete` 는 같은 키를 고른 수만큼 받아 같은 이름 파일 수보다 적으면 멈춤(쉬운 말), `Rename` 은 같은 이름 파일이 둘 이상이면 멈춤, 화면(`DeleteEntriesAsync`)은 고른 줄마다 키 하나(예전 같은 키를 하나로 줄임).
+  덤(같은 곳): 찾은 결과에서 폴더와 그 안 파일을 함께 골라 지우면 '찾지 못했어요'로 멈추던 것 — '찾지 못함'을 지우기 전에 한꺼번에 봄.
+  ④ 찾은 폴더에서 Enter·우클릭 '열기': `OpenEntryAsync` 가 `NavigateToFolder` 대신 `GoToFolder`(찾기 지움).
+  ⑤ 파일 뒤 같은 이름 폴더: `ExtractionLedger.EnsureDirectory` 가 만들 자리의 '이번 해제가 만든 파일'을 `OutputFiles.MoveNew` 로 '이름 (1)' 로 비켜 두고 장부·같은 이름 범위를 고침(사용자 파일은 그대로 — 예전처럼 실패).
+  ⑥ 끊긴 NAS: 새 `Services/FolderProbe.cs` — 네트워크 폴더(UNC·네트워크 드라이브)는 창이 열릴 때(`VisibleRecentFolders`)·칠 때(`PreviewText`)·[찾아보기] 처음 위치에서 디스크를 보지 않고, [풀기] 때 한 번 5초까지(`TryBuildResult` — 확인 한 번, 모래시계).
+  ⑦ 모으는 목록의 폴더 선택 합계: 폴더만 '선택: 1개', 섞이면 '선택: 2개 · 파일 10B'.
+  시험: 새 27개(`NameEncodingTests` 20·`ExtractDialogTests` 4·`BrowseTests` 2·`MainViewModelEditTests` 1), 기대가 바뀐 기존 시험 없음. 계약 테스트: 전체 1843 — 통과 1843·건너뜀 0·**실패 0**.
+  위험·못 본 것: 진짜 Outlook 첨부·NAS 끊김·창 모양은 MANUAL_CHECKLIST 15절 '(검증 지적 1차)' 줄. 짧은 중국어 이름의 한국어 오판(한국어 우선)은 조금 늘었음(위 수치). 2급 한자가 많은 중국어 사람 이름 한두 개뿐인 압축('王鑫.jpg')은 이제 한국어(한자)로 보임.
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

@@ -11,6 +11,7 @@ namespace Iljip.Tests.TestSupport;
 /// (W1-B 보관본의 같은 이름 가짜와 모양을 맞춤 — 선택 창은 W1-D 에서 더함)
 /// W2-05: 같은 이름 창(<see cref="AskCollision"/> — 넣어 둔 답, 없으면 '이름 바꾸기')·요약 창(<see cref="Summaries"/>)을 더함.
 /// W2-07: 한 화면 압축 창(<see cref="AskCompression"/> — 넣어 둔 답, 없으면 예전 저장 창·옵션 창 답으로)을 더함.
+/// W2-09: 풀기 창(<see cref="AskExtractTarget"/> — 넣어 둔 답 <see cref="ExtractTargetAnswer"/>, 없으면 예전 폴더 고르기 창 답으로)을 더함.
 /// </summary>
 public sealed class FakeUserInteraction : IUserInteraction
 {
@@ -193,6 +194,27 @@ public sealed class FakeUserInteraction : IUserInteraction
             ExcludePatterns = request.Defaults.ExcludePatterns.ToList(),
             OverwriteExisting = true,
         };
+    }
+
+    // ───── W2-09: 풀기 창 ─────
+
+    /// <summary>풀기 창이 불린 기록(넘긴 것 — 압축 파일·처음 값·최근 폴더).</summary>
+    public List<ExtractTargetRequest> ExtractTargetPrompts { get; } = new();
+
+    /// <summary>
+    /// 풀기 창의 답(넘긴 것을 보고 만듦, null 을 돌려주면 취소). 비면 예전 관례: 폴더 고르기 창(<see cref="FolderToPick"/>, null 이면 취소)의 폴더에 —
+    /// 압축이 하나면 그 폴더에 바로, 여럿이면 그 안의 '이름' 폴더마다(예전 폴더 고르기 창 흐름과 같음), 휴지통은 넘긴 처음 값(설정) 그대로, 폴더는 열지 않음.
+    /// </summary>
+    public Func<ExtractTargetRequest, ExtractTarget?>? ExtractTargetAnswer { get; set; }
+
+    public ExtractTarget? AskExtractTarget(ExtractTargetRequest request)
+    {
+        ExtractTargetPrompts.Add(request);
+        if (ExtractTargetAnswer is { } answer) return answer(request);
+        var folder = PickFolder(request.Title);
+        return folder is null
+            ? null
+            : new ExtractTarget(folder, MakeFolder: request.Archives.Count > 1, DeleteArchiveAfter: request.DeleteArchiveAfter, OpenFolderAfter: false);
     }
 
     private sealed class Session : IProgressSession

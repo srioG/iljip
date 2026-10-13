@@ -60,8 +60,11 @@ internal sealed class EditPlanner<TSource>
     /// <summary>같은 이름 '건너뛰기'로 넣지 않은 파일 수.</summary>
     public int CollisionSkipped { get; private set; }
 
-    /// <summary>키 정리: '\' → '/', 앞뒤 '/' 뗌.</summary>
-    public static string Normalize(string key) => (key ?? string.Empty).Replace('\\', '/').Trim('/');
+    /// <summary>
+    /// 키 정리: '\' → '/', 앞뒤 '/' 뗌, NFC(W2-09 — 목록은 맥 NFD 이름도 완성형으로 보여 주므로 편집기 키·검사 비교도 NFC 로 맞춘다.
+    /// 손대지 않은 항목은 원래 이름 바이트 그대로 옮기고, 이름을 바꾸거나 새로 넣는 항목만 NFC 이름으로 쓴다).
+    /// </summary>
+    public static string Normalize(string key) => EntryNames.SelectorKey(key);
 
     /// <summary>두 키를 잇는다(앞이 비면 뒤만).</summary>
     public static string Join(string folder, string rel)
@@ -85,27 +88,42 @@ internal sealed class EditPlanner<TSource>
 
     // ───────────────────────────── 지우기 ─────────────────────────────
 
+    /// <summary>
+    /// 지우기. 같은 키를 여러 번 주면 그만큼 고른 것이다(목록에서 겉보기 이름이 같은 줄을 여러 개 고름).
+    /// 같은 이름의 파일이 여럿인데(맥 NFD·NFC 로 모으면 같아지는 두 파일 등 — W2-09 검증 지적) 그보다 적게 골랐으면 어느 것인지 알 수 없어 지우지 않고 알린다
+    /// (예전엔 하나를 골라도 둘 다 지웠다). '찾지 못함'은 지우기 전에 한꺼번에 본다 — 찾은 결과에서 폴더와 그 안 파일을 함께 골랐을 때
+    /// 먼저 지운 쪽 때문에 다른 쪽을 '찾지 못했어요'로 멈추지 않게. 아무것도 지우지 않고 멈추면 계획은 그대로다.
+    /// </summary>
     public void Delete(IEnumerable<string> keys)
     {
-        foreach (var raw in keys)
+        var requested = keys.Select(Normalize).Where(k => k.Length > 0).ToList();
+        foreach (var g in requested.GroupBy(k => k, StringComparer.Ordinal))
         {
-            string k = Normalize(raw);
-            if (k.Length == 0) continue;
-            bool any = false;
+            if (!Exists(g.Key)) throw NotFound(g.Key);
+            int same = SameNameFiles(g.Key);
+            if (same > 1 && g.Count() < same && !requested.Any(o => Under(g.Key, o)))
+                throw new ArchiveEditException(
+                    $"‘{g.Key.Split('/')[^1]}’ 이름의 파일이 압축 파일 안에 {same}개 있어 어느 것을 지울지 알 수 없어요(맥에서 만든 압축처럼 겉보기 이름이 같은 파일). " +
+                    $"{same}개를 모두 고르면 함께 지울 수 있어요.", entryPath: g.Key);
+        }
+        foreach (var k in requested.Distinct(StringComparer.Ordinal))
+        {
             foreach (var it in _items.Where(i => !i.Removed && (i.Key == k || Under(i.Key, k))))
-            {
                 it.Removed = true;
-                any = true;
-            }
             foreach (var a in _added.Where(a => !a.Removed && (a.Key == k || Under(a.Key, k))))
-            {
                 a.Removed = true;
-                any = true;
-            }
-            if (_addedDirs.RemoveAll(d => d == k || Under(d, k)) > 0) any = true;
-            if (!any) throw NotFound(k);
+            _addedDirs.RemoveAll(d => d == k || Under(d, k));
         }
     }
+
+    /// <summary>그 키(또는 그 아래)에 지우지 않은 무언가가 있는가.</summary>
+    private bool Exists(string k) =>
+        _items.Any(i => !i.Removed && (i.Key == k || Under(i.Key, k)))
+        || _added.Any(a => !a.Removed && (a.Key == k || Under(a.Key, k)))
+        || _addedDirs.Any(d => d == k || Under(d, k));
+
+    /// <summary>지금 키가 <paramref name="key"/> 와 똑같은 (지우지 않은) 파일 수 — 둘 이상이면 목록에서 겉보기 이름이 같은 줄이 여럿.</summary>
+    private int SameNameFiles(string key) => _items.Count(i => !i.Removed && !i.IsDirectory && i.Key == key);
 
     // ───────────────────────────── 이름 바꾸기 ─────────────────────────────
 
@@ -149,6 +167,12 @@ internal sealed class EditPlanner<TSource>
         var mineAdded = _added.Where(a => !a.Removed && (a.Key == k || Under(a.Key, k))).ToList();
         var mineDirs = _addedDirs.Where(d => d == k || Under(d, k)).ToList();
         if (mine.Count == 0 && mineAdded.Count == 0 && mineDirs.Count == 0) throw NotFound(k);
+        // 같은 이름의 파일이 여럿이면(맥 NFD·NFC — W2-09 검증 지적) 어느 것인지 알 수 없다 — 둘 다 같은 새 이름이 되어 이름이 겹치지 않게 멈춘다.
+        // 폴더는 괜찮다(NFD·NFC 폴더 항목은 목록에서 한 폴더로 보이므로 함께 옮겨야 맞음).
+        if (SameNameFiles(k) > 1)
+            throw new ArchiveEditException(
+                $"‘{k.Split('/')[^1]}’ 이름의 파일이 압축 파일 안에 {SameNameFiles(k)}개 있어 어느 것의 이름을 바꿀지 알 수 없어요(맥에서 만든 압축처럼 겉보기 이름이 같은 파일). " +
+                "압축을 풀어서 이름을 바꿔 주세요.", entryPath: k);
 
         // 같은 자리(대소문자 무시)에 다른 항목이 있으면 거절 — 자기 자신(대소문자만 바꾸기)은 빼고
         bool taken =

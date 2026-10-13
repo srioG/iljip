@@ -89,4 +89,12 @@ public interface IUserInteraction
     /// 같은 이름의 압축 파일이 이미 있으면 창이 '바꿀까요?'를 묻고 답을 <see cref="CompressionRequest.OverwriteExisting"/> 에 담는다.
     /// </summary>
     CompressionRequest? AskCompression(CompressionDialogRequest request);
+
+    // ───── W2-09(풀기 창 — I2-13)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// 풀기 창: 풀 곳(최근 푼 곳 목록 + [찾아보기])·'압축파일명으로 폴더 만들기'·'다 풀고 압축 파일을 휴지통으로'·'다 풀면 폴더 열기'. 취소하면 null.
+    /// '다른 곳에 풀기'(툴바·Ctrl+E·선택 항목 풀기)·명령줄 '--extract'·열기 창에서 여러 개 고르기가 예전 폴더 고르기 창(<see cref="PickFolder"/>) 대신 쓴다.
+    /// </summary>
+    ExtractTarget? AskExtractTarget(ExtractTargetRequest request);
 }

@@ -279,6 +279,7 @@ public static class ZipPasswordProbe
 
         byte[] cd = ReadAt(fs, cdOffset, (int)cdSize);
         var list = new List<ZipCentralEntry>((int)Math.Min(count, 100_000));
+        var rawNames = new List<ZipEntryNames.Raw>(list.Capacity);   // W2-09: 이름은 다 읽은 뒤 압축 파일 하나에 한 방식으로 푼다(목록과 같은 이름)
         int p = 0;
         for (int n = 0; n < count; n++)
         {
@@ -322,10 +323,13 @@ public static class ZipPasswordProbe
             }
             if (diskStart != 0 || offset < 0 || csize < 0 || usize < 0) return null;
 
-            string name = KoreanFileNameDecoder.DecodeBytes(cd, nameAt, nameLen);
-            list.Add(new ZipCentralEntry(n, name, flags, method, time, crc, csize, usize, offset, aesVersion, aesStrength, aesMethod));
+            rawNames.Add(ZipEntryNames.Read(cd, p, flags, nameLen, extraLen, commentLen));
+            list.Add(new ZipCentralEntry(n, string.Empty, flags, method, time, crc, csize, usize, offset, aesVersion, aesStrength, aesMethod));
             p = next;
         }
+        int commentLength = BitConverter.ToUInt16(tail, eocd + 20);
+        var names = ZipEntryNames.Decode(rawNames, tail.AsSpan(eocd + 22, commentLength).ToArray());
+        for (int i = 0; i < list.Count; i++) list[i] = list[i] with { Name = names[i] };
         return list;
     }
 

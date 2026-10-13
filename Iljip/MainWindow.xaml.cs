@@ -20,8 +20,15 @@ public partial class MainWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         Closing += Window_Closing;
-        Closed += (_, _) => ViewModel?.Shutdown();   // W2-06: 연 파일 감시를 멈추고 임시 작업 폴더를 지운다
+        Closed += (_, _) =>
+        {
+            ViewModel?.RememberTreeWidth(_treeWidth);   // W2-09(I2-14): 막대로 바꾼 트리 너비 — 닫을 때 한 번만 저장
+            ViewModel?.Shutdown();   // W2-06: 연 파일 감시를 멈추고 임시 작업 폴더를 지운다
+        };
     }
+
+    /// <summary>왼쪽 폴더 트리 너비(W2-09 — 처음은 설정 ui.treeWidth, 막대를 끌면 바뀜). 압축을 보지 않을 때는 트리 칸을 0 으로 접는다.</summary>
+    private double _treeWidth = UiSettings.DefaultTreeWidth;
 
     /// <summary>W2-06(I3-3): 고친 파일을 다시 넣을지 물은 뒤 닫기로 했다(두 번째 Close 는 묻지 않음).</summary>
     private bool _exitConfirmed;
@@ -58,8 +65,10 @@ public partial class MainWindow : Window
         if (ViewModel is { } vm)
         {
             vm.PropertyChanged += ViewModel_PropertyChanged;
+            _treeWidth = vm.TreeWidth;
             UpdateColumns();
             UpdateSortArrows();
+            UpdateTreeColumn();
         }
     }
 
@@ -69,6 +78,11 @@ public partial class MainWindow : Window
         if (e.PropertyName is nameof(MainViewModel.IsArchiveMode)
             or nameof(MainViewModel.IsStagingMode)
             or nameof(MainViewModel.IsEmptyState))
+        {
+            UpdateColumns();
+            UpdateTreeColumn();
+        }
+        else if (e.PropertyName is nameof(MainViewModel.IsSearching))
         {
             UpdateColumns();
         }
@@ -109,6 +123,73 @@ public partial class MainWindow : Window
         var vis = vm.IsArchiveMode ? Visibility.Visible : Visibility.Collapsed;
         ColCompressed.Visibility = vis;
         ColRatio.Visibility = vis;
+        // W2-09(I2-14): 이름으로 찾는 중에만 '경로'(들어 있는 폴더)
+        ColFolder.Visibility = vm.IsArchiveMode && vm.IsSearching ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>트리 칸 너비: 압축을 보는 중이면 기억한 너비(가르는 막대로 바꿀 수 있음), 아니면 0(트리를 접음).</summary>
+    private void UpdateTreeColumn()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsArchiveMode)
+        {
+            TreeColumn.MinWidth = 120;
+            TreeColumn.Width = new GridLength(_treeWidth);
+        }
+        else
+        {
+            if (TreeColumn.ActualWidth >= 120) _treeWidth = TreeColumn.ActualWidth;
+            TreeColumn.MinWidth = 0;
+            TreeColumn.Width = new GridLength(0);
+        }
+    }
+
+    /// <summary>가르는 막대를 다 끌었으면 그 너비를 기억한다(저장은 창을 닫을 때 한 번).</summary>
+    private void TreeSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (TreeColumn.ActualWidth >= 120) _treeWidth = TreeColumn.ActualWidth;
+    }
+
+    // ───── W2-09(I2-14) 둘러보기: 이름으로 찾기·Backspace 위 폴더·선택 합계 ─────
+
+    /// <summary>Ctrl+F: 이름으로 찾기 칸으로(압축을 보는 중일 때).</summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control && ViewModel is { IsArchiveMode: true })
+        {
+            e.Handled = true;
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+    }
+
+    /// <summary>찾기 칸: Esc = 찾기 지우기, Enter = 기다리지 않고 바로 찾기, ↓ = 목록으로.</summary>
+    private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { } vm) return;
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            vm.ClearSearch();
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            vm.ApplySearchNow();
+        }
+        else if (e.Key == Key.Down && EntriesGrid.Items.Count > 0)
+        {
+            e.Handled = true;
+            if (EntriesGrid.SelectedIndex < 0) EntriesGrid.SelectedIndex = 0;
+            EntriesGrid.Focus();
+        }
+    }
+
+    /// <summary>목록에서 고른 것이 바뀌면 상태 줄의 '선택: N개 · 크기'를 고친다.</summary>
+    private void EntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not { } vm) return;
+        vm.UpdateSelection(EntriesGrid.SelectedItems.OfType<ArchiveEntry>().ToList());
     }
 
     private void Theme_Click(object sender, RoutedEventArgs e)
@@ -129,7 +210,7 @@ public partial class MainWindow : Window
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (ViewModel is { } vm && e.NewValue is ArchiveTreeNode node)
-            vm.SelectedFolder = node;
+            vm.GoToFolder(node);   // W2-09: 찾는 중이면 찾기를 지우고 그 폴더로
     }
 
     /// <summary>목록에서 폴더를 더블클릭하면 그 폴더로 진입. 파일이면 꺼내서 기본 프로그램으로 연다(I1-3 — W2-06 이 최소로 들임).</summary>
@@ -139,7 +220,7 @@ public partial class MainWindow : Window
         if (e.OriginalSource is DependencyObject src && FindParent<DataGridColumnHeader>(src) is not null) return;   // 열 머리 두 번 누르기
         if (EntriesGrid.SelectedItem is ArchiveEntry { IsDirectory: true } entry)
         {
-            vm.NavigateToFolder(entry.Path);
+            vm.GoToFolder(entry.Path);   // W2-09: 찾은 결과의 폴더면 찾기를 지우고 그 폴더로
             e.Handled = true;
         }
         else if (EntriesGrid.SelectedItem is ArchiveEntry file)
@@ -272,6 +353,20 @@ public partial class MainWindow : Window
         if (e.OriginalSource is TextBox) return;
         if (ViewModel is { IsArchiveMode: true } avm)
         {
+            // W2-09(I2-14): Backspace = 위 폴더(찾는 중이면 찾기 지우기), Esc = 찾기 지우기.
+            // 이름을 고치는 중(글자 칸)의 키는 맨 위에서 그 칸에 맡겼다 — 글자를 지우는 Backspace 가 폴더를 옮기지 않게.
+            if (e.Key == Key.Back)
+            {
+                e.Handled = true;
+                avm.UpCommand.Execute(null);
+                return;
+            }
+            if (e.Key == Key.Escape && avm.IsSearching)
+            {
+                e.Handled = true;
+                avm.ClearSearch();
+                return;
+            }
             if (e.Key == Key.Delete)
             {
                 var picked = EntriesGrid.SelectedItems.OfType<ArchiveEntry>().ToList();

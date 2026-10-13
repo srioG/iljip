@@ -19,8 +19,11 @@ public sealed class EntrySortComparer : IComparer<ArchiveEntry>
     public const string CompressionRatio = nameof(ArchiveEntry.CompressionRatio);
     public const string LastModified = nameof(ArchiveEntry.LastModified);
 
+    /// <summary>'경로'(들어 있는 폴더 — 이름으로 찾을 때만 보이는 열, W2-09). 자연 정렬.</summary>
+    public const string FolderPath = nameof(ArchiveEntry.FolderPath);
+
     /// <summary>정렬할 수 있는 열.</summary>
-    public static IReadOnlyList<string> Members { get; } = new[] { Name, Size, CompressedSize, CompressionRatio, LastModified };
+    public static IReadOnlyList<string> Members { get; } = new[] { Name, Size, CompressedSize, CompressionRatio, LastModified, FolderPath };
 
     public static bool IsSortable(string? member) => member is not null && Members.Contains(member);
 
@@ -52,6 +55,7 @@ public sealed class EntrySortComparer : IComparer<ArchiveEntry>
             CompressedSize => x.CompressedSize.CompareTo(y.CompressedSize),
             CompressionRatio => x.CompressionRatio.CompareTo(y.CompressionRatio),
             LastModified => Nullable.Compare(x.LastModified, y.LastModified),
+            FolderPath => CompareNames(x.FolderPath, y.FolderPath),
             _ => ByName(x, y),
         };
         if (c != 0) return Descending ? -c : c;

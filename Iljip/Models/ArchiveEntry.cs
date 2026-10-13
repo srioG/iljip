@@ -22,6 +22,17 @@ public sealed class ArchiveEntry
         }
     }
 
+    /// <summary>들어 있는 폴더(압축 안 경로, '/' 구분 — 맨 위면 빈 글자). 이름으로 찾을 때 '경로' 열(W2-09, I2-14).</summary>
+    public string FolderPath
+    {
+        get
+        {
+            var trimmed = Path.TrimEnd('/');
+            int i = trimmed.LastIndexOf('/');
+            return i < 0 ? string.Empty : trimmed[..i];
+        }
+    }
+
     /// <summary>원본 크기 (bytes)</summary>
     public long Size { get; init; }
 

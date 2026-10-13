@@ -108,19 +108,27 @@ internal static class ZipRawRewriter
         byte[] cd = ZipDirectory.ReadAt(s, cdStart, (int)end.CdSize);
         var records = ZipDirectory.ParseCentral(cd, end.TotalEntries);
 
-        var entries = new List<ZipSourceEntry>(records.Count);
+        // 이름: 목록(SharpCompress)과 같은 규칙(W2-09 — 압축 파일 하나에 한 방식, 유니코드 경로 0x7075 우선, ZipEntryNames)으로 다 읽은 뒤 한 번에 푼다.
+        // Info-ZIP 유니코드 경로(판 1 + 원래 이름의 CRC + UTF-8 이름)는 목록이 그 이름을 쓰므로 키도 같게 — 반디집은 CP949 이름 + 0x7075 를 쓰는데,
+        // 맥 NFD 이름처럼 CP949 로 못 적는 이름이면 둘이 다르다(W2-06 검증 지적). 키는 NFC(EditPlanner.Normalize — 목록의 NFC 이름으로 찾음, W2-09).
+        var rawNames = new List<ZipEntryNames.Raw>(records.Count);
         foreach (var r in records)
+            rawNames.Add(ZipEntryNames.Read(r.Raw, 0, ZipDirectory.U16(r.Raw, 8), r.NameLength, r.ExtraLength, r.CommentLength));
+        var decodedNames = ZipEntryNames.Decode(rawNames, end.Comment);
+
+        var entries = new List<ZipSourceEntry>(records.Count);
+        for (int index = 0; index < records.Count; index++)
         {
+            var r = records[index];
             byte[] raw = r.Raw;
             int flags = ZipDirectory.U16(raw, 8);
             if ((flags & 0x40) != 0 || (flags & 0x2000) != 0) throw new ArchiveNotEditableException();   // PKWARE 강한 암호·중앙 디렉터리 암호
             if (r.DiskStart != 0) throw new ArchiveNotEditableException();
             if (r.LocalOffset < 0 || r.LocalOffset + ZipDirectory.LocalHeaderLength > cdStart)
                 throw new InvalidDataException("ZIP 로컬 머리 위치가 맞지 않음");
-            byte[] name = raw.AsSpan(ZipDirectory.CentralFixedLength, r.NameLength).ToArray();
-            string decoded = KoreanFileNameDecoder.DecodeBytes(name, 0, name.Length);
+            byte[] name = rawNames[index].Name;
+            string decoded = decodedNames[index];
             int aesVersion = 0, aesStrength = 0, aesMethod = 0;
-            string? unicodePath = null;
             int extraAt = ZipDirectory.CentralFixedLength + r.NameLength;
             foreach (var (id, at, size) in ExtraBlocks(raw, extraAt, r.ExtraLength))
             {
@@ -130,15 +138,7 @@ internal static class ZipRawRewriter
                     aesStrength = raw[at + 4];
                     aesMethod = ZipDirectory.U16(raw, at + 5);
                 }
-                else if (id == UnicodePathExtra && unicodePath is null && size >= 5)
-                {
-                    // Info-ZIP 유니코드 경로(판 1 + 원래 이름의 CRC + UTF-8 이름). 목록(SharpCompress)이 이 이름을 쓰므로 키도 같게 —
-                    // 반디집은 CP949 이름 + 0x7075 를 쓰는데, 맥 NFD 이름처럼 CP949 로 못 적는 이름이면 둘이 다르다(W2-06 검증 지적).
-                    // SharpCompress 와 똑같이: 첫 0x7075 블록, 판·CRC 는 보지 않고 6번째 바이트부터 UTF-8.
-                    unicodePath = Encoding.UTF8.GetString(raw, at + 5, size - 5);
-                }
             }
-            if (unicodePath is not null) decoded = unicodePath;
             bool isDir = decoded.EndsWith('/') || decoded.EndsWith('\\');
             entries.Add(new ZipSourceEntry
             {

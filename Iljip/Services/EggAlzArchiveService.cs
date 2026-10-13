@@ -75,14 +75,15 @@ public sealed class EggAlzArchiveService : IArchiveService
         IProgress<ArchiveProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        // W2-09: 고른 이름·항목 이름 모두 NFC 로 맞춰 비교(맥 ZIP 의 NFD 이름을 화면 이름으로 골라도, 원래 이름으로 골라도 찾음)
         var selectors = entryPaths
-            .Select(p => p.Replace('\\', '/').Trim('/'))
+            .Select(EntryNames.SelectorKey)
             .Where(p => p.Length > 0)
             .ToList();
 
         bool ShouldExtract(string decodedPath)
         {
-            string d = decodedPath.Replace('\\', '/').TrimEnd('/');
+            string d = EntryNames.Nfc(decodedPath.Replace('\\', '/').TrimEnd('/'));
             foreach (var s in selectors)
             {
                 if (d.Equals(s, StringComparison.OrdinalIgnoreCase)) return true;
@@ -438,7 +439,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         for (int i = 0; i < entries.Count; i++)
         {
             var e = entries[i];
-            string path = names[i].Replace('\\', '/');
+            string path = EntryNames.Nfc(names[i].Replace('\\', '/'));
             bool dirAttribute = alz is not null ? alz[i].IsDirectory : HasEggDirectoryAttribute(e);
             bool isDirectory = path.EndsWith("/", StringComparison.Ordinal) || (dirAttribute && IsZeroSize(e) && path.Length > 0);
             if (isDirectory && !path.EndsWith("/", StringComparison.Ordinal)) path += "/";

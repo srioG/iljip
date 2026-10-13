@@ -88,7 +88,11 @@ public partial class MainViewModel
     /// <summary>지금 폴더에 없는 '새 폴더' 이름('새 폴더', '새 폴더 (2)' …).</summary>
     private string SuggestNewFolderName()
     {
-        var taken = VisibleEntries.Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // 지금 폴더의 이름들(W2-09: 찾는 중이면 목록이 찾은 결과라 트리의 지금 폴더로 본다)
+        var taken = (IsSearching && SelectedFolder is { } folder
+                ? folder.Children.Select(c => c.Name).Concat(folder.Files.Select(f => f.Name))
+                : VisibleEntries.Select(e => e.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (!taken.Contains("새 폴더")) return "새 폴더";
         for (int n = 2; ; n++)
             if (!taken.Contains($"새 폴더 ({n})")) return $"새 폴더 ({n})";
@@ -114,7 +118,9 @@ public partial class MainViewModel
     public async Task<bool> DeleteEntriesAsync(IReadOnlyList<ArchiveEntry> entries)
     {
         if (entries.Count == 0 || !EnsureEditable()) return false;
-        var keys = entries.Select(e => EditPlanner<object>.Normalize(e.Path)).Where(k => k.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+        // 고른 줄마다 하나(같은 줄을 두 번 넣지는 않음). 겉보기 이름이 같은 줄(맥 NFD·NFC 파일)을 여럿 골랐으면 같은 키가 그만큼 — 고치기 계획이 고른 수를 센다(W2-09 검증 지적)
+        var keys = entries.Distinct<ArchiveEntry>(ReferenceEqualityComparer.Instance)
+            .Select(e => EditPlanner<object>.Normalize(e.Path)).Where(k => k.Length > 0).ToList();
         if (keys.Count == 0) return false;
         int pick = _ui.Choose(DeleteQuestion(entries), new[] { "지우기", "취소" }, defaultIndex: 1);
         if (pick != 0)

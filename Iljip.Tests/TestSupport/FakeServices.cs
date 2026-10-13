@@ -93,9 +93,16 @@ public sealed class TestServices
     /// </summary>
     public FakeCompressTester CompressTester { get; } = new();
 
-    public TestServices(AppSettings? settings = null)
+    /// <summary>
+    /// '잠깐 두는' 폴더(W2-09 검증 지적 — 풀기 창이 임시 폴더의 압축에는 바탕 화면을 권함). 기본은 시스템 임시 폴더·바탕 화면 없음
+    /// (시험 픽스처가 진짜 %TEMP% 아래에 있어서 — 일집 임시 폴더는 시험용 자료 폴더 아래라 늘 '임시'). 시험이 가짜 임시 폴더·바탕 화면을 넣는다.
+    /// </summary>
+    public TempLocations TempLocations { get; }
+
+    public TestServices(AppSettings? settings = null, TempLocations? tempLocations = null)
     {
         Settings = new InMemorySettingsStore(settings);
+        TempLocations = tempLocations ?? new TempLocations(Array.Empty<string>(), desktop: null);
         Services = new AppServices
         {
             Shell = Shell,
@@ -104,6 +111,7 @@ public sealed class TestServices
             FileChanges = FileChanges,
             Clock = Clock,
             CompressTester = CompressTester,
+            TempLocations = TempLocations,
         };
     }
 
