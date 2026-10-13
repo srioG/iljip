@@ -138,6 +138,35 @@ public class ReuseDeviceContractTests
         Assert.True(hits.Count == 0, "재사용장치가 '압축 파일 아님'으로 읽는 문구:\n  " + string.Join("\n  ", hits));
     }
 
+    /// <summary>
+    /// 계약(W2-05): 같은 이름 묻기(I1-5)·풀고 나서 지우기(I2-5)·폴더 열기(I1-6)는 창 없이 풀기에 들어오지 않는다 — 같은 폴더에 두 번 풀어도
+    /// 묻지 않고(창 없음 — 60초 안에 끝남) 종료 코드 0, 예전처럼 '이름 (1).ext' 로 비켜 쓰고 처음 푼 파일은 그대로, 압축 파일도 그대로.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 창없이_풀기는_같은_이름을_묻지_않고_이름1로_비켜쓴다()
+    {
+        using var tmp = new TempDir("rdtwice");
+        var b = SyntheticArchives.Build("egg", tmp.Dir("in"));
+        string dest = tmp.Dir("out");
+        var (code1, err1) = await RunIljip(b.Path, dest);
+        Assert.True(code1 == 0, $"첫 번째: 종료 코드 {code1} — {err1}");
+        var first = TreeAssert.Snapshot(dest);
+
+        var (code2, err2) = await RunIljip(b.Path, dest);
+        Assert.True(code2 == 0, $"두 번째: 종료 코드 {code2} — {err2}");
+        var second = TreeAssert.Snapshot(dest);
+        foreach (var (path, sha) in first)
+            Assert.Equal(sha, second[path]);   // 처음 푼 것은 그대로(덮어쓰지 않음)
+        foreach (var e in b.Expected.Where(e => !e.IsDir))
+        {
+            string ext = Path.GetExtension(e.Path);
+            string renamed = e.Path[..^ext.Length] + " (1)" + ext;
+            Assert.True(second.TryGetValue(renamed, out var sha), $"'{renamed}' 이 없음 — 비켜 쓰지 않음");
+            Assert.Equal(e.Sha256, sha);
+        }
+        Assert.True(File.Exists(b.Path), "창 없이 풀기가 압축 파일을 지움");
+    }
+
     /// <summary>Iljip.exe --extract-to 를 실행하고 (종료 코드, 표준 출력+오류 — 재사용장치처럼 UTF-8 → CP949 순으로 읽음).</summary>
     private static async Task<(int Code, string Output)> RunIljip(string archive, string dest)
     {

@@ -108,6 +108,15 @@
                         <Path Data="{StaticResource IconInfo}" Width="18" Height="18" Stretch="Uniform"
                               Fill="{DynamicResource FgMutedBrush}" />
                     </Button>
+                    <!-- W2-05: ☰ ▸ 설정(같은 이름이 있을 때·우클릭으로 푼 뒤 폴더 열기·다 푼 뒤 압축 파일 휴지통으로) -->
+                    <Button x:Name="MenuButton" Style="{StaticResource IconButton}" Click="Menu_Click" ToolTip="메뉴">
+                        <TextBlock Text="☰" FontSize="16" Foreground="{DynamicResource FgMutedBrush}" />
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="설정..." Click="Settings_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

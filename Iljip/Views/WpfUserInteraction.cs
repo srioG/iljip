@@ -1,34 +1,109 @@
 using System.Windows;
+using System.Windows.Media;
 using Iljip.Models;
 using Iljip.Services;
 using Microsoft.Win32;
 
 namespace Iljip.Views;
 
-/// <summary>실제 앱의 창들(<see cref="IUserInteraction"/> 구현). 소유 창은 그때그때의 MainWindow(창이 없으면 소유자 없이).</summary>
+/// <summary>
+/// 실제 앱의 창들(<see cref="IUserInteraction"/> 구현). 소유 창은 그때그때의 MainWindow(떠 있을 때), 아니면 떠 있는 진행 창, 그것도 없으면 소유자 없이.
+/// W2-05(I1-6): 탐색기 우클릭 풀기는 메인 창을 띄우지 않는다 — 그때 뜨는 창(진행·암호·같은 이름·오류·결과)은 소유자가 없어 다른 창 뒤에 숨을 수 있어
+/// 화면 가운데에 작업 표시줄 단추와 함께 띄우고 잠깐 맨 위로 올렸다 내린다. 메시지 창은 보이지 않는 맨 위 창을 소유자로 빌려 띄운다.
+/// </summary>
 public sealed class WpfUserInteraction : IUserInteraction
 {
     private const string Caption = "일집";
 
-    private static Window? Owner => Application.Current?.MainWindow is { IsLoaded: true } w ? w : null;
+    /// <summary>창의 소유자: 떠 있는 메인 창 → 떠 있는 진행 창 → 없음.</summary>
+    private static Window? Owner
+    {
+        get
+        {
+            var app = Application.Current;
+            if (app is null) return null;
+            if (app.MainWindow is { IsLoaded: true, IsVisible: true } w) return w;
+            return app.Windows.OfType<ProgressDialog>().LastOrDefault(p => p.IsVisible);
+        }
+    }
+
+    /// <summary>
+    /// 대화 창을 띄울 준비: 소유자가 있으면 그 가운데, 없으면(우클릭 풀기) 화면 가운데·작업 표시줄에 보이게·잠깐 맨 위로.
+    /// </summary>
+    private static void Prepare(Window dlg, bool showInTaskbarWhenAlone = true)
+    {
+        var owner = Owner;
+        if (owner is not null && !ReferenceEquals(owner, dlg))
+        {
+            dlg.Owner = owner;
+            return;
+        }
+        dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        dlg.ShowInTaskbar = showInTaskbarWhenAlone;
+        // 소유자가 없으면 다른 프로그램 창 뒤에 숨을 수 있다 → 처음 보일 때만 맨 위로 올렸다 내린다
+        dlg.Topmost = true;
+        dlg.ContentRendered += (_, _) =>
+        {
+            dlg.Activate();
+            dlg.Topmost = false;
+        };
+    }
 
     public string? AskPassword(string archiveName, PasswordPromptReason reason, string message)
     {
-        var dlg = new PasswordPromptDialog(message) { Owner = Owner };
+        var dlg = new PasswordPromptDialog(message);
+        Prepare(dlg);
         return dlg.ShowDialog() == true ? dlg.Password ?? string.Empty : null;
     }
 
-    public void ShowError(string message) =>
-        MessageBox.Show(message, Caption, MessageBoxButton.OK, MessageBoxImage.Error);
+    public void ShowError(string message) => ShowMessage(message, MessageBoxImage.Error);
 
-    public void ShowWarning(string message) =>
-        MessageBox.Show(message, Caption, MessageBoxButton.OK, MessageBoxImage.Warning);
+    public void ShowWarning(string message) => ShowMessage(message, MessageBoxImage.Warning);
 
-    public void ShowInfo(string message) =>
-        MessageBox.Show(message, Caption);
+    public void ShowInfo(string message) => ShowMessage(message, MessageBoxImage.None);
 
-    public int Choose(string message, IReadOnlyList<string> choices, int defaultIndex = 0) =>
-        ChoiceDialog.Ask(Owner, message, defaultIndex, choices);
+    /// <summary>메시지 창. 소유자가 없으면(우클릭 풀기) 보이지 않는 맨 위 창을 잠깐 만들어 소유자로 쓴다 — 오류 창이 뒤에 숨지 않게.</summary>
+    private static void ShowMessage(string message, MessageBoxImage icon)
+    {
+        var owner = Owner;
+        if (owner is not null)
+        {
+            MessageBox.Show(owner, message, Caption, MessageBoxButton.OK, icon);
+            return;
+        }
+        var anchor = new Window
+        {
+            Title = Caption,
+            Width = 1,
+            Height = 1,
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            Opacity = 0,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = true,
+            Topmost = true,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        };
+        try
+        {
+            anchor.Show();
+            anchor.Activate();
+            MessageBox.Show(anchor, message, Caption, MessageBoxButton.OK, icon);
+        }
+        finally
+        {
+            anchor.Close();
+        }
+    }
+
+    public int Choose(string message, IReadOnlyList<string> choices, int defaultIndex = 0)
+    {
+        var dlg = new ChoiceDialog(message, choices, defaultIndex);
+        Prepare(dlg);
+        dlg.ShowDialog();
+        return dlg.ChosenIndex;
+    }
 
     public string? PickFolder(string title)
     {
@@ -58,16 +133,62 @@ public sealed class WpfUserInteraction : IUserInteraction
 
     public CompressionOptions? AskCompressionOptions(string targetExtension)
     {
-        var dlg = new CompressionOptionsDialog(targetExtension) { Owner = Owner };
+        var dlg = new CompressionOptionsDialog(targetExtension);
+        Prepare(dlg);
         return dlg.ShowDialog() == true ? dlg.Result ?? CompressionOptions.Default : null;
     }
 
     public IProgressSession ShowProgress(string title)
     {
-        var dlg = new ProgressDialog { Owner = Owner, Title = title };
+        var dlg = new ProgressDialog { Title = title };
+        var owner = Owner;
+        if (owner is not null && owner is not ProgressDialog)
+        {
+            dlg.Owner = owner;
+        }
+        else
+        {
+            // 우클릭 풀기(메인 창 없음 — I1-6): 소유자 없이 화면 가운데, 작업 표시줄에 보이게
+            dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dlg.ShowInTaskbar = true;
+            dlg.Topmost = true;
+            dlg.ContentRendered += (_, _) =>
+            {
+                dlg.Activate();
+                dlg.Topmost = false;
+            };
+        }
         var session = new Session(dlg);
         dlg.Show();
         return session;
+    }
+
+    /// <summary>
+    /// 같은 이름 파일 창(I1-5). 해제 작업 스레드에서 불리므로 UI 스레드로 넘겨 띄우고 답이 올 때까지 기다린다(그동안 해제는 멈춰 있음).
+    /// UI 스레드는 해제를 await 로 기다리는 중이라(막혀 있지 않음) 교착하지 않는다.
+    /// </summary>
+    public CollisionAnswer AskCollision(CollisionQuestion question)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null) return new CollisionAnswer(CollisionChoice.Cancel, false);
+        if (!dispatcher.CheckAccess()) return dispatcher.Invoke(() => AskCollision(question));
+        var dlg = new CollisionDialog(question);
+        Prepare(dlg);
+        dlg.ShowDialog();
+        return dlg.Answer;
+    }
+
+    public void ShowSummary(OperationSummary summary)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => ShowSummary(summary));
+            return;
+        }
+        var dlg = new SummaryDialog(summary);
+        Prepare(dlg);
+        dlg.ShowDialog();
     }
 
     private sealed class Session : IProgressSession

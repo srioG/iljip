@@ -317,7 +317,18 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 });
 
                 // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 자동 변경 → 원본 유실 방지(OutputFiles).
-                var output = OutputFiles.CreateNew(fullOutputPath, out string writePath);
+                // W2-05(I1-5): 화면이 같은 이름 처리 범위를 열었으면 그 처리기가 정한다 — null 이면 '건너뛰기'(이 파일은 쓰지 않음),
+                // '덮어쓰기'면 같은 폴더의 숨김 임시 파일에 다 쓴 뒤 바꾼다(쓰다 실패하면 원래 파일 그대로).
+                var target = OutputFiles.OpenTarget(fullOutputPath, entry.Size, AsLocalTime(entry.LastModifiedTime), totalFiles - filesProcessed - 1);
+                if (target is null)
+                {
+                    filesProcessed++;
+                    current = null;
+                    currentPath = null;
+                    continue;
+                }
+                var output = target.Stream;
+                string writePath = target.WritePath;
                 ledger.AddFile(writePath);
                 try
                 {
@@ -361,6 +372,14 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                     catch { /* 일부 파일에서 실패 가능 */ }
                 }
 
+                if (target.Overwrites)
+                {
+                    // 덮어쓰기: 다 맞은 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로).
+                    // 바꾼 뒤의 경로는 원래 있던 파일이라 장부에 넣지 않는다(뒤에서 암호 오류로 되돌려도 사용자 파일을 지우지 않게).
+                    try { target.Commit(); }
+                    finally { ledger.ForgetFile(writePath); }
+                }
+
                 filesProcessed++;
                 current = null;
                 currentPath = null;
@@ -382,8 +401,9 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             // 다시 묻지 않고, 앞서 맞게 풀린 파일은 남긴다(깨진 그 파일은 위에서 이미 지움).
             if (plan.PasswordConfirmed && translated is WrongPasswordException { MayBeCorrupt: true } maybe)
                 translated = new CorruptArchiveException(ex, maybe.EntryPath ?? currentPath);
-            if (translated is ArchivePasswordException)
-                ledger.Rollback();   // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다
+            // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다. 같은 이름 창의 [취소](W2-05)도 이번에 만든 것을 모두 지운다.
+            if (translated is ArchivePasswordException || ex is CollisionCancelledException)
+                ledger.Rollback();
             if (translated is null || ReferenceEquals(translated, ex)) throw;
             throw translated;
         }

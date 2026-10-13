@@ -72,6 +72,120 @@ internal static class OutputFiles
         throw new IOException($"고유한 출력 경로를 만들 수 없습니다: {desiredPath}");
     }
 
+    // ───── W2-05(I1-5 같은 이름 처리)에서 더한 것 ─────
+    // 화면이 해제를 ExtractionScope 로 감쌌을 때만 묻는다. 범위가 없으면 위 두 메서드와 똑같이 '이름 (1)' 로 비켜 쓴다(창 없이 풀기 계약).
+
+    /// <summary>
+    /// 같은 이름 처리를 거쳐 새 출력 파일을 연다(직접 쓰는 길 — SharpCompress·EGG/ALZ·raw bz2). null 이면 ‘건너뛰기’(쓰지 말 것).
+    /// ‘덮어쓰기’면 같은 폴더의 숨김 임시 파일(<c>.~이름.8글자.tmp</c>)을 열어 준다 — 다 쓰고 닫은 뒤 <see cref="OutputTarget.Commit"/> 이 원래 파일과 바꾼다
+    /// (쓰다 실패하면 임시 파일만 지우면 되고 원래 파일은 그대로). ‘취소’면 <see cref="CollisionCancelledException"/>.
+    /// </summary>
+    /// <param name="incomingSize">새 파일 크기(모르면 -1).</param>
+    /// <param name="incomingTime">새 파일 수정 시각(모르면 null).</param>
+    /// <param name="remaining">이 파일 뒤에 남은 파일 수(질문 창 안내용, 모르면 0).</param>
+    internal static OutputTarget? OpenTarget(string desiredPath, long incomingSize, DateTime? incomingTime, int remaining)
+    {
+        var scope = ExtractionScope.Current;
+        if (scope is not null && (File.Exists(desiredPath) || Directory.Exists(desiredPath)))
+        {
+            switch (scope.Decide(desiredPath, incomingSize, incomingTime, remaining))
+            {
+                case CollisionChoice.Skip:
+                    return null;
+                case CollisionChoice.Overwrite:
+                    {
+                        string tmp = TempSibling(desiredPath);
+                        var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+                        try { File.SetAttributes(tmp, File.GetAttributes(tmp) | FileAttributes.Hidden); } catch { /* 숨김 실패는 무시 */ }
+                        return new OutputTarget(fs, tmp, desiredPath);
+                    }
+            }
+            // Rename(또는 이번 해제가 만든 파일·폴더와 겹침): 아래 예전 규칙
+        }
+        var created = CreateNew(desiredPath, out string writePath);
+        return new OutputTarget(created, writePath, writePath);
+    }
+
+    /// <summary>
+    /// 다 풀린 파일을 같은 이름 처리를 거쳐 옮긴다(임시 폴더 → 대상 — 7z.dll·압축된 tar). null 이면 ‘건너뛰기’(옮기지 않음 — 임시 폴더째 지워짐).
+    /// ‘덮어쓰기’면 File.Move(덮어쓰기)로 한 번에 바꾸고 <paramref name="overwrote"/> = true(그 경로는 원래 있던 파일이라 되돌릴 장부에 넣지 말 것).
+    /// 범위가 없으면 <see cref="MoveNew"/> 그대로.
+    /// </summary>
+    internal static string? MoveResolved(string sourcePath, string desiredPath, int remaining, out bool overwrote)
+    {
+        overwrote = false;
+        var scope = ExtractionScope.Current;
+        if (scope is not null && (File.Exists(desiredPath) || Directory.Exists(desiredPath)))
+        {
+            long size = -1;
+            DateTime? time = null;
+            try
+            {
+                var fi = new FileInfo(sourcePath);
+                size = fi.Length;
+                time = fi.LastWriteTime;
+            }
+            catch
+            {
+                // 모르면 '알 수 없음'으로 보인다
+            }
+            switch (scope.Decide(desiredPath, size, time, remaining))
+            {
+                case CollisionChoice.Skip:
+                    return null;
+                case CollisionChoice.Overwrite:
+                    ReplaceExisting(sourcePath, desiredPath);
+                    overwrote = true;
+                    scope.NoteCreated(desiredPath);
+                    return desiredPath;
+            }
+        }
+        return MoveNew(sourcePath, desiredPath);
+    }
+
+    /// <summary>
+    /// <paramref name="sourcePath"/> 로 <paramref name="targetPath"/>(원래 있던 파일)를 바꾼다(같은 볼륨 — File.Move 덮어쓰기 한 번).
+    /// 다른 프로그램(DLP·백신·엑셀)이 잡고 있으면 200ms 간격으로 3번 다시 해 보고, 그래도 안 되면 원래 파일을 그대로 둔 채
+    /// 쉬운 한국어 문구의 IOException(원래 HResult 유지 — 공간·권한 판정이 그대로 되게).
+    /// </summary>
+    internal static void ReplaceExisting(string sourcePath, string targetPath)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, targetPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (IsTransientLock(ex) && attempt < MoveLockRetries)
+            {
+                Thread.Sleep(MoveLockDelayMs);
+            }
+            catch (Exception ex) when (IsTransientLock(ex))
+            {
+                throw new IOException(
+                    $"'{Path.GetFileName(targetPath)}' 파일을 덮어쓰지 못했어요. 다른 프로그램(보안 프로그램 포함)이 쓰고 있거나 읽기 전용이에요. 그 프로그램을 닫고 다시 해 주세요.",
+                    ex) { HResult = ex.HResult };
+            }
+        }
+    }
+
+    /// <summary>덮어쓰기용 임시 파일 이름: 같은 폴더의 <c>.~이름.8글자.tmp</c>(숨김) — 같은 볼륨이라 바꾸기가 한 번에 된다.</summary>
+    internal static string TempSibling(string targetPath)
+    {
+        string dir = Path.GetDirectoryName(targetPath) ?? string.Empty;
+        string name = Path.GetFileName(targetPath);
+        for (int i = 0; i < 10; i++)
+        {
+            string p = Path.Combine(dir, $"{TempPrefix}{name}.{Guid.NewGuid().ToString("N")[..8]}.tmp");
+            if (!File.Exists(p) && !Directory.Exists(p)) return p;
+        }
+        return Path.Combine(dir, $"{TempPrefix}{name}.{Guid.NewGuid():N}.tmp");
+    }
+
+    /// <summary>덮어쓰기 임시 파일 이름 머리.</summary>
+    internal const string TempPrefix = ".~";
+
     private const int ErrorSharingViolation = unchecked((int)0x80070020);   // ERROR_SHARING_VIOLATION
     private const int ErrorLockViolation = unchecked((int)0x80070021);      // ERROR_LOCK_VIOLATION
 
@@ -94,5 +208,51 @@ internal static class OutputFiles
         for (int i = 1; i < int.MaxValue; i++)
             yield return Combine($"{name} ({i}){ext}");
         yield return Combine($"{name} ({Guid.NewGuid():N}){ext}");
+    }
+}
+
+/// <summary>
+/// 같은 이름 처리를 거친 출력 파일 하나(<see cref="OutputFiles.OpenTarget"/>). <see cref="Stream"/> 에 다 쓰고 닫은 뒤 <see cref="Commit"/>.
+/// 실패하면 <see cref="WritePath"/> 만 지우면 된다(덮어쓰기면 임시 파일 — 원래 파일은 그대로).
+/// </summary>
+internal sealed class OutputTarget
+{
+    public OutputTarget(FileStream stream, string writePath, string finalPath)
+    {
+        Stream = stream;
+        WritePath = writePath;
+        FinalPath = finalPath;
+    }
+
+    public FileStream Stream { get; }
+
+    /// <summary>지금 쓰는 파일(덮어쓰기면 같은 폴더의 숨김 임시 파일, 아니면 최종 경로).</summary>
+    public string WritePath { get; }
+
+    /// <summary>다 맞으면 놓일 경로.</summary>
+    public string FinalPath { get; }
+
+    /// <summary>원래 있던 파일을 바꾸는가(그 경로는 되돌릴 장부에 넣지 말 것 — 되돌리면 사용자 파일이 사라짐).</summary>
+    public bool Overwrites => !string.Equals(WritePath, FinalPath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 다 쓰고 닫은 뒤 부른다. 덮어쓰기면 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로). 최종 경로를 돌려준다.
+    /// </summary>
+    public string Commit()
+    {
+        if (!Overwrites) return FinalPath;
+        try
+        {
+            // 쓰는 동안만 숨김 — 옮기면 속성이 따라가므로 먼저 푼다
+            try { File.SetAttributes(WritePath, File.GetAttributes(WritePath) & ~FileAttributes.Hidden); } catch { /* 무시 */ }
+            OutputFiles.ReplaceExisting(WritePath, FinalPath);
+        }
+        catch
+        {
+            try { File.Delete(WritePath); } catch { /* 정리 실패는 무시 */ }
+            throw;
+        }
+        ExtractionScope.Current?.NoteCreated(FinalPath);
+        return FinalPath;
     }
 }

@@ -161,7 +161,17 @@ public sealed class EggAlzArchiveService : IArchiveService
                     });
 
                     // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext" 식으로 → 원본 유실 방지(OutputFiles).
-                    var output = OutputFiles.CreateNew(fullOutputPath, out string writePath);
+                    // W2-05(I1-5): 같은 이름 처리 범위가 있으면 그 처리기가 정한다(null = 건너뛰기, 덮어쓰기는 임시 파일에 다 쓴 뒤 바꿈).
+                    var target = OutputFiles.OpenTarget(fullOutputPath, entry.UncompressedLength, entry.LastWriteTime, totalFiles - filesProcessed - 1);
+                    if (target is null)
+                    {
+                        filesProcessed++;
+                        current = null;
+                        currentPath = null;
+                        continue;
+                    }
+                    var output = target.Stream;
+                    string writePath = target.WritePath;
                     ledger.AddFile(writePath);
 
                     // entry.Open()이 store/deflate/bzip2/lzma/AZO·암호화를 알아서 해제해 평문 스트림을 준다.
@@ -215,6 +225,13 @@ public sealed class EggAlzArchiveService : IArchiveService
                         catch { /* 일부 값/파일에서 실패 가능 — 무시 */ }
                     }
 
+                    if (target.Overwrites)
+                    {
+                        // 덮어쓰기: 다 맞은 임시 파일로 원래 파일을 바꾼다. 바꾼 경로(원래 있던 파일)는 장부에 넣지 않는다.
+                        try { target.Commit(); }
+                        finally { ledger.ForgetFile(writePath); }
+                    }
+
                     filesProcessed++;
                     current = null;
                     currentPath = null;
@@ -232,8 +249,9 @@ public sealed class EggAlzArchiveService : IArchiveService
             catch (Exception ex)
             {
                 var translated = ex as ArchiveException ?? Translate(ex, password, current, currentPath);
-                if (translated is ArchivePasswordException)
-                    ledger.Rollback();   // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다
+                // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다. 같은 이름 창의 [취소](W2-05)도 이번에 만든 것을 모두 지운다.
+                if (translated is ArchivePasswordException || ex is CollisionCancelledException)
+                    ledger.Rollback();
                 if (translated is null || ReferenceEquals(translated, ex)) throw;
                 throw translated;
             }

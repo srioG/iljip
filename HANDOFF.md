@@ -55,9 +55,15 @@
 - 파일 이름까지 암호가 걸린 7z·RAR 는 열 때 암호를 물음('파일 목록까지 암호로 잠긴…' — 틀리면 '암호가 맞지 않아요' 경고 뒤 다시, 취소면 보던 것 그대로,
   받은 암호로 이어서 풂 — W2-02). 암호 창은 [취소]할 때까지 다시 물음
 - CLI 인자: `--open`, `--extract`, `--extract-here`(그 자리에), `--extract-to-folder`(이름 폴더에, 있으면 '이름 (2)'), `--extract-to`, `--compress` — 해석은 `Services/CommandLineParser.cs`
+  (W2-05: 풀기 동사 뒤 압축 여러 개 = 여러 개 풀기, 탐색기 우클릭 풀기는 메인 창 없이 진행 창만 → 끝나면 '이름' 폴더를 탐색기로)
+- **W2-05(2026-10-13)**: 같은 이름 파일이 있으면 덮어쓰기·건너뛰기·이름 바꾸기·취소 + '남은 파일도 똑같이'(☰ ▸ 설정에서 기본 동작 고정), '다 푼 뒤 압축 파일을 휴지통으로'(기본 끔), 여러 압축 한꺼번에 풀기(진행 창 하나·암호 한 번·끝에 요약)
 - C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
 
-## 현재 진행 단계 (2026-10-13 W2-03 후)
+## 현재 진행 단계 (2026-10-13 W2-05 후)
+
+**W2-05(같은 이름 묻기 I1-5·메인 창 없는 우클릭 풀기 I1-6·풀고 나서 지우기 I2-5·여러 개 풀기 I2-6) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`stash` 안 함,
+stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대지 않음). 계약 테스트는 아래 변경 이력 'W2-05'(시간에 민감한 7z 취소 시험 1개가 이 PC 가 바쁠 때만 실패 — 그 문단 끝).
+설정 저장(`settings.json`)·`AppServices` 는 W2-04 보관본과 같은 모양으로 이 묶음에서 처음 들였다 — W2-04 를 다시 할 때 겹치는 부분은 이쪽을 바탕으로. 그 전(W2-03) 기록:
 
 **W2-03(나눠 만들기 — 분할 압축 I2-2 만들기) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`stash` 안 함).
 계약 테스트 실패 0(전체 1305 — 통과 1304·건너뜀 1: I2-10, 계약만 `Kind!=Record` 1148 — 통과 1147·건너뜀 1, 기록 157). 아래 변경 이력 'W2-03'. 그 전(W2-02) 기록:
@@ -177,6 +183,10 @@ dotnet run --project Iljip
 - [ ] 보고 안건: 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(지금은 안 옮김 — 재사용장치 엑셀 COM 영향 확인 필요)
 - [x] **W2-03**: 분할 압축(나눠 만들기 — I2-2 만들기) — ZIP PKZIP 나눔·7Z 숫자 조각·옵션 창 '나누기' 칸(아래 변경 이력)
 - [ ] W2-03 남은 확인: MANUAL_CHECKLIST 11절(옵션 창 '나누기' 칸, Windows 탐색기·알집으로 나눔 ZIP 열기, 진짜 메일 첨부, OneDrive 폴더)
+- [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
+- [ ] W2-05 남은 확인: MANUAL_CHECKLIST 12절(같은 이름 창·설정 창 모양, 메인 창이 정말 안 뜨는지·창이 뒤에 숨지 않는지, 진짜 휴지통·네트워크 드라이브, 여러 개 골라 우클릭이 하나로 묶이는지)
+- [ ] 셸 확장이 고른 파일들을 한 번에 넘기기(지금은 파일마다 일집을 띄우고 일집이 파이프로 묶음 — C++ `IExplorerCommand` 가 여러 경로를 한 명령줄로 넘기게, 재배포 범위)
+- [ ] W2-04 다시 할 때: 설정(`Services/AppSettings.cs`)·`AppServices`·`IShellLauncher` 는 W2-05 가 같은 모양으로 먼저 들였음 — 덧붙이기만
 - [ ] 다크 모드
 - [ ] 미리보기 (압축 내부 텍스트/이미지)
 - [ ] 압축 파일 내부 폴더 트리 탐색 (현재 flat list)
@@ -360,6 +370,40 @@ dotnet run --project Iljip
   실기기 확인 필요(MANUAL_CHECKLIST 11절), 디스크는 원래 압축 + 조각 하나만큼 더 씀, 작은 조각이 많을 때 PCFILTER 잠금·OneDrive 가 조각을 하나씩 올림.
   계약 테스트 실패 0(전체 1305 — 통과 1304·건너뜀 1: I2-10, 계약만 1148 — 통과 1147·건너뜀 1, 기록 157. W2-02 후 1201 — 통과 1200·건너뜀 1 에서; 새 시험 중 오래 걸리는 것은
   ZIP64 7만 개 10초·목록이 조각을 넘는 2,000개 8초·같은 모양 반디집 5초). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
+- **2026-10-13 W2-05 — 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 지우기(I2-5)·여러 개 풀기(I2-6)(커밋 전, 배포 안 함)**:
+  ① 같은 이름: `Services/CollisionResolver.cs` — 화면이 해제 한 번(여러 개 풀기는 압축 하나)을 `ExtractionScope.Begin(처리기)` 로 감싸면 AsyncLocal 로 서비스 안 Task.Run 까지 따라가
+  모든 쓰기 길목(`OutputFiles.OpenTarget` — SharpCompress 직접 쓰기·EGG/ALZ·raw bz2, `OutputFiles.MoveResolved` — 7z.dll·압축된 tar 의 임시 폴더 옮기기)이 묻는다.
+  **설계와 다르게 한 것**: 처리기를 `ExtractPlan`·서비스 시그니처로 넘기지 않고 이 범위로(IArchiveService 시그니처 그대로, 범위가 없으면 — 창 없이 풀기·재사용장치·서비스를 바로 부르는
+  시험 — 예전대로 '이름 (1)' 이라 헤드리스 동작이 바뀔 길이 없음). 덮어쓰기는 같은 폴더 숨김 `.~이름.8글자.tmp` 에 다 쓴 뒤 `File.Move(덮어쓰기)`(잠김 200ms×3 — 실패면 임시 파일 지우고
+  "‘이름’ 파일을 덮어쓰지 못했어요. 다른 프로그램(보안 프로그램 포함)이 쓰고 있거나 읽기 전용이에요…", 원래 파일 그대로), 덮어쓴 경로는 `ExtractionLedger` 에 넣지 않아 뒤에서 되돌려도
+  사용자 파일을 안 지움. [취소]는 `CollisionCancelledException`(OperationCanceledException — 화면은 '취소됨', 오류 창 없음) → 서비스가 이번에 만든 것만 되돌림. 이번 해제가 만든 파일·폴더와
+  겹치면(압축 안 같은 이름 둘·대소문자) 묻지 않고 '(1)'. '남은 파일도 똑같이'는 처리기가 기억([취소]는 기억 안 함), 설정 extract.onCollision(물어보기·덮어쓰기·건너뛰기·이름 바꾸기)이
+  '물어보기'가 아니면 묻지 않음. 창은 `Views/CollisionDialog`(기본 버튼 [이름 바꾸기], X·Esc = 취소, 해제 작업 스레드에서 `Dispatcher.Invoke`). ② 설정: `Services/AppSettings.cs`
+  (`%LOCALAPPDATA%\Iljip\settings.json`, camelCase, schemaVersion 1, 모르는 필드 보존, 깨지면 `settings.bad-….json` 으로 옮기고 기본값, .tmp → Replace)·`AppServices`(셸·설정·휴지통 —
+  `MainViewModel` 생성자 선택 인자, null 이면 진짜)·`IShellLauncher` 는 **W2-04 보관본과 같은 모양으로 여기서 처음 들임**. ☰ ▸ '설정...' → `Views/SettingsDialog`(사본을 고쳐 [확인] 때 한 번 저장).
+  ③ 우클릭 풀기(I1-6): `ParsedCommand.ShowMainWindow` 가 false 인 '여기에 풀기'·'"이름"\ 에 풀기'·대화형 --extract-to 는 App 이 창(VM)만 만들고 띄우지 않은 채 `ProcessShellCommandAsync`
+  (`ViewModels/MainViewModel.CommandLine.cs` — ProcessCommandLineAsync 도 이리로 옮김) → 진행 창 하나, 보던 압축 그대로, 끝나면 '이름' 폴더를 탐색기로(extract.openFolderAfter, '여기에 풀기'는 안 엶,
+  여럿이면 같은 위 폴더 한 번), 오류는 쉬운 한국어 창 하나 — 모르는 엔진 오류(SharpCompress 'Failed to locate the Zip Header' 등)는 새 `ErrorMessages.ToPlainMessage`
+  ('파일이 손상됐거나 끝까지 받아지지 않은 것 같아요…' — 메인 창 오류 창·창 없이 풀기는 예전 `ToUserMessage` 그대로), 없는 파일이면 알림. 주인 창 없는 창은 화면 가운데·작업 표시줄·잠깐 맨 위.
+  앱 수명: `ShutdownMode.OnExplicitShutdown` + 할 일 수(`_busy`) — 메인 창을 띄웠으면 닫을 때, 아니면 우클릭 풀기가 끝나고 0.7초 기다려(늦게 온 명령이 묶음에 붙게) 끝냄.
+  파이프는 `InOut` + '받았음' 1바이트(받는 쪽은 넘긴 쪽이 읽어 간 뒤 `WaitForPipeDrain` 으로 확인하고서만 실행 — 끝나는 중이면 0, 넘긴 쪽은 3초 기다려 첫 일집이 되거나 혼자 처리, 예전 판의
+  줄 끝 CRLF 도 받음), 두 번째 실행의 우클릭 풀기는 메인 창을 앞으로 안 가져옴. ④ 풀고 나서 지우기(I2-5): extract.deleteArchiveAfter(기본 끔)면 오류 0·건너뛴 파일 0·취소 아님일 때만
+  `Services/IRecycleBin.cs` 의 `RecycleBin`(IFileOperation, FOFX_RECYCLEONDELETE|FOF_ALLOWUNDO|FOF_NOCONFIRMATION|FOF_SILENT|FOF_NOERRORUI, STA)으로 — 나뉜 압축은 조각 모두 한 번에
+  (`Services/ArchiveVolumes.cs` — .001…·.z01…+.zip·.partN.rar/.r00·.volN.egg, 모르면 그 파일 하나). 미리 거름: 공유(\\서버)·고정 디스크가 아님·NoRecycleFiles 정책·그 볼륨 휴지통 꺼짐
+  (BitBucket NukeOnDelete)·한도(MaxCapacity) 초과면 안 지우고 "‘이름’은 휴지통이 없는 곳(네트워크 드라이브·USB 등)에 있어 지우지 않고 그대로 두었어요.". **덧붙인 안전망**: FOF_WANTNUKEWARNING
+  (그래도 Windows 가 영구 삭제로 바꾸려 하면 묻게). 일집 임시 폴더 안의 압축·고른 항목만 풀기·창 없이 풀기는 안 지움, 못 보내면 그대로 두고 알림. ⑤ 여러 개 풀기(I2-6):
+  `Services/BatchExtractor.cs` — 진행 창 하나에 '2/5 · b.zip' + 전체 막대(`ArchiveProgress.BatchIndex/BatchCount/BatchName/OverallPercentage`), 맞은 암호(최근 3개, 끝나면 지움)를 다음 파일에
+  조용히 먼저 써 보고 모두 틀리면 그 파일만 '앞에서 쓴 암호가 맞지 않아요. b.zip 암호를 넣어 주세요.', 취소면 그 파일만 건너뜀, 손상 등은 그 파일만 실패, 진행 창·같은 이름 [취소]는 남은 것을
+  손대지 않고 멈춤, 끝에 `Views/SummaryDialog`(성공·실패·이유, 날 문구는 '자세히' — `Models/OperationSummary.cs`, 우클릭으로 모두 풀고 폴더를 열었으면 안 띄움). 들어오는 길: 명령줄 풀기 동사 뒤 압축
+  여러 개(`ParsedCommand.Archives`), 일집 열기 창 여러 개 선택 → '모두 풀까요?' → 풀 폴더 안 '이름' 폴더마다, **C++ 셸 확장은 바꾸지 않아 여전히 파일마다 일집을 띄우지만** 같은 동사로 들어온 우클릭
+  명령은 돌던 묶음에 붙음(`TryAdd`). 시험: 새 `ShellExtractFlowTests`·`BatchExtractTests`·`RecycleAfterExtractTests`·`ExtractSettingsTests`, `CollisionTests`(zip·7z·rar·tar·egg 덮어쓰기·건너뛰기·
+  이름 바꾸기·취소·한 번만 묻기·잠긴 파일·압축 안 같은 이름·bz2)·`CommandLineParserTests`·`AppStartupContractTests`(소스)·`ReuseDeviceContractTests`(실제 exe 로 같은 폴더 두 번 → 묻지 않고 '(1)')에 덧붙임,
+  가짜 `FakeUserInteraction.AskCollision/ShowSummary`(답이 없으면 '이름 바꾸기' — 예전 시험 그대로 통과)·`TestSupport/FakeServices.cs`(셸·휴지통·설정 — 진짜는 안 부름). `ModuleInit` 이 일집 자료 폴더를
+  시험 전용 빈 폴더로 돌림(가짜 없이 만든 화면도 이 PC 사용자의 settings.json 을 안 읽어, 사용자가 '휴지통으로'를 켜 두어도 시험이 픽스처를 진짜 휴지통으로 보내지 않게). 기대가 바뀐 기존 시험 없음,
+  푼 Skip 없음. 위험·못 본 것: 창 모양·창이 뒤에 숨는지·진짜 휴지통(IFileOperation vtable)·네트워크 드라이브·여러 개 골라 우클릭 묶임·0.7초 끝내기 시점은 사람 확인(MANUAL_CHECKLIST 12절),
+  새 판 클라이언트가 예전 판(받기만 하는 파이프)이 떠 있을 때는 넘기지 못해 3초 기다린 뒤 혼자 처리, 우클릭 풀기의 같은 이름 창·암호 창은 주인 창이 없어 다른 창 뒤로 갈 수 있음(맨 위로 잠깐 올림).
+  계약 테스트: 전체 1424 — 통과 1422·건너뜀 1(I2-10)·**실패 1**(W2-03 후 1305 — 통과 1304·건너뜀 1 에서 새 시험 119개, 기대가 바뀐 기존 시험 없음). 실패 1개는 W2-02 의 `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_멈추고_기존_파일이_그대로다`(7z 만들기를 30% 지점에서 취소하면 3초 안 — 이번에 안 건드린 압축 길): 이 PC 가 바쁠 때(빈 메모리 약 0.4GB/8GB, PFDlpMon) 전체 실행에서 3.2~5.0초로 실패하고 따로 돌리면 2.0~2.7초로 통과(3/3). **바꾸기 전 HEAD(W2-03 커밋)를 임시 폴더에 받아 따로 빌드해 같은 PC 에서 전체를 돌려도 같은 시험만 3.2초로 실패**해 이번 변경 탓이 아님을 확인했다(한도는 약화 금지라 그대로 — PC 가 한가할 때 다시 돌려 볼 것).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
 
 ## 사용자 선호
 

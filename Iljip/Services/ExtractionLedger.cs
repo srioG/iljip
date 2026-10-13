@@ -7,7 +7,8 @@ namespace Iljip.Services;
 /// 이번 실행이 만든 것을 모두 지운다 — 틀린 암호가 검사를 우연히 통과해 쓰레기 파일을 쓴 뒤에야 걸려도, 맞는 암호로 다시 풀 때
 /// 진짜 파일이 '이름 (1)' 로 비켜 써지지 않게(B4). 손상·CRC 오류·취소는 지금 계약대로 쓰다 만 그 파일만 지운다(장부는 안 씀).
 /// ZIP 의 두 암호 후보를 못 가려 다른 후보로 다시 풀 때도 첫 시도가 만든 것을 이것으로 모두 지운다(같은 이름으로 다시 쓰게).
-/// 원래 있던 파일·폴더는 장부에 없으므로 절대 지우지 않는다. 폴더는 우리가 만들었고 비어 있을 때만 지운다.
+/// 같은 이름 창에서 [취소](<see cref="CollisionCancelledException"/>, W2-05)도 이것으로 이번에 만든 것을 모두 지운다.
+/// 원래 있던 파일·폴더는 장부에 없으므로 절대 지우지 않는다(덮어쓴 파일도 넣지 않음). 폴더는 우리가 만들었고 비어 있을 때만 지운다.
 /// 서비스 객체는 여러 해제가 같이 쓰므로 장부는 해제마다 새로 만든다.
 /// </summary>
 internal sealed class ExtractionLedger
@@ -26,10 +27,22 @@ internal sealed class ExtractionLedger
         while (missing.Count > 0) _createdDirectories.Add(missing.Pop());
     }
 
-    public void AddFile(string path) => _createdFiles.Add(path);
+    /// <summary>
+    /// 이번 해제가 만든 파일로 적는다. 같은 이름 처리 범위(<see cref="ExtractionScope"/>, W2-05)에도 알린다 — 압축 안에 같은 이름이 또 나오면
+    /// 사용자에게 묻지 않고 예전처럼 비켜 쓰게. 덮어쓴 원래 파일은 여기 넣지 않는다(되돌릴 때 지우면 사용자 파일이 사라짐).
+    /// </summary>
+    public void AddFile(string path)
+    {
+        _createdFiles.Add(path);
+        ExtractionScope.Current?.NoteCreated(path);
+    }
 
-    /// <summary>이미 지운 파일(쓰다 만 파일 정리)은 장부에서 뺀다.</summary>
-    public void ForgetFile(string path) => _createdFiles.Remove(path);
+    /// <summary>이미 지운 파일(쓰다 만 파일 정리)·덮어쓰기 임시 파일(제자리로 옮김)은 장부에서 뺀다.</summary>
+    public void ForgetFile(string path)
+    {
+        _createdFiles.Remove(path);
+        ExtractionScope.Current?.NoteRemoved(path);
+    }
 
     /// <summary>만든 순서의 거꾸로 지운다. 실패는 무시(다른 프로그램이 잡고 있는 등).</summary>
     public void Rollback()
@@ -37,6 +50,7 @@ internal sealed class ExtractionLedger
         for (int i = _createdFiles.Count - 1; i >= 0; i--)
         {
             try { File.Delete(_createdFiles[i]); } catch { /* 정리 실패는 무시 */ }
+            ExtractionScope.Current?.NoteRemoved(_createdFiles[i]);
         }
         _createdFiles.Clear();
         for (int i = _createdDirectories.Count - 1; i >= 0; i--)

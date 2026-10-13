@@ -140,8 +140,11 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
         });
 
         // 동명 파일이 이미 있으면 덮어쓰지 않고 "이름 (1).ext"로 자동 변경 → 원본 유실 방지.
-        // (베이스 ExtractCore의 충돌 정책과 동일 — OutputFiles)
-        var output = OutputFiles.CreateNew(Path.Combine(destinationFolder, entryName), out string outputPath);
+        // (베이스 ExtractCore의 충돌 정책과 동일 — OutputFiles. W2-05: 같은 이름 처리 범위가 있으면 그 처리기가 정함 — null 이면 건너뛰기)
+        var target = OutputFiles.OpenTarget(Path.Combine(destinationFolder, entryName), -1, null, 0);
+        if (target is null) return;
+        var output = target.Stream;
+        string outputPath = target.WritePath;
         try
         {
             using (output)
@@ -185,6 +188,8 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             try { File.Delete(outputPath); } catch { /* 정리 실패는 무시 */ }
             throw;
         }
+        // 덮어쓰기면 다 쓴 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로)
+        target.Commit();
     }
 
     private static long SafeFileLength(string path)

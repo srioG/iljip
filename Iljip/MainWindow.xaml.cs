@@ -166,4 +166,22 @@ public partial class MainWindow : Window
     {
         new Views.AboutWindow { Owner = this }.ShowDialog();
     }
+
+    /// <summary>☰ 단추: 아래로 메뉴를 펼친다(W2-05 — 설정).</summary>
+    private void Menu_Click(object sender, RoutedEventArgs e)
+    {
+        if (MenuButton.ContextMenu is not { } menu) return;
+        menu.PlacementTarget = MenuButton;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>☰ ▸ 설정: 같은 이름이 있을 때(I1-5)·우클릭으로 푼 뒤 폴더 열기(I1-6)·다 푼 뒤 압축 파일 휴지통으로(I2-5). [확인]이면 한 번 저장.</summary>
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm) return;
+        var dlg = new Views.SettingsDialog(vm.Settings) { Owner = this };
+        if (dlg.ShowDialog() == true && dlg.Result is { } result)
+            vm.ApplySettings(result);
+    }
 }

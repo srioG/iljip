@@ -47,18 +47,32 @@ internal sealed class StagingFolder : IDisposable
             if (directories is not null)
                 foreach (var d in directories)
                     ledger.EnsureDirectory(Path.Combine(destinationFolder, d));
-            foreach (var (from, rel) in files)
+            var list = files as IReadOnlyList<(string From, string TargetRel)> ?? files.ToList();
+            for (int i = 0; i < list.Count; i++)
             {
+                var (from, rel) = list[i];
+                int remaining = list.Count - i - 1;
                 string to = Path.Combine(destinationFolder, rel);
                 string? parent = Path.GetDirectoryName(to);
                 if (!string.IsNullOrEmpty(parent)) ledger.EnsureDirectory(parent);
                 if (File.Exists(from))
                 {
-                    ledger.AddFile(OutputFiles.MoveNew(from, to));
+                    // W2-05(I1-5): 같은 이름 처리 범위가 있으면 그 처리기가 정한다 — null 이면 건너뛰기(임시 폴더째 지워짐),
+                    // 덮어쓰기면 원래 파일 자리로 한 번에 옮긴다(그 경로는 원래 있던 파일이라 장부에 넣지 않음 — 뒤에서 실패해 되돌려도 지우지 않게).
+                    string? moved = OutputFiles.MoveResolved(from, to, remaining, out bool overwrote);
+                    if (moved is not null && !overwrote) ledger.AddFile(moved);
                     continue;
                 }
-                using (OutputFiles.CreateNew(to, out string written))
-                    ledger.AddFile(written);
+                // 엔진이 만들지 않은 크기 0 파일
+                var target = OutputFiles.OpenTarget(to, 0, null, remaining);
+                if (target is null) continue;
+                using (target.Stream)
+                    ledger.AddFile(target.WritePath);
+                if (target.Overwrites)
+                {
+                    try { target.Commit(); }
+                    finally { ledger.ForgetFile(target.WritePath); }
+                }
             }
         }
         catch

@@ -18,7 +18,14 @@ internal static class ModuleInit
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         TestTimeZone.ApplyFromEnvironment();
+        // W2-05: 일집 자료 폴더(설정 settings.json·임시 폴더)를 시험 전용 빈 폴더로 — 이 PC 사용자가 일집 설정에서 '풀고 나서 압축 파일 지우기'를
+        // 켜 두었어도, 가짜 없이 만든 화면(new MainViewModel(ui))이 그 설정을 읽어 진짜 휴지통으로 픽스처를 보내는 일이 없게(설정은 늘 기본값).
+        Iljip.Services.AppPaths.OverrideRootForTests(TestAppDataRoot, processWide: true);
     }
+
+    /// <summary>시험 중 일집 자료 폴더(<see cref="Iljip.Services.AppPaths.Root"/>) — 프로세스마다 따로.</summary>
+    internal static readonly string TestAppDataRoot =
+        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IljipTests", $"appdata-{Environment.ProcessId}");
 }
 
 /// <summary>

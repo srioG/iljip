@@ -25,13 +25,19 @@ public partial class ProgressDialog : Window
             return;
         }
 
-        Bar.Value = p.Percentage;
+        // 여러 개 풀기(W2-05, I2-6)면 막대는 전체, 맨 윗줄은 '2/5 · b.zip — 지금 파일'
+        Bar.Value = p.OverallPercentage;
         // 파일 수를 미리 모르는 형식(.tar.gz 등)은 크기만 보인다
         string files = p.TotalFiles > 0 ? $"{p.FilesProcessed} / {p.TotalFiles} 파일  |  " : string.Empty;
         StatusText.Text = $"{files}{FormatBytes(p.BytesProcessed)} / {FormatBytes(p.TotalBytes)}";
         // 취소를 누른 뒤에는 '취소하는 중' 안내를 지우지 않는다
         if (!_cancelling)
-            CurrentFileText.Text = string.IsNullOrEmpty(p.CurrentFile) ? "완료 중..." : p.CurrentFile;
+        {
+            string file = string.IsNullOrEmpty(p.CurrentFile) ? "완료 중..." : p.CurrentFile;
+            CurrentFileText.Text = p.BatchCount > 1
+                ? $"{p.BatchIndex}/{p.BatchCount} · {p.BatchName} — {file}"
+                : file;
+        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)

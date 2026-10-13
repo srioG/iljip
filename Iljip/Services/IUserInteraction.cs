@@ -61,4 +61,16 @@ public interface IUserInteraction
 
     /// <summary>진행 창을 띄운다(곧바로 돌아옴).</summary>
     IProgressSession ShowProgress(string title);
+
+    // ───── W2-05(같은 이름 묻기·여러 개 풀기 요약)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// 풀 때 같은 이름 파일이 이미 있을 때 묻는다(I1-5): ‘‘보고서.xlsx’ 파일이 이미 있어요.’ + 있는 파일·새 파일의 크기·날짜,
+    /// [덮어쓰기][건너뛰기][이름 바꾸기][취소] + ‘남은 파일도 똑같이’. 창을 닫으면 [취소].
+    /// ★ 해제 작업 스레드에서 불린다 — 진짜 창은 UI 스레드로 넘겨(Dispatcher.Invoke) 띄운다.
+    /// </summary>
+    CollisionAnswer AskCollision(CollisionQuestion question);
+
+    /// <summary>여러 개를 한꺼번에 한 결과(I2-6): 요약 한 줄·못 한 것과 이유·알림. 날 오류는 '자세히' 아래에만.</summary>
+    void ShowSummary(OperationSummary summary);
 }

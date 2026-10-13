@@ -7,11 +7,11 @@ public enum CommandVerb
     None,
     /// <summary>--open &lt;압축&gt; : 열기만.</summary>
     Open,
-    /// <summary>--extract &lt;압축&gt; : 풀 폴더를 고르는 창 → 풀기.</summary>
+    /// <summary>--extract &lt;압축…&gt; : 풀 폴더를 고르는 창 → 풀기(여러 개면 창 한 번 + 여러 개 풀기 — W2-05).</summary>
     Extract,
-    /// <summary>--extract-here &lt;압축&gt; : 압축 파일이 있는 폴더에 바로 풀기(반디집 '여기에 풀기').</summary>
+    /// <summary>--extract-here &lt;압축…&gt; : 압축 파일이 있는 폴더에 바로 풀기(반디집 '여기에 풀기'). 우클릭이면 메인 창 없이 진행 창만(I1-6).</summary>
     ExtractHere,
-    /// <summary>--extract-to-folder &lt;압축&gt; : '부모\이름' 폴더에 풀기. 그 이름이 이미 있으면 '이름 (2)' …(합치지 않음).</summary>
+    /// <summary>--extract-to-folder &lt;압축…&gt; : '부모\이름' 폴더에 풀기. 그 이름이 이미 있으면 '이름 (2)' …(합치지 않음). 우클릭이면 메인 창 없이.</summary>
     ExtractToFolder,
     /// <summary>--extract-to &lt;압축&gt; &lt;폴더&gt; : 지정 폴더에 풀기(창 없이 풀기는 App 이 따로 맡음).</summary>
     ExtractTo,
@@ -21,10 +21,22 @@ public enum CommandVerb
     Paths,
 }
 
-/// <summary>해석 결과. <see cref="Paths"/> 는 <see cref="CommandVerb.Compress"/>·<see cref="CommandVerb.Paths"/> 일 때만 찬다.</summary>
+/// <summary>
+/// 해석 결과. <see cref="Paths"/> 는 <see cref="CommandVerb.Compress"/>·<see cref="CommandVerb.Paths"/> 일 때만 찬다.
+/// <see cref="Archive"/> 는 압축 파일 하나(여러 개면 첫 번째 — 예전 호출과 호환), <see cref="Archives"/> 는 전부(W2-05).
+/// </summary>
 public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? Dest, IReadOnlyList<string> Paths)
 {
     public static readonly ParsedCommand None = new(CommandVerb.None, null, null, Array.Empty<string>());
+
+    /// <summary>압축 파일 전부(풀기 동사는 동사 뒤 여러 개 — 설계 §6, W2-05). 첫 번째가 <see cref="Archive"/>.</summary>
+    public IReadOnlyList<string> Archives { get; init; } = Archive is null ? Array.Empty<string>() : new[] { Archive };
+
+    /// <summary>
+    /// 메인 창을 띄울 명령인가(I1-6, W2-05). 탐색기 우클릭 풀기 동사('여기에 풀기'·'"이름"\ 에 풀기'·대화형 '--extract-to')는
+    /// 메인 창 없이 진행 창만 — 일집이 이미 떠 있어도 메인 창을 앞으로 가져오지 않는다. 그 밖(열기·풀기 창·압축·경로)은 메인 창.
+    /// </summary>
+    public bool ShowMainWindow => Verb is not (CommandVerb.ExtractHere or CommandVerb.ExtractToFolder or CommandVerb.ExtractTo);
 }
 
 /// <summary>
@@ -32,6 +44,7 @@ public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? De
 /// 키워드는 대소문자를 가린다('--OPEN' 은 키워드가 아니라 경로 목록 — 기존 동작, 기록 테스트).
 /// 창 없이 풀기('--extract-to', 대소문자 무시)는 App.IsHeadlessExtractCommand 가 먼저 따로 맡는다.
 /// '--extract-to-folder' 와 '--extract-to' 는 통째로 같은지로만 비교하므로 섞이지 않는다.
+/// 풀기 동사(--extract·--extract-here·--extract-to-folder)는 뒤의 경로를 모두 압축 파일로 받는다(W2-05 — 여러 개 풀기 I2-6). '--open' 은 하나.
 /// 셸 확장(C++ IljipCommands.cpp)이 넘기는 키워드는 모두 여기서 알아봐야 한다(ShellExtensionContractTests 가 확인).
 /// </summary>
 public static class CommandLineParser
@@ -53,7 +66,8 @@ public static class CommandLineParser
     {
         if (args is null || args.Length == 0) return ParsedCommand.None;
 
-        // 압축 하나를 받는 키워드: 인자가 모자라면 None(뒤에 더 붙은 인자는 무시 — 예전 switch 와 같음)
+        // 압축을 받는 키워드: 인자가 모자라면 None. '--open' 은 뒤에 더 붙은 인자를 무시(예전 switch 와 같음),
+        // 풀기 동사는 뒤의 빈 문자열이 아닌 인자를 모두 압축 파일로(W2-05 — 첫 번째가 Archive)
         CommandVerb? single = args[0] switch
         {
             OpenKeyword => CommandVerb.Open,
@@ -63,9 +77,12 @@ public static class CommandLineParser
             _ => null,
         };
         if (single is { } verb)
-            return args.Length >= 2 && !string.IsNullOrEmpty(args[1])
-                ? new ParsedCommand(verb, args[1], null, Array.Empty<string>())
-                : ParsedCommand.None;
+        {
+            if (args.Length < 2 || string.IsNullOrEmpty(args[1])) return ParsedCommand.None;
+            if (verb == CommandVerb.Open) return new ParsedCommand(verb, args[1], null, Array.Empty<string>());
+            var archives = args.Skip(1).Where(a => !string.IsNullOrEmpty(a)).ToList();
+            return new ParsedCommand(verb, archives[0], null, Array.Empty<string>()) { Archives = archives };
+        }
 
         switch (args[0])
         {

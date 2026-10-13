@@ -9,6 +9,7 @@ namespace Iljip.Tests.TestSupport;
 /// 선택 창은 <see cref="ChooseByLabel"/>(버튼 문구 앞부분으로 고르기) 또는 넣어 둔 순번(<see cref="ChoiceAnswers"/>, 다 쓰면 -1 = 창 닫기).
 /// 폴더·파일·저장 창은 넣어 둔 값(기본 null = 취소)을 돌려준다. 진행 창은 기록만 하는 가짜.
 /// (W1-B 보관본의 같은 이름 가짜와 모양을 맞춤 — 선택 창은 W1-D 에서 더함)
+/// W2-05: 같은 이름 창(<see cref="AskCollision"/> — 넣어 둔 답, 없으면 '이름 바꾸기')·요약 창(<see cref="Summaries"/>)을 더함.
 /// </summary>
 public sealed class FakeUserInteraction : IUserInteraction
 {
@@ -96,6 +97,41 @@ public sealed class FakeUserInteraction : IUserInteraction
         ProgressSessions.Add(session.Recorder);
         return session;
     }
+
+    // ───── W2-05: 같은 이름 묻기·여러 개 풀기 요약 ─────
+
+    private readonly object _collisionGate = new();
+
+    /// <summary>같은 이름 창이 불린 기록(해제 작업 스레드에서 불림).</summary>
+    public List<CollisionQuestion> CollisionPrompts { get; } = new();
+
+    /// <summary>같은 이름 창의 답(차례로). 비면 <see cref="DefaultCollisionAnswer"/>.</summary>
+    public Queue<CollisionAnswer> CollisionAnswers { get; } = new();
+
+    /// <summary>
+    /// 답을 넣어 두지 않았을 때의 답 — 기본은 '이름 바꾸기'(예전 동작 '이름 (1)' 과 같아 기존 화면 시험이 그대로 통과).
+    /// </summary>
+    public CollisionAnswer DefaultCollisionAnswer { get; set; } = new(CollisionChoice.Rename, false);
+
+    /// <summary>같은 이름 창이 처음 불릴 때 한 번 부른다(질문 중에 다른 일을 끼워 넣는 시험 — 예: 대상 파일 잠그기).</summary>
+    public Action<CollisionQuestion>? OnCollisionPrompt { get; set; }
+
+    public CollisionAnswer AskCollision(CollisionQuestion question)
+    {
+        lock (_collisionGate)
+        {
+            CollisionPrompts.Add(question);
+            var hook = OnCollisionPrompt;
+            OnCollisionPrompt = null;
+            hook?.Invoke(question);
+            return CollisionAnswers.Count > 0 ? CollisionAnswers.Dequeue() : DefaultCollisionAnswer;
+        }
+    }
+
+    /// <summary>요약 창이 불린 기록.</summary>
+    public List<OperationSummary> Summaries { get; } = new();
+
+    public void ShowSummary(OperationSummary summary) => Summaries.Add(summary);
 
     private sealed class Session : IProgressSession
     {

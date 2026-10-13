@@ -46,14 +46,24 @@ public partial class App : Application
 
         // ===== 단일 인스턴스 =====
         // 이미 일집이 떠 있으면, 새로 들어온 명령줄 인자를 기존 창에 넘기고 이 프로세스는 종료한다.
+        // W2-05: 넘긴 쪽이 '받았음'(1바이트)을 확인한다 — 앞 일집이 우클릭 풀기를 마치고 끝나는 중이라 받지 않으면(또는 못 넘기면)
+        // 그 일집이 끝나기를 잠깐 기다려 이 프로세스가 첫 일집이 되고, 그래도 안 되면 혼자 처리한다(명령을 잃지 않게).
         _mutex = new Mutex(initiallyOwned: true, MutexName, out bool isFirstInstance);
         if (!isFirstInstance)
         {
-            ForwardArgsToRunningInstance(e.Args);
-            Shutdown();
-            return;
+            if (ForwardArgsToRunningInstance(e.Args))
+            {
+                Shutdown();
+                return;
+            }
+            isFirstInstance = TryTakeOverSingleInstance();
         }
-        StartPipeServer();
+        _ownsMutex = isFirstInstance;
+        if (isFirstInstance) StartPipeServer();
+
+        // 창을 닫아도 저절로 끝나지 않게 한다 — 끝내는 때는 '메인 창을 닫았고 우클릭 풀기가 없음' 또는 '메인 창 없이 우클릭 풀기만 하고 다 끝남'
+        // (W2-05 — 우클릭 풀기는 메인 창 없이 진행·암호·결과 창만 띄워, 그 창들이 닫힐 때마다 앱이 끝나면 안 된다. ShutdownIfIdleAsync)
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         // 전역 예외 처리: 예외를 파일 로그에 남긴 뒤 사용자에게 안내하고 앱을 계속 실행한다.
         // (로깅은 Logger.LogError가 담당. 정식 배포 시 구조적 로깅으로 교체 가능.)
@@ -76,6 +86,15 @@ public partial class App : Application
         // (이미 켜져 있으면 파이프로 넘겨 받아 동작했다).
         var win = new MainWindow();
         MainWindow = win;
+        win.Closed += MainWindow_Closed;
+
+        // W2-05(I1-6): 탐색기 우클릭 풀기('여기에 풀기'·'"이름"\ 에 풀기')는 메인 창을 띄우지 않고 진행 창만 — 끝나면(결과 폴더를 연 뒤) 앱을 끝낸다.
+        // 창(VM)은 만들어 두기만 한다: 그사이 다른 명령(열기 등)이 파이프로 들어오면 그때 띄운다.
+        if (!CommandLineParser.Parse(e.Args).ShowMainWindow && win.DataContext is MainViewModel shellVm)
+        {
+            await RunWindowlessAsync(shellVm, e.Args);
+            return;
+        }
 
         // 명령줄 인자가 있으면 창이 다 뜬 뒤 MainWindow의 ViewModel에 위임
         if (e.Args.Length > 0 && win.DataContext is MainViewModel vm)
@@ -87,7 +106,94 @@ public partial class App : Application
             };
         }
 
+        _mainWindowShown = true;
         win.Show();
+    }
+
+    // ===== 메인 창 없이 우클릭 풀기(W2-05, I1-6) — 언제 끝낼지 =====
+
+    /// <summary>단일 인스턴스 표시(뮤텍스)를 이 프로세스가 갖고 있는가.</summary>
+    private bool _ownsMutex;
+
+    /// <summary>메인 창을 띄운 적이 있는가 / 그 창을 닫았는가.</summary>
+    private bool _mainWindowShown;
+    private bool _mainWindowClosed;
+
+    /// <summary>돌고 있는(또는 받아 두고 아직 시작 안 한) 명령 수 — 0 이 되어야 끝낼 수 있다(UI 스레드에서만 바꿈).</summary>
+    private int _busy;
+
+    /// <summary>끝내기로 했다 — 이후 파이프로 오는 명령은 받지 않는다(넘긴 쪽이 직접 처리).</summary>
+    private bool _shuttingDown;
+
+    /// <summary>우클릭 풀기 하나를 메인 창 없이 한다. 끝나면 할 일이 없을 때 앱을 끝낸다.</summary>
+    private async Task RunWindowlessAsync(MainViewModel vm, string[] args)
+    {
+        _busy++;
+        try
+        {
+            await vm.ProcessShellCommandAsync(args);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("우클릭 풀기 실패", ex);
+        }
+        finally
+        {
+            _busy--;
+        }
+        await ShutdownIfIdleAsync();
+    }
+
+    private async void MainWindow_Closed(object? sender, EventArgs e)
+    {
+        _mainWindowClosed = true;
+        await ShutdownIfIdleAsync();
+    }
+
+    /// <summary>
+    /// 할 일이 없으면 끝낸다: 메인 창이 떠 있으면 그 창을 닫을 때까지 기다리고, 메인 창 없이 우클릭 풀기만 했으면 잠깐 기다렸다가
+    /// (여러 개를 골라 우클릭하면 파일마다 일집이 떠 파이프로 거의 동시에 들어온다 — 늦게 온 것도 같은 묶음에 붙게) 그래도 없으면 끝낸다.
+    /// </summary>
+    private async Task ShutdownIfIdleAsync()
+    {
+        if (_shuttingDown || _busy > 0) return;
+        if (_mainWindowShown && !_mainWindowClosed) return;
+        if (!_mainWindowShown)
+        {
+            await Task.Delay(700);
+            if (_shuttingDown || _busy > 0 || (_mainWindowShown && !_mainWindowClosed)) return;
+        }
+        _shuttingDown = true;
+        Shutdown();
+    }
+
+    /// <summary>메인 창을 띄우고 앞으로(처음이면 띄우고, 닫았으면 새로 만든다).</summary>
+    private MainViewModel? ShowMainWindowAndActivate()
+    {
+        if (_mainWindowClosed || MainWindow is null)
+        {
+            var fresh = new MainWindow();
+            fresh.Closed += MainWindow_Closed;
+            MainWindow = fresh;
+            _mainWindowClosed = false;
+            _mainWindowShown = false;
+        }
+        var win = MainWindow;
+        if (!_mainWindowShown)
+        {
+            _mainWindowShown = true;
+            win.Show();
+            // 우클릭 풀기로 시작했다가(단일 인스턴스 표시를 넘겨받지 못했으면) 지금부터 이 창이 첫 일집이 되게
+            if (!_ownsMutex) _ownsMutex = TryAcquireMutex(0);
+        }
+        if (win.WindowState == WindowState.Minimized)
+            win.WindowState = WindowState.Normal;
+        win.Activate();
+        // 잠깐 Topmost로 올렸다 내려 확실히 앞으로
+        win.Topmost = true;
+        win.Topmost = false;
+        win.Focus();
+        return win.DataContext as MainViewModel;
     }
 
     private static bool IsHeadlessExtractCommand(string[] args)
@@ -138,28 +244,65 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try { _mutex?.ReleaseMutex(); } catch { /* 소유 안 했으면 무시 */ }
+        if (_ownsMutex)
+        {
+            try { _mutex?.ReleaseMutex(); } catch { /* 소유 안 했으면 무시 */ }
+        }
         _mutex?.Dispose();
         base.OnExit(e);
     }
 
     // ===== 단일 인스턴스 IPC =====
 
-    /// <summary>이미 실행 중인 인스턴스로 명령줄 인자를 Named Pipe로 전달.</summary>
-    private static void ForwardArgsToRunningInstance(string[] args)
+    /// <summary>
+    /// 이미 실행 중인 인스턴스로 명령줄 인자를 Named Pipe로 전달. 받는 쪽이 '받았음'(1)을 돌려줘야 true(W2-05) —
+    /// 받는 쪽이 끝나는 중이라 거절(0)하거나 응답이 없으면 false(이 프로세스가 직접 처리).
+    /// 예전 판(받기만 하는 파이프)에는 연결 자체가 안 되어 false — 그때도 직접 처리한다.
+    /// </summary>
+    private static bool ForwardArgsToRunningInstance(string[] args)
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
+            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
             client.Connect(2000);
-            using var writer = new StreamWriter(client) { AutoFlush = true };
             // 경로 인자들을 0x1F(Unit Separator)로 구분해 한 줄로 전송.
             // 탭(\t)은 Windows 파일명에 들어갈 수 있어 깨질 수 있으나, 0x1F는 파일명에 허용되지 않아 안전.
-            writer.WriteLine(string.Join(ArgSeparator, args));
+            byte[] line = new System.Text.UTF8Encoding(false).GetBytes(string.Join(ArgSeparator, args) + "\n");
+            client.Write(line, 0, line.Length);
+            client.Flush();
+            // '받았음' 1바이트를 기다린다(받는 쪽은 UI 스레드에서 판단 — 모달 창이 떠 있어도 곧 답함). 너무 오래 답이 없으면 직접 처리한다
+            // (받는 쪽은 우리가 응답을 읽어 간 것을 확인한 뒤에만 실행하므로 둘이 같이 하지 않는다 — PipeServerLoop)
+            var ack = new byte[1];
+            var read = client.ReadAsync(ack, 0, 1);
+            if (!read.Wait(TimeSpan.FromSeconds(30))) return false;
+            return read.Result == 1 && ack[0] == 1;
         }
         catch
         {
-            // 전달 실패해도 그냥 종료 (사용자는 기존 창을 직접 쓰면 됨)
+            return false;   // 넘기지 못함 — 직접 처리
+        }
+    }
+
+    /// <summary>
+    /// 앞 일집이 받지 않았을 때(끝나는 중): 그 일집이 끝나 단일 인스턴스 표시를 놓기를 잠깐 기다려 이 프로세스가 첫 일집이 된다.
+    /// 끝내 못 받으면 false — 그래도 이 명령은 이 프로세스가 혼자 처리한다(파이프는 열지 않음).
+    /// </summary>
+    private bool TryTakeOverSingleInstance() => TryAcquireMutex(3000);
+
+    private bool TryAcquireMutex(int timeoutMs)
+    {
+        if (_mutex is null) return false;
+        try
+        {
+            return _mutex.WaitOne(timeoutMs);
+        }
+        catch (AbandonedMutexException)
+        {
+            return true;   // 앞 일집이 놓지 않고 끝남 — 이제 우리 것
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -182,17 +325,34 @@ public partial class App : Application
             try
             {
                 using var server = new NamedPipeServerStream(
-                    PipeName, PipeDirection.In, 1,
+                    PipeName, PipeDirection.InOut, 1,
                     PipeTransmissionMode.Byte, PipeOptions.None);
 
                 server.WaitForConnection();
 
-                using var reader = new StreamReader(server);
-                string? line = reader.ReadLine();
-                if (!string.IsNullOrEmpty(line))
+                var (line, legacy) = ReadLine(server);
+                if (line is not null)
                 {
-                    var args = line.Split(ArgSeparator);
-                    Dispatcher.Invoke(() => OnSecondInstanceLaunched(args));
+                    // 빈 줄 = 인자 없이 다시 실행(메인 창을 앞으로 — 우클릭 풀기만 하던 중이면 그때 띄움)
+                    var args = line.Length == 0 ? Array.Empty<string>() : line.Split(ArgSeparator);
+                    // 받을지 정하고(끝내는 중이면 거절) 받으면 할 일 수를 바로 올린다 — 답한 뒤 앱이 끝나 명령을 잃지 않게
+                    bool accepted = Dispatcher.Invoke(ReserveForwarded);
+                    bool delivered = legacy && accepted;   // 예전 판(응답을 읽지 않음, 줄 끝 \r\n)은 받았다고 보고 실행
+                    if (!legacy)
+                    {
+                        try
+                        {
+                            server.WriteByte(accepted ? (byte)1 : (byte)0);
+                            server.Flush();
+                            server.WaitForPipeDrain();   // 넘긴 쪽이 '받았음'을 읽어 갔을 때만 실행(그새 포기하고 직접 처리했으면 하지 않음)
+                            delivered = accepted;
+                        }
+                        catch
+                        {
+                            delivered = false;
+                        }
+                    }
+                    if (accepted) Dispatcher.InvokeAsync(() => RunForwardedAsync(args, delivered));
                 }
                 consecutiveFailures = 0;   // 정상 처리 시 실패 카운터 리셋
             }
@@ -216,21 +376,70 @@ public partial class App : Application
         }
     }
 
-    /// <summary>두 번째 인스턴스가 보낸 인자를 처리하고 창을 앞으로 가져온다.</summary>
-    private async void OnSecondInstanceLaunched(string[] args)
+    /// <summary>
+    /// 파이프에서 한 줄(UTF-8, '\n' 까지)을 읽는다. 아무것도 안 보내고 끊으면 null. <c>Legacy</c> = 줄 끝이 '\r\n'(예전 판 — StreamWriter.WriteLine,
+    /// 응답을 읽지 않음). StreamReader 를 쓰지 않는 것은 응답을 같은 파이프로 쓰려고.
+    /// </summary>
+    private static (string? Line, bool Legacy) ReadLine(Stream s)
     {
-        if (MainWindow is { } win)
+        var bytes = new List<byte>();
+        while (true)
         {
-            if (win.WindowState == WindowState.Minimized)
-                win.WindowState = WindowState.Normal;
-            win.Activate();
-            // 잠깐 Topmost로 올렸다 내려 확실히 앞으로
-            win.Topmost = true;
-            win.Topmost = false;
-            win.Focus();
+            int b = s.ReadByte();
+            if (b < 0) return bytes.Count == 0 ? (null, true) : (Decode(bytes), true);
+            if (b == '\n')
+            {
+                bool legacy = bytes.Count > 0 && bytes[^1] == '\r';
+                return (Decode(bytes), legacy);
+            }
+            bytes.Add((byte)b);
+            if (bytes.Count > 1 << 20) return (Decode(bytes), true);   // 비정상적으로 긴 줄
         }
 
-        if (args.Length > 0 && MainWindow?.DataContext is MainViewModel vm)
+        static string Decode(List<byte> b) => new System.Text.UTF8Encoding(false).GetString(b.ToArray()).TrimEnd('\r');
+    }
+
+    /// <summary>두 번째 실행이 넘긴 명령을 받을지(UI 스레드). 끝내는 중이면 받지 않는다(넘긴 쪽이 직접 처리). 받으면 할 일 수를 바로 올린다.</summary>
+    private bool ReserveForwarded()
+    {
+        if (_shuttingDown) return false;
+        _busy++;
+        return true;
+    }
+
+    /// <summary>받아 둔 명령을 처리한다(<paramref name="delivered"/> 가 false 면 넘긴 쪽이 직접 처리했으므로 하지 않고 자리만 놓는다).</summary>
+    private async Task RunForwardedAsync(string[] args, bool delivered)
+    {
+        try
+        {
+            if (delivered) await OnSecondInstanceLaunched(args);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("넘겨받은 명령 처리 실패", ex);
+        }
+        finally
+        {
+            _busy--;
+        }
+        await ShutdownIfIdleAsync();
+    }
+
+    /// <summary>
+    /// 두 번째 인스턴스가 보낸 인자를 처리한다. 탐색기 우클릭 풀기(W2-05, I1-6)는 메인 창을 앞으로 가져오지 않고 진행 창만,
+    /// 그 밖은 메인 창을 (처음이면 띄워서) 앞으로 가져온 뒤 처리한다.
+    /// </summary>
+    private async Task OnSecondInstanceLaunched(string[] args)
+    {
+        if (!CommandLineParser.Parse(args).ShowMainWindow)
+        {
+            if (MainWindow?.DataContext is MainViewModel shellVm)
+                await RunWindowlessAsync(shellVm, args);
+            return;
+        }
+
+        var vm = ShowMainWindowAndActivate();
+        if (args.Length > 0 && vm is not null)
             await vm.ProcessCommandLineAsync(args);
     }
 

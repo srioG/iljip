@@ -19,7 +19,20 @@ public static class ErrorMessages
     /// <summary>경로 공격 거부 문구의 머리(서비스들이 InvalidDataException 에 쓰는 기존 계약).</summary>
     public const string UnsafePathPrefix = "안전하지 않은 경로: ";
 
-    public static string ToUserMessage(Exception ex) => ex switch
+    public static string ToUserMessage(Exception ex) => Known(ex) ?? $"알 수 없는 오류가 났어요: {ex.Message}";
+
+    /// <summary>
+    /// 엔진 영어 문구를 한 글자도 보이지 않는 쉬운 한국어(W2-05 — 탐색기 우클릭 풀기·여러 개 풀기의 오류 창·요약 이유).
+    /// 일집이 아는 오류는 <see cref="ToUserMessage"/> 와 같고, 모르는 오류(SharpCompress 'Failed to locate the Zip Header' 등)만
+    /// <see cref="UnknownPlainMessage"/> 로 바꾼다 — 날 문구는 부르는 쪽이 기록(로그)·요약 '자세히'에 남긴다.
+    /// </summary>
+    public static string ToPlainMessage(Exception ex) => Known(ex) ?? UnknownPlainMessage;
+
+    /// <summary>모르는 오류의 쉬운 문구(★ '압축 파일이 아닌' 금지 — 재사용장치 분류 말).</summary>
+    public const string UnknownPlainMessage = "파일이 손상됐거나 끝까지 받아지지 않은 것 같아요. 원본을 다시 받아서 풀어 보세요.";
+
+    /// <summary>일집이 아는 오류의 화면 문구. 모르면 null.</summary>
+    private static string? Known(Exception ex) => ex switch
     {
         ArchiveException a => a.Message,
         OperationCanceledException => "취소했어요.",
@@ -36,7 +49,7 @@ public static class ErrorMessages
         IOException io when io.HResult is ErrorFileExists or ErrorAlreadyExists
             => "같은 이름의 파일이나 폴더가 이미 있어 만들 수 없어요" + PathSuffix(io.Message),
         FileNotFoundException or DirectoryNotFoundException => "파일이나 폴더를 찾을 수 없어요" + PathSuffix(ex.Message),
-        _ => $"알 수 없는 오류가 났어요: {ex.Message}",
+        _ => null,
     };
 
     /// <summary>창 없이 풀기의 종료 코드: 형식 미지원 2, 그 밖의 실패 1(성공 0 은 호출자).</summary>

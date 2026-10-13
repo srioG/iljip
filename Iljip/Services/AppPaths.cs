@@ -38,6 +38,26 @@ public static class AppPaths
     /// <summary>압축된 tar 목록 캐시를 두는 곳(<c>Root\temp\list</c> — W2-01).</summary>
     public static string ListCacheRoot => Path.Combine(TempRoot, "list");
 
+    /// <summary>설정 파일(<c>Root\settings.json</c> — 설계 §4, W2-05 에서 처음 씀). 로그와 같은 곳이라 OneDrive·로밍과 무관하다.</summary>
+    public static string SettingsFile => Path.Combine(Root, "settings.json");
+
+    /// <summary>
+    /// <paramref name="path"/> 가 일집 임시 폴더(<see cref="TempRoot"/>) 안인가 — 그 안의 압축(압축 안의 압축을 꺼내 연 것 등)은
+    /// '풀고 나서 압축 파일 지우기'(I2-5) 대상이 아니다(일집이 알아서 치움).
+    /// </summary>
+    public static bool IsUnderTemp(string path)
+    {
+        try
+        {
+            string root = Path.GetFullPath(TempRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// 테스트 전용: Dispose 할 때까지 <see cref="Root"/> 를 <paramref name="root"/> 로 바꾼다.
     /// <paramref name="processWide"/> 면 이 프로세스 전체(다른 테스트 흐름 포함), 아니면 이 비동기 흐름에서만.
