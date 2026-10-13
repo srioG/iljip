@@ -131,11 +131,21 @@ public sealed class WpfUserInteraction : IUserInteraction
         return dlg.ShowDialog() == true ? dlg.FileName : null;
     }
 
-    public CompressionOptions? AskCompressionOptions(string targetExtension)
+    /// <summary>예전 옵션 창 — W2-07 부터 한 화면 압축 창(<see cref="AskCompression"/>)을 옵션 칸만 보이게 띄우는 어댑터(일집 화면은 더 쓰지 않음).</summary>
+    public CompressionOptions? AskCompressionOptions(string targetExtension) =>
+        AskCompressionCore(new CompressionDialogRequest { FixedExtension = string.IsNullOrEmpty(targetExtension) ? ".zip" : targetExtension }) is { } dlg
+            ? dlg.Result ?? CompressionOptions.Default
+            : null;
+
+    /// <summary>한 화면 압축 창(W2-07, I2-12). 취소하면 null.</summary>
+    public CompressionRequest? AskCompression(CompressionDialogRequest request) => AskCompressionCore(request)?.Request;
+
+    /// <summary>창을 띄우고 [확인]으로 닫았으면 그 창(결과를 꺼낼 수 있게), 아니면 null.</summary>
+    private static CompressionOptionsDialog? AskCompressionCore(CompressionDialogRequest request)
     {
-        var dlg = new CompressionOptionsDialog(targetExtension);
+        var dlg = new CompressionOptionsDialog(new Iljip.ViewModels.CompressionDialogViewModel(request, SystemClock.Instance));
         Prepare(dlg);
-        return dlg.ShowDialog() == true ? dlg.Result ?? CompressionOptions.Default : null;
+        return dlg.ShowDialog() == true ? dlg : null;
     }
 
     public IProgressSession ShowProgress(string title)

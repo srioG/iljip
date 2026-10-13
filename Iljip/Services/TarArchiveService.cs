@@ -28,10 +28,12 @@ public sealed class TarArchiveService : SharpCompressArchiveServiceBase
                 throw new NotSupportedException("TAR는 암호화를 지원하지 않아요.");
 
             // 파일·빈 폴더·못 들어간 폴더를 한 번에 모은다(I0-2 — 하위 폴더 권한 오류로 전체가 실패하지 않게).
-            var sources = SourceCollector.Collect(sourcePaths);
+            // 빼기 목록(W2-07, I3-6)에 걸리는 것은 여기서 빠지고 결과의 ExcludedPaths 로 알린다.
+            var sources = SourceCollector.Collect(sourcePaths, options?.ExcludeFilter, cancellationToken);
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
             return RewriteWithoutUnreadable(archivePath,
-                dropped => WriteTar(sources, dropped, archivePath, progress, cancellationToken));
+                dropped => WriteTar(sources, dropped, archivePath, progress, cancellationToken))
+                .WithExcluded(sources.Excluded);
         }, cancellationToken);
     }
 

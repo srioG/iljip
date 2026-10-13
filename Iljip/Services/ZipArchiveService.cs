@@ -149,18 +149,21 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         return Task.Run(() =>
         {
             // 파일·빈 폴더·못 들어간 폴더를 한 번에 모은다(I0-2 — 하위 폴더 권한 오류로 전체가 실패하지 않게).
-            var sources = SourceCollector.Collect(sourcePaths);
+            // 빼기 목록(W2-07, I3-6)에 걸리는 것은 여기서 빠지고 결과의 ExcludedPaths 로 알린다.
+            var sources = SourceCollector.Collect(sourcePaths, options.ExcludeFilter, cancellationToken);
 
             // 나눠 만들기(W2-03): 대상 폴더 안 숨김 임시 폴더에 보통 ZIP 을 다 만든 뒤 PKZIP 나눔(.z01 … .zip)으로 바꾼다(다시 압축하지 않음).
             // 원본을 다 모은 뒤에 임시 폴더를 만든다 — 원본 폴더 안에 저장해도 임시 폴더가 원본으로 담기지 않게. 저장 창에서 고른 이름은 계속 담지 않는다.
             if (options.SplitBytes is > 0 and long split)
                 return SplitArchiveOutput.Write(archivePath, split, SplitArchiveOutput.VolumeKind.Zip, progress, cancellationToken,
                     (single, p) => RewriteWithoutUnreadable(single,
-                        dropped => WriteZip(sources, dropped, single, options, p, cancellationToken, alsoSkip: archivePath)));
+                        dropped => WriteZip(sources, dropped, single, options, p, cancellationToken, alsoSkip: archivePath)))
+                    .WithExcluded(sources.Excluded);
 
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
             return RewriteWithoutUnreadable(archivePath,
-                dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken));
+                dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken))
+                .WithExcluded(sources.Excluded);
         }, cancellationToken);
     }
 

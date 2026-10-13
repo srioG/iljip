@@ -15,7 +15,7 @@ public enum CommandVerb
     ExtractToFolder,
     /// <summary>--extract-to &lt;압축&gt; &lt;폴더&gt; : 지정 폴더에 풀기(창 없이 풀기는 App 이 따로 맡음).</summary>
     ExtractTo,
-    /// <summary>--compress &lt;경로…&gt; : 압축 대기에 넣고 저장 창부터.</summary>
+    /// <summary>--compress &lt;경로…&gt; : 압축 대기에 넣고 한 화면 압축 창부터(W2-07 — 예전 저장 창·옵션 창을 하나로).</summary>
     Compress,
     /// <summary>키워드 없이 경로만 — 끌어 놓기와 같게.</summary>
     Paths,

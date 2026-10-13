@@ -137,15 +137,18 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
         return Task.Run(() =>
         {
             SevenZipLibrary.ThrowIfUnavailable();
-            var collected = SourceCollector.Collect(sources);
+            // 빼기 목록(W2-07, I3-6)에 걸리는 것은 여기서 빠지고 결과의 ExcludedPaths 로 알린다
+            var collected = SourceCollector.Collect(sources, options.ExcludeFilter, cancellationToken);
 
             // 나눠 만들기(W2-03): 대상 폴더 안 숨김 임시 폴더에 7z 하나를 다 만든 뒤 숫자 조각(.7z.001 …)으로 자른다
             // (7z 볼륨은 단순 절단이라 같은 바이트 — 7z.dll 볼륨 쓰기는 빈 폴더 덧붙이기와 같이 못 씀). 원본을 다 모은 뒤에 임시 폴더를 만든다.
             if (options.SplitBytes is > 0 and long split)
                 return SplitArchiveOutput.Write(archivePath, split, SplitArchiveOutput.VolumeKind.SevenZip, progress, cancellationToken,
-                    (single, p) => WriteWithRetries(collected, single, options, new CompressProgress(p), cancellationToken, alsoSkip: archivePath));
+                    (single, p) => WriteWithRetries(collected, single, options, new CompressProgress(p), cancellationToken, alsoSkip: archivePath))
+                    .WithExcluded(collected.Excluded);
 
-            return WriteWithRetries(collected, archivePath, options, new CompressProgress(progress), cancellationToken);
+            return WriteWithRetries(collected, archivePath, options, new CompressProgress(progress), cancellationToken)
+                .WithExcluded(collected.Excluded);
         }, cancellationToken);
     }
 

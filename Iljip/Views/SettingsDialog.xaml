@@ -9,33 +9,75 @@
         FontFamily="Segoe UI"
         Background="{DynamicResource WindowBgBrush}"
         TextElement.Foreground="{DynamicResource FgBrush}">
-    <StackPanel Margin="22">
-        <TextBlock Text="압축 풀기" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
-
-        <!-- extract.onCollision -->
-        <TextBlock Text="같은 이름이 있을 때" Margin="0,0,0,6" />
-        <StackPanel Margin="12,0,0,12">
-            <RadioButton x:Name="AskRadio" GroupName="Collision" Content="물어보기" Margin="0,0,0,4" />
-            <RadioButton x:Name="OverwriteRadio" GroupName="Collision" Content="덮어쓰기" Margin="0,0,0,4" />
-            <RadioButton x:Name="SkipRadio" GroupName="Collision" Content="건너뛰기 (있는 파일 그대로)" Margin="0,0,0,4" />
-            <RadioButton x:Name="RenameRadio" GroupName="Collision" Content="이름 바꾸기 (예: 보고서 (1).xlsx)" />
-        </StackPanel>
-
-        <!-- extract.openFolderAfter -->
-        <CheckBox x:Name="OpenFolderCheck" Margin="0,0,0,8">
-            <TextBlock TextWrapping="Wrap" Text="탐색기 우클릭으로 '이름' 폴더에 풀면 다 푼 뒤 그 폴더 열기" />
-        </CheckBox>
-
-        <!-- extract.deleteArchiveAfter -->
-        <CheckBox x:Name="DeleteArchiveCheck" Margin="0,0,0,4">
-            <TextBlock TextWrapping="Wrap" Text="다 푼 뒤 압축 파일을 휴지통으로 옮기기" />
-        </CheckBox>
-        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,0,0,16"
-                   Text="오류 없이 모두 풀렸을 때만 옮겨요(건너뛴 파일이 있거나 취소하면 그대로 둬요). 나뉜 압축은 조각을 모두 옮겨요. 네트워크 드라이브·USB 는 휴지통이 없어 옮기지 않아요." />
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+    <!-- 작은 화면에서도 [확인]·[취소]가 보이게 — 넘치면 가운데가 굴러간다(높이 한도는 코드에서 화면에 맞춤) -->
+    <DockPanel Margin="22">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Style="{StaticResource DialogButton}" Content="확인" Width="84" Height="32" Click="Ok_Click" IsDefault="True" />
             <Button Style="{StaticResource DialogButton}" Content="취소" Width="84" Height="32" Margin="8,0,0,0" IsCancel="True" />
         </StackPanel>
-    </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,6,0">
+                <TextBlock Text="압축 풀기" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+                <!-- extract.onCollision -->
+                <TextBlock Text="같은 이름이 있을 때" Margin="0,0,0,6" />
+                <StackPanel Margin="12,0,0,12">
+                    <RadioButton x:Name="AskRadio" GroupName="Collision" Content="물어보기" Margin="0,0,0,4" />
+                    <RadioButton x:Name="OverwriteRadio" GroupName="Collision" Content="덮어쓰기" Margin="0,0,0,4" />
+                    <RadioButton x:Name="SkipRadio" GroupName="Collision" Content="건너뛰기 (있는 파일 그대로)" Margin="0,0,0,4" />
+                    <RadioButton x:Name="RenameRadio" GroupName="Collision" Content="이름 바꾸기 (예: 보고서 (1).xlsx)" />
+                </StackPanel>
+
+                <!-- extract.openFolderAfter -->
+                <CheckBox x:Name="OpenFolderCheck" Margin="0,0,0,8">
+                    <TextBlock TextWrapping="Wrap" Text="탐색기 우클릭으로 '이름' 폴더에 풀면 다 푼 뒤 그 폴더 열기" />
+                </CheckBox>
+
+                <!-- extract.deleteArchiveAfter -->
+                <CheckBox x:Name="DeleteArchiveCheck" Margin="0,0,0,4">
+                    <TextBlock TextWrapping="Wrap" Text="다 푼 뒤 압축 파일을 휴지통으로 옮기기" />
+                </CheckBox>
+                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,0,0,16"
+                           Text="오류 없이 모두 풀렸을 때만 옮겨요(건너뛴 파일이 있거나 취소하면 그대로 둬요). 나뉜 압축은 조각을 모두 옮겨요. 네트워크 드라이브·USB 는 휴지통이 없어 옮기지 않아요." />
+
+                <TextBlock Text="압축하기" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+                <!-- W2-07 검증 지적(I2-12): compress.folderChoice·compress.fixedFolder — 압축 창 '만들 곳'의 처음 값 -->
+                <TextBlock Text="압축 창의 '만들 곳' 처음 값" Margin="0,0,0,6" />
+                <StackPanel Margin="12,0,0,12">
+                    <RadioButton x:Name="SourceFolderRadio" GroupName="Folder" Content="원본이 있는 폴더" Margin="0,0,0,4" />
+                    <RadioButton x:Name="LastFolderRadio" GroupName="Folder" Content="마지막으로 만든 곳" Margin="0,0,0,4" />
+                    <RadioButton x:Name="FixedFolderRadio" GroupName="Folder" Content="정해 둔 폴더:" Margin="0,0,0,4" />
+                    <DockPanel Margin="22,0,0,0" IsEnabled="{Binding IsChecked, ElementName=FixedFolderRadio}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource DialogButton}" Content="찾아보기..." Width="88" Height="26" Margin="8,0,0,0"
+                                Click="FixedFolderBrowse_Click" />
+                        <TextBox x:Name="FixedFolderBox" Height="26" VerticalContentAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,4,0,0"
+                               Text="고른 폴더가 없으면(USB 를 뺐을 때 등) 원본이 있는 폴더로 열어요. 압축 창의 '만들 곳' 목록에서 다른 곳을 고를 수도 있어요." />
+                </StackPanel>
+
+                <!-- W2-07 검증 지적(I3-4): compress.deleteOriginalsAfter — 압축 창에서 켠 것은 기억하지 않고 여기서만 바꿈 -->
+                <CheckBox x:Name="DeleteOriginalsCheck" Margin="0,0,0,4">
+                    <TextBlock TextWrapping="Wrap" Text="압축 창의 '다 만든 뒤 원본을 휴지통으로'를 켠 채로 열기" />
+                </CheckBox>
+                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,0,0,12"
+                           Text="꺼 두면 압축 창은 늘 꺼진 채로 열려요(압축 창에서 켜도 다음 창은 꺼져 있어요). 켜도 옮기기 전에 매번 물어봐요." />
+
+                <!-- W2-07(I3-6): compress.excludeEnabled·compress.excludePatterns — 압축 창의 '쓸모없는 파일 빼기'와 같은 설정 -->
+                <CheckBox x:Name="ExcludeCheck" Margin="0,0,0,6">
+                    <TextBlock TextWrapping="Wrap" Text="쓸모없는 파일 빼기 (아래 목록에 걸리는 파일·폴더는 압축에 넣지 않아요)" />
+                </CheckBox>
+                <TextBox x:Name="ExcludeBox" Height="110" Margin="22,0,0,4" AcceptsReturn="True" TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
+                <DockPanel Margin="22,0,0,4">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource DialogButton}" Content="기본 목록으로" Height="24" Padding="8,0"
+                            Click="ExcludeReset_Click" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}"
+                               Text="한 줄에 이름 하나. * 는 아무 글자, 끝에 / 를 붙이면 폴더(예: __MACOSX/). 직접 고른 파일·폴더는 빼지 않아요." />
+                </DockPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </Window>

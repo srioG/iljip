@@ -48,7 +48,8 @@ public sealed class RecycleBin : IRecycleBin
             if (RecycleDisabledByPolicy()) return false;
             var (nuke, maxBytes) = VolumeSettings(root, drive);
             if (nuke) return false;
-            long size = File.Exists(full) ? new FileInfo(full).Length : 0;
+            // 폴더(W2-07 — 압축 후 원본 폴더를 휴지통으로)는 안의 파일 크기를 모두 더한다(휴지통보다 크면 Windows 가 영구 삭제로 바꾸려 함)
+            long size = File.Exists(full) ? new FileInfo(full).Length : Directory.Exists(full) ? FolderSize(full) : 0;
             return size <= maxBytes;
         }
         catch
@@ -90,7 +91,7 @@ public sealed class RecycleBin : IRecycleBin
             op.PerformOperations();
             if (op.GetAnyOperationsAborted())
                 return new RecycleResult(false, "휴지통으로 옮기는 중에 멈췄어요.");
-            var left = paths.Where(File.Exists).ToList();
+            var left = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();   // 폴더도(W2-07)
             return left.Count == 0
                 ? RecycleResult.Ok
                 : new RecycleResult(false, $"'{Path.GetFileName(left[0])}' 을(를) 휴지통으로 옮기지 못했어요.");
@@ -112,6 +113,15 @@ public sealed class RecycleBin : IRecycleBin
             }
         }
     }
+
+    /// <summary>폴더 안 파일 크기 합(못 읽는 하위 폴더가 있으면 예외 — 부르는 쪽이 '모르면 지우지 않음'으로 받음).</summary>
+    private static long FolderSize(string folder) =>
+        new DirectoryInfo(folder).EnumerateFiles("*", new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = false,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        }).Sum(f => f.Length);
 
     /// <summary>그룹 정책 '지운 파일을 휴지통으로 옮기지 않음'(NoRecycleFiles)이 켜져 있는가.</summary>
     private static bool RecycleDisabledByPolicy()

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Iljip.Models;
 
 namespace Iljip.Services;
 
@@ -19,6 +20,9 @@ public sealed class AppSettings
     /// <summary>풀기(extract.*) — W2-05.</summary>
     public ExtractSettings Extract { get; set; } = new();
 
+    /// <summary>압축(compress.*) — W2-07(한 화면 압축 창이 [확인]할 때 기억). 암호는 없다(절대 저장하지 않음).</summary>
+    public CompressSettings Compress { get; set; } = new();
+
     /// <summary>이 판이 모르는 필드(뒤 판이 더한 것) — 읽은 그대로 다시 쓴다.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -27,6 +31,8 @@ public sealed class AppSettings
     internal AppSettings Normalize()
     {
         Extract ??= new ExtractSettings();
+        Compress ??= new CompressSettings();
+        Compress.ExcludePatterns ??= new List<string>(PatternFileFilter.DefaultPatterns);
         return this;
     }
 
@@ -47,6 +53,114 @@ public sealed class ExtractSettings
 
     /// <summary>extract.deleteArchiveAfter — 다 풀고 나서 압축 파일(나뉜 조각 모두)을 휴지통으로(W2-05, I2-5). 기본 꺼짐. 오류·건너뛴 파일·취소가 없을 때만.</summary>
     public bool DeleteArchiveAfter { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>
+/// compress.* — 압축(W2-07, I2-12 '기억'). 한 화면 압축 창의 처음 값이고, 창을 [확인]으로 닫을 때 그 값으로 바꿔 한 번 저장한다.
+/// 단 '원본을 휴지통으로'(deleteOriginalsAfter)·'만들 곳' 처음 값 고르기(folderChoice·fixedFolder)는 압축 창이 바꾸지 않는다(☰ ▸ 설정에서만 — W2-07 검증 지적).
+/// ★ 암호 칸은 두지 않는다(암호는 절대 저장하지 않음 — 시험이 JSON 에 'password' 가 없는지 본다).
+/// 7z 칸(solid·encryptFileNames)은 W2-02, splitBytes 는 W2-03, testAfter 는 W2-08 몫이지만 같은 창에서 기억하므로 여기서 같이 들인다.
+/// </summary>
+public sealed class CompressSettings
+{
+    /// <summary>compress.lastFormat — 마지막으로 고른 형식(기본 ZIP). 7z.dll 을 못 쓰는 PC 에서 7Z 였으면 창이 ZIP 으로 바꿔 보인다.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CompressionFormat LastFormat { get; set; } = CompressionFormat.Zip;
+
+    /// <summary>compress.level — 압축 수준(기본 보통).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CompressionLevelOption Level { get; set; } = CompressionLevelOption.Normal;
+
+    /// <summary>compress.solid — 7Z 솔리드(기본 켬).</summary>
+    public bool Solid { get; set; } = true;
+
+    /// <summary>compress.encryptFileNames — 7Z 파일 이름도 암호로 숨기기(기본 끔. 암호를 넣었을 때만 씀).</summary>
+    public bool EncryptFileNames { get; set; }
+
+    /// <summary>compress.zipEncryption — ZIP 암호 방식(기본 AES-256).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ZipEncryption ZipEncryption { get; set; } = ZipEncryption.Aes256;
+
+    /// <summary>compress.splitBytes — 나누기 크기(null = 나누지 않음, 기본).</summary>
+    public long? SplitBytes { get; set; }
+
+    /// <summary>compress.eachSeparately — 각각 따로 압축(I2-4, 기본 끔).</summary>
+    public bool EachSeparately { get; set; }
+
+    /// <summary>compress.dateInName — 이름에 날짜(I3-5, 기본 붙이지 않음).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public DateNameFormat DateInName { get; set; } = DateNameFormat.None;
+
+    /// <summary>compress.excludeEnabled — 쓸모없는 파일 빼기(I3-6, 기본 켬).</summary>
+    public bool ExcludeEnabled { get; set; } = true;
+
+    /// <summary>compress.excludePatterns — 빼기 목록(기본 <see cref="PatternFileFilter.DefaultPatterns"/>, 설정 창·압축 창에서 고침).</summary>
+    public List<string> ExcludePatterns { get; set; } = new(PatternFileFilter.DefaultPatterns);
+
+    /// <summary>compress.testAfter — 다 만들고 시험하기(기본 끔 — W2-08 이 키움).</summary>
+    public bool TestAfter { get; set; }
+
+    /// <summary>
+    /// compress.deleteOriginalsAfter — 압축 창에서 '원본을 휴지통으로'를 켠 채로 시작할지(I3-4, 기본 끔. 켜도 매번 묻는다).
+    /// 압축 창에서 켠 것은 기억하지 않는다(W2-07 검증 지적 — 한 번 켰다고 다음 창부터 켜진 채로 열리지 않게). ☰ ▸ 설정에서만 바꾼다.
+    /// </summary>
+    public bool DeleteOriginalsAfter { get; set; }
+
+    /// <summary>compress.lastFolder — 마지막으로 만든 곳(I2-12 — 창의 위치 칸 목록에 보이고, <see cref="FolderChoice"/> 가 '마지막 폴더'면 처음 값).</summary>
+    public string? LastFolder { get; set; }
+
+    /// <summary>compress.folderChoice — 압축 창 '만들 곳'의 처음 값(원본이 있는 폴더(기본)·마지막으로 만든 곳·정해 둔 폴더 — W2-07 검증 지적, I2-12).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CompressFolderChoice FolderChoice { get; set; } = CompressFolderChoice.SourceFolder;
+
+    /// <summary>compress.fixedFolder — '정해 둔 폴더'(<see cref="FolderChoice"/> 가 FixedFolder 일 때 처음 값).</summary>
+    public string? FixedFolder { get; set; }
+
+    /// <summary>
+    /// 압축 창 '만들 곳'의 처음 값: <see cref="FolderChoice"/> 의 폴더가 지금 있으면 그 폴더, 아니면(없어짐·USB 를 뺌·아직 없음) <paramref name="sourceFolder"/>(원본이 있는 폴더).
+    /// </summary>
+    public string InitialFolder(string sourceFolder)
+    {
+        string? chosen = FolderChoice switch
+        {
+            CompressFolderChoice.LastFolder => LastFolder,
+            CompressFolderChoice.FixedFolder => FixedFolder,
+            _ => null,
+        };
+        return IsUsableFolder(chosen) ? chosen!.Trim() : sourceFolder;
+    }
+
+    /// <summary>설정 창의 '정해 둔 폴더' 칸 검사 — 괜찮으면 null, 아니면 쉬운 한국어 안내.</summary>
+    public static string? CheckFixedFolder(string? folder)
+    {
+        string f = (folder ?? string.Empty).Trim();
+        if (f.Length == 0) return "정해 둔 폴더를 [찾아보기]로 골라 주세요.";
+        if (!IsFullPath(f)) return "정해 둔 폴더 경로가 올바르지 않아요. [찾아보기]로 골라 주세요.";
+        if (!Directory.Exists(f)) return $"‘{f}’ 폴더가 없어요. [찾아보기]로 골라 주세요.";
+        return null;
+    }
+
+    /// <summary>처음 값으로 쓸 수 있는 폴더인가(전체 경로이고 지금 있음). 모르면 false.</summary>
+    internal static bool IsUsableFolder(string? folder)
+    {
+        string f = (folder ?? string.Empty).Trim();
+        return f.Length > 0 && IsFullPath(f) && Directory.Exists(f);
+    }
+
+    private static bool IsFullPath(string f)
+    {
+        try
+        {
+            return f.IndexOfAny(Path.GetInvalidPathChars()) < 0 && Path.IsPathFullyQualified(f);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }

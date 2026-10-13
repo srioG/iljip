@@ -135,6 +135,14 @@ public sealed class ArchiveServiceLocator
     }
 
     /// <summary>
+    /// 확장자 하나(점 포함, 예: '.gz')에 등록된 처리기 — 파일 이름의 가장 긴 확장자를 보지 않는다. 없으면 null.
+    /// 만들 형식으로 처리기를 고를 때 쓴다(W2-07 검증 지적 2차): 'backup.tar' 를 GZ 로 만든 'backup.tar.gz' 를 이름으로 고르면
+    /// '.tar.gz'(압축된 TAR — 풀기만 됨) 처리기가 골라진다.
+    /// </summary>
+    public IArchiveService? ForExtension(string? extension) =>
+        !string.IsNullOrEmpty(extension) && _byExtension.TryGetValue(extension, out var svc) ? svc : null;
+
+    /// <summary>
     /// 등록된 확장자 중 파일 이름 끝과 맞는 가장 긴 것('a.tar.gz' → '.tar.gz', 'a.7z.001' → '.7z.001', '보고서.v2.tar.gz' → '.tar.gz'). 없으면 null.
     /// 폴더 이름의 점은 보지 않는다('C:\폴더.zip\안\b.7z' → '.7z'). 숫자 조각은 첫 조각 '.001' 만 등록돼 있다(.002 등은 null).
     /// </summary>

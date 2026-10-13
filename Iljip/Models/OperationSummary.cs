@@ -1,5 +1,14 @@
 namespace Iljip.Models;
 
+/// <summary>요약 창이 무엇을 한 결과인가(W2-07 에서 더함 — 문구만 다름).</summary>
+public enum SummaryKind
+{
+    /// <summary>여러 개 풀기(W2-05).</summary>
+    Extract,
+    /// <summary>각각 따로 압축(W2-07, I2-4).</summary>
+    Compress,
+}
+
 /// <summary>여러 개 풀기에서 못 한 것 하나: 압축 파일 이름, 쉬운 한국어 이유, 자세히(날 오류 — '자세히' 아래에만 보임).</summary>
 public sealed record OperationFailure(string Name, string Reason, string? Detail = null);
 
@@ -30,13 +39,22 @@ public sealed class OperationSummary
     /// <summary>중간에 취소했는가.</summary>
     public bool Cancelled { get; init; }
 
-    /// <summary>한 줄 요약: '5개를 모두 풀었어요.' / '5개 중 4개를 풀었어요.' / 취소면 '…풀고 멈췄어요.'</summary>
+    /// <summary>무엇을 한 결과인가(W2-07 — 각각 따로 압축의 요약은 '압축했어요'). 기본은 풀기.</summary>
+    public SummaryKind Kind { get; init; } = SummaryKind.Extract;
+
+    /// <summary>한 줄 요약: '5개를 모두 풀었어요.' / '5개 중 4개를 풀었어요.' / 취소면 '…풀고 멈췄어요.'(압축이면 '압축했어요'·'압축하고 멈췄어요')</summary>
     public string Headline =>
-        Cancelled
-            ? $"{Total}개 중 {Succeeded}개를 풀고 멈췄어요."
-            : Succeeded == Total && Total > 0
-                ? $"{Total}개를 모두 풀었어요."
-                : $"{Total}개 중 {Succeeded}개를 풀었어요.";
+        Kind == SummaryKind.Compress
+            ? Cancelled
+                ? $"{Total}개 중 {Succeeded}개를 압축하고 멈췄어요."
+                : Succeeded == Total && Total > 0
+                    ? $"{Total}개를 모두 압축했어요."
+                    : $"{Total}개 중 {Succeeded}개를 압축했어요."
+            : Cancelled
+                ? $"{Total}개 중 {Succeeded}개를 풀고 멈췄어요."
+                : Succeeded == Total && Total > 0
+                    ? $"{Total}개를 모두 풀었어요."
+                    : $"{Total}개 중 {Succeeded}개를 풀었어요.";
 
     /// <summary>
     /// 첫 화면에 보일 글(자세히 빼고): 요약 줄, 실패마다 '이름 — 이유', 손대지 않은 것, 알림. 날 오류는 넣지 않는다.
@@ -47,7 +65,7 @@ public sealed class OperationSummary
         if (Failures.Count > 0)
         {
             lines.Add(string.Empty);
-            lines.Add("못 푼 파일:");
+            lines.Add(Kind == SummaryKind.Compress ? "압축하지 못한 것:" : "못 푼 파일:");
             foreach (var f in Failures)
                 lines.Add($"- {f.Name} — {f.Reason}");
         }

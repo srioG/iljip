@@ -88,7 +88,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/CorruptArchiveTests.cs` | [6] 잘린·망가진 zip/7z/tar/bz2/rar/egg, **쓰는 도중 깨지는 zip**, **잘리거나 확인값(CRC·크기)이 틀린 .gz·.tar.gz**, 서명 뒤가 쓰레기인 rar → 예외·오염 없음(경로별 sha 비교). 여러 멤버 .gz·끝에 0 이 붙은 .gz 는 끝까지 풀림 |
 | `Contract/ExtractEntriesTests.cs` | [7] 선택 해제(파일·폴더·표기 차이) |
 | `Contract/ProgressTests.cs` | [8] 진행률 0~100%·도중 보고·완료 보고(TAR·**7z(W2-02)** 는 큰 파일 안에서도, W1-B 부터 7z·zipx·iso·lzh 풀기와 7z 만들기, zip·7z 선택 해제) |
-| `Contract/ThrottledArchiveProgressTests.cs` | 진행 창으로 가는 진행률 솎아내기 규칙(첫 중간 보고 통과·간격·완료 보고) |
+| `Contract/ThrottledArchiveProgressTests.cs` | 진행 창으로 가는 진행률 솎아내기 규칙(첫 중간 보고 통과·간격·완료 보고, (W2-07 검증 지적) 단계 알림 `IsStage` 는 늘 통과) |
 | `Contract/RoutingTests.cs` | [9] 확장자 → 서비스 라우팅(등록 확장자 전체 목록·저장 필터는 기록 — W2-02 부터 ZIP·7Z·TAR·GZ·BZ2) |
 | `Contract/KoreanFileNameDecoderTests.cs` | [10] CP949·UTF-8·ASCII·CP437 이름 판별 |
 | `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(본문은 '고쳐지면 맞아야 할 기대'). W2-01 에서 I2-2(열기)·I2-9 의 Skip 을 지워 통과, I2-1(7z 왕복 — 한글·빈 파일·빈 폴더)은 W2-02 에서 Skip 을 지워 통과. 압축된 tar 는 펼친 tar 안 파일 전부를 매니페스트 expected_entries 와 비교하고 '.tar 항목 없음'까지 봄(일집은 반디집보다 한 단계 더 펼친다 — W2-01 요구). 웹에서 받은 표시(MOTW)를 옮기지 않는 것은 기록(보고 안건) |
@@ -132,6 +132,9 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/ArchiveEditReview2Tests.cs` | [W2-06 검증 지적 2차] 빈 7z(모두 지운 결과·빈 폴더만)에 넣기·새 폴더 + 반디집 `bz t`, 다시 넣기(바꿔 넣기)는 압축에 있던 이름(':'·끝 점) 그대로(ZIP·7z — 사용자가 고르는 이름은 예전 규칙), 이름 검사(순수), 일집이 못 푸는 정상 ZIP(흘려 쓴 ZipCrypto + 데이터 서술자)은 '손상'이 아니라 '일집이 풀 수 없는 방식'·결과만 못 풀면 고치다 생긴 문제, ZIP 검사 동안에도 막대가 오름(암호 있음·없음) |
 | `Contract/ArchiveEditReviewTests.cs` | [W2-06 검증 지적] 반디집 ZIP 유니코드 경로(0x7075 — `nfd_bandizip_default`)도 목록 이름으로 지우기·이름 바꾸기·같은 이름 넣기(묻기)·바꿔 넣기 + 반디집 `bz t`, 파일과 같은 이름의 폴더는 폴더째 '이름 (1)'(ZIP·7z, 한 넣기 안에서 같은 이름), 원래부터 손상된 ZIP 은 '원래 압축 파일에 이미 손상된 곳이…', 고치는 사이 원본이 바뀌면 덮어쓰지 않음(ZIP·7z)·동시에 셋을 고쳐도 '됐다'고 한 것은 모두 남음, 바꿔 넣기(`ReplaceExisting` — 묻지 않고 바꿈, 없으면 새로, 폴더면 비켜 넣기). 같은 파일의 `SevenZipEditProgressTests`(`DisableParallelization` 묶음 — 16MB 솔리드 7z): 지우기 동안 막대가 '다시 정리하는 중'에 오름·도중 취소는 3초 안·원본 그대로 |
 | `Contract/MainWindowEditUiTests.cs` | [W2-06] 메인 창 XAML 을 STA 스레드에서 만들기만(띄우지 않음): 이름 칸만 편집 가능·행 지우기/더하기 끔·우클릭/☰ 메뉴 항목. F2 로만 편집 시작·이름 확정은 편집을 끝낸 뒤(Dispatcher.Yield)·닫을 때 묻기(소스). WPF 앱 객체를 잠깐 만들고 끝나면 `Application.Current` 를 되돌림(따로 순차 실행) |
+| `Contract/CompressFlowTests.cs` | [W2-07, I2-4·I3-4·I3-5·I3-6·I2-12] 한 화면 압축 창 뒤의 흐름(가짜 창 `CompressionRequestAnswer`·가짜 휴지통·시계·시험기): 각각 따로(파일·폴더·한글 이름 셋 → 셋, ZIP·7Z·TAR 왕복, 있던 이름은 '이름 (2)', 진행 '1/3'…, 요약 창, 못 만든 것만 요약·대기 목록에 남김, 원본 하나는 원본 이름), 이름에 날짜(세 모양·두 번 안 붙임·숫자에 붙은 것은 날짜 아님·각각 따로에도), 쓸모없는 파일 빼기(기본 목록이 압축에 없음·뺀 수 — ZIP·7Z·TAR, '쓸모없는 파일 5개는 뺐어요', 끄면 다 넣음, 사용자 목록 `*.bak`·폴더 `하위/`, 직접 고른 것은 담음·다 빠진 폴더는 빈 폴더, 규칙), 원본 지우기(시험 통과 + [옮기기]면 고른 원본만 가짜 휴지통으로·질문 문구·기본 [그대로 두기], 진짜 시험기로 ZIP·7Z·TAR·나눈 ZIP·나눈 7Z·암호 ZIP·이름 숨긴 7z, 시험 실패·[그대로 두기]·창 닫기·기본 꺼짐(예전 저장 창 + 옵션 창 답)·휴지통 없는 곳·각각 따로에서 실패한 것만 남음·뺀 파일이 든 폴더·원본 폴더 안에 만든 압축·묻는 동안 바뀐 원본·휴지통 실패는 경고만·GZ 는 안 지움), '다 만들고 시험하기', 진짜 시험기가 망가진 ZIP·7Z·GZ·BZ2 를 잡음(아무것도 안 남김), 설정(settings.json 왕복·camelCase·'password' 없음·기본값, 깨진 파일 → 기본값 + settings.bad-*.json, 모르는 필드 보존·옛 설정에 compress 채움, 창의 값을 한 번 저장·암호 저장 안 함·다음 창의 처음 값·취소면 저장 안 함), 하나로 만들 때 같은 이름은 [바꾸기]일 때만 바꿈, 창에 넘기는 제안(이름·폴더·형식 — 7z.dll 이 막히면 7Z 없음). (검증 지적 1차) 크기가 같아도 내용이 바뀐 원본은 안 지움(묻는 동안·압축하는 동안), 폴더와 그 안의 파일을 같이 고르면 폴더만 옮김(하나로·각각 따로), 원본 그 자체('a.zip' → a.zip)는 [바꾸기]여도 덮지 않고 'a (2)'(ZIP·7Z·TAR·각각 따로 + 덮어쓰기 처리기), GZ·BZ2 의 날짜·번호는 원래 확장자 앞('보고서_20261013.xlsx.gz'·'… (2).xlsx.gz', 각각 따로 BZ2), 시험·맞춰 보기 단계 알림이 진짜 솎아내기를 지남, '원본을 휴지통으로'는 압축 창에서 기억 안 함, folderChoice·fixedFolder 왕복. (검증 지적 2차) TAR 파일을 GZ·BZ2 로('backup.tar.gz'·'backup.tar.bz2'·날짜·각각 따로·속이 TAR 가 아닌 '.tar' — 풀면 원래 TAR 그대로·시험 통과), 만든 형식의 처리기로 시험(`CreatedArchiveTester.ServiceFor`·`ArchiveServiceLocator.ForExtension`), 각각 따로 시험 중 진행 막대가 뒤로 안 감(`ProgressDialog.BarValue` — 원본 지우기 켬·끔), 원본 훑기는 취소를 봄(`SourceCollector.Collect`·`CompressFlow.TakeStamps`)·맞춰 보는 도중 취소면 묻지도 옮기지도 않음, 휴지통으로 일부만 옮겨지면 옮긴 것·남은 것을 따로 알림, 시험만 켜고 시험을 취소하면 알림(하나로·각각 따로 — 상태 줄 '(시험은 취소)') |
+| `Contract/CompressDialogXamlTests.cs` | [W2-07 검증 지적 2차] 한 화면 압축 창·옵션 칸만 보이는 창(예전 옵션 창 어댑터)·설정 창 XAML 을 STA 스레드에서 만들기만(띄우지 않음 — `TestSupport/WpfAppScope`): 압축 창은 VM 과 양쪽으로 묶임(이름·형식·만들 곳·날짜·각각 따로·시험·빼기, 형식을 바꾸면 7Z 칸·나누기·암호 칸이 바뀜), 옵션 칸만 보이는 창은 이름·형식·그 밖 칸이 숨음, 설정 창은 받은 설정이 칸에 들어감. 모두 묶기 오류 0(일부러 틀린 묶기로 추적이 켜졌는지 먼저 확인). `MainWindowEditUiTests` 와 같은 순차 묶음 |
+| `Contract/CompressDialogRulesTests.cs` | [W2-07, I2-12] 한 화면 압축 창 규칙(`ViewModels/CompressionDialogViewModel` — 창 없이): 7Z 는 7z 칸·ZIP 방식 칸 숨김·이름 숨기기는 암호가 있을 때만, TAR·GZ·BZ2 는 암호·나누기 끔(GZ·BZ2 는 빼기·원본 지우기도), 날짜를 켜고 모양을 바꾸면 미리 보기와 PropertyChanged, 각각 따로(원본 둘 이상만·이름 칸 막음·'… 외 N개 (원본마다 하나씩)'), 형식을 바꾸면 제안 이름이 따라감(GZ 는 '보고서.xlsx', 고친 이름은 그대로), 처음 값은 설정(마지막 폴더·직접 입력 크기 포함), 7z.dll 이 막히면 7Z 없음·ZIP 으로 시작, [확인] 전 검사(빈 이름·못 쓰는 글자·없는 폴더·이상한 경로·GZ 에 폴더·GZ 에 여러 파일), 답에는 맞는 값만, 같은 이름(나눈 ZIP·7Z 첫 조각 포함)·비켜 만들 이름, 예전 옵션 창 어댑터, XAML 칸 순서·문구·코드가 VM 을 씀(소스). (검증 지적 1차) '만들 곳' 처음 값은 설정(원본 폴더·마지막 폴더·정해 둔 폴더 — 없으면 원본 폴더, 목록 겹치지 않게, 설정 창 칸 검사), 원본 그 자체면 [바꾸기] 없음('지금 압축하려는 원본'·답은 안 바꿈), GZ·BZ2 미리 보기의 날짜는 원래 확장자 앞, 설정 창이 folderChoice·fixedFolder·deleteOriginalsAfter 를 씀(소스) |
 | `Contract/FileLockTests.cs` | 열기 실패 후 원본 파일을 잠그지 않는지(B8 고침) + 분할 EGG 조각들도 바로 지울 수 있는지 |
 | `Contract/RarTests.cs` | (통합 점검) 합성 RAR4·RAR5 — 작성기를 반디집으로 검증, 목록·해제·풀린 수정 시각, 목록 시각은 현지 시각, 암호 없음/틀림 → 암호 예외·아무것도 안 남음(머리 암호는 '파일 이름까지…'), 이름 보이는 암호 RAR 은 암호 없이 목록, 손상 → CRC 오류(앞 파일 남김), 진행률, '/' 로 고른 선택 해제. (W2-02) 머리 암호 RAR 을 암호 없이 읽으면 `ListPasswordRequiredException` |
 | `Contract/FormatFlowTests.cs` | (통합 점검) 형식이 달라도 화면 흐름이 같은가 — 가짜 창으로 ZIP·7z·EGG·RAR4·RAR5 암호 창 길(없음 → 틀림 → 맞음), ZIP(CP949·UTF-8)·7z·TAR·EGG·ALZ·RAR 한글 이름(목록·폴더 트리·풀린 이름), 모든 해제의 진행 막대 도중 보고, 목록 시각이 UTC 로 오지 않음, 암호 ZIP(AES·한글 ZipCrypto)도 읽는 도중 막힌 파일만 빼고 다시 써서 같은 암호로 풀림. (W2-02) 목록까지 잠긴 7z·RAR 은 첫 창이 `ListLocked`, 틀리면 '암호가 맞지 않아요' 경고 한 번 뒤 다시 |
@@ -143,7 +146,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀. (W2-02) 일집 7z(AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더)를 반디집이 맞는 암호로 풂(틀린 암호로는 못 풂) |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`) |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`), (W2-07) 가짜 한 화면 압축 창 `FakeUserInteraction.AskCompression`(`CompressionRequestAnswer` — 비면 예전 `SavePath` + `CompressionOptions` 답으로), 가짜 시계 `FakeClock`(`TestServices.Clock`)·만든 압축 시험기 `FakeCompressTester`(`TestServices.CompressTester` — 기본은 진짜 시험기에 맡기고 기록만, `Pass()`·`Fail()`·`FailFor`), (W2-07 검증 지적 2차) 띄우지 않고 창 만들기 틀 `WpfAppScope`(앱 객체·테마 자원·묶기 오류 기록 `BindingErrorLog`), 조건으로 진행 창 [취소] `FakeUserInteraction.CancelWhen`, 가짜 휴지통의 끼워 넣기 `FakeRecycleBin.OnIsRecyclable`·`OnSend` |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -203,13 +206,71 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | 목록·풀린 이름이 자모 분리 그대로(내용은 정확) |
 
-### 남은 Skip 1개(2026-10-13 W2-06 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
+### 남은 Skip 1개(2026-10-13 W2-07 후) — 알려진 빈틈, 안 고친 버그(Bn)는 없음
 
 | 테스트 | 사유 | 언제 풀리나 |
 |---|---|---|
 | `BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` | I2-10 맥 NFD 이름 | 이름 NFC 정규화 작업(따로) |
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
+
+### W2-07 검증 지적 수정(2026-10-13, 2차)
+
+푼 Skip 은 없습니다. 지적 7개(소소한 것 넷을 묶은 '범위·과정' 하나 포함)를 모두 확인했습니다 — 5개(GZ·BZ2 회귀·진행 막대·XAML 시험·훑기 취소·휴지통 일부)와
+'범위·과정'의 (c) 낡은 주석·(d) 시험 취소 알림을 고치고, '두 일집이 같은 순간 같은 이름으로 만들 때' 1개는 고치지 않았습니다(아래). (a) I2-12 범위·(b) HEAD 빌드는 1차에 적은 대로입니다.
+새 시험 18개(`CompressFlowTests` 15·`CompressDialogXamlTests` 3 — Theory 줄 포함). 기대가 바뀐 기존 테스트는 없습니다.
+새 시험 중 동작을 고친 것(GZ·BZ2 로 TAR 압축 6·진행 막대 2·맞춰 보는 도중 취소 1·휴지통 일부 1·시험 취소 2)은 고치기 전 코드로 잠깐 되돌려 실패함을 확인했습니다
+(휴지통 '하나도 못 옮김' 줄은 예전 문구 그대로라 통과가 맞음. 처리기 고르기·훑기 취소·XAML 은 새 함수·창 만들기 확인이라 되돌려 보지 않음).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| TAR 파일을 GZ·BZ2 로(회귀) | 'backup.tar' → 'backup.tar.gz' 를 이름의 가장 긴 확장자('.tar.gz' — 풀기만 되는 압축된 TAR 처리기)로 골라 '압축된 TAR 만들기는 아직 지원하지 않아요'로 실패(날짜·각각 따로도) | `CompressFlow` 는 고른 형식으로 처리기를 고름(`ArchiveServiceLocator.ForExtension` — 확장자 하나 그대로), 만든 압축 시험기도 마지막 확장자로(GZ 는 GZ 로 시험 — 안쪽 TAR 를 임시 폴더에 다 풀지 않음). 열기·풀기는 예전 그대로(압축된 TAR 를 바로 펼침) | `CompressFlowTests.TAR_파일을_GZ_BZ2로_압축할_수_있다`(6)·`만든_압축은_만든_형식의_처리기로_시험한다` |
+| 각각 따로 시험 중 진행 막대 | 시험 단계 알림에 '2/3' 순번을 붙여 보내 막대가 100% → 0%·33%·66% 로 돌아감 | 시험 단계는 순번을 글자로만('만든 압축 파일을 시험하는 중 (2/3) — 나.zip') — 움직이는 막대. 진행 창 막대 규칙은 `ProgressDialog.BarValue`(순수 함수) | `CompressFlowTests.각각_따로_시험_중에_진행_막대가_뒤로_가지_않는다`(2) |
+| XAML 만들기 시험 | 소스 글자만 확인 — XAML 이 실제로 읽히는지는 앱을 켜야 앎 | 압축 창·옵션 칸만 보이는 창·설정 창을 띄우지 않고 만들어 묶기(양쪽)·칸 모양·묶기 오류 0 확인 | `CompressDialogXamlTests`(3) |
+| 원본 훑기와 [취소] | 압축 전 원본 재기·지우기 전 맞춰 보기(원본 폴더 다시 훑기)가 취소를 안 봐 큰 폴더면 다 훑을 때까지 기다림, 맞춰 보는 도중 취소해도 '옮길까요?'를 물음 | `SourceCollector.Collect(…, 취소)`(폴더마다)·`TakeStamps`·`CheckDeletable`(파일마다)이 취소를 봄 — 취소면 '취소해서 원본은 지우지 않았어요.'. 엔진(ZIP·7Z·TAR)의 원본 모으기도 같은 취소를 받음 | `CompressFlowTests.원본_훑기는_취소를_본다`·`맞춰_보는_도중_취소하면_묻지도_옮기지도_않는다` |
+| 휴지통으로 일부만 옮겨짐 | 한 번에 보낸 것 중 하나라도 실패하면 '옮기지 못해 그대로 두었어요'(옮겨진 것이 있어도) | 없어진 원본은 '원본 N개를 휴지통으로 옮겼어요.', 남은 것만 '원본 M개는 휴지통으로 옮기지 못해 그대로 두었어요: 이름…' | `CompressFlowTests.휴지통으로_일부만_옮겨지면_옮긴_것과_남은_것을_따로_알린다`(2) |
+| 시험만 켜고 시험 취소 | 아무 알림 없음(각각 따로는 한 개만 시험했어도 '문제없어요', 상태 줄 '압축 완료') | '시험을 취소했어요(3개 중 1개만 시험했어요). 만든 압축 파일은 그대로 있어요.'('문제없어요'는 안 함), 각각 따로 상태 줄 '압축 완료: 3개 (시험은 취소)' | `CompressFlowTests.시험만_켜고_시험을_취소하면_알린다`(2) |
+| 낡은 주석 | `CommandLineParser` '--compress … 저장 창부터' | '한 화면 압축 창부터' | (주석) |
+
+고치지 않은 지적: '두 일집이 같은 순간 같은 이름으로 압축을 만들면 뒤의 것이 앞의 것을 덮을 수 있음' — 맞지만 예전 저장 창 흐름부터 같은 방식(이름을 고른 뒤 `File.Create`)이고,
+막으려면 모든 엔진(ZIP·TAR·GZ·BZ2·나눈 ZIP·7Z)의 파일 열기를 '없을 때만 만들기'로 바꾸고 실패 정리가 남의 파일을 지우지 않게 해야 합니다. 빈 자리 파일을 먼저 만들어 두는 방법은
+회사 PC 의 DLP(PCFILTER)가 막 닫은 파일을 잠깐 잠그는 일 때문에 바로 다시 열다 실패할 위험이 있어 하지 않았습니다. 원본은 지우기 직전에 압축 목록과 다시 맞춰 보므로 원본이 사라지지는 않습니다(검증 하네스 확인).
+'HEAD(88814ba)만으로는 빌드 안 됨'은 1차와 같이 커밋 몫입니다. I2-12 '해제 방식 기억'은 1차에 적은 대로(W2-05 `extract.*` — 같은 이름 처리·폴더 열기·다 푼 뒤 압축 지우기를 ☰ ▸ 설정에 기억, 메인 창 풀기 대상 폴더·최근 폴더는 I2-13).
+
+### W2-07 검증 지적 수정(2026-10-13, 1차)
+
+푼 Skip 은 없습니다. 지적 9개를 모두 확인했습니다 — 7개를 고치고(코드), 1개(HEAD 만으로 빌드 안 됨)는 커밋 때 할 일이라 코드는 그대로, 1개('원본 휴지통' 기억)는 '압축 창은 기억하지 않고 설정 창에서만'으로 정했습니다.
+새 시험 19개(`CompressFlowTests` 15·`CompressDialogRulesTests` 3·`ThrottledArchiveProgressTests` 1 — Theory 줄 포함). 기대가 바뀐 기존 테스트는 없습니다(`창은_VM_규칙을_쓴다` 는 소스 확인 줄을 더함 — 단언을 줄이지 않음).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| '만들 곳' 처음 값(I2-12) | 늘 첫 원본이 있는 폴더(마지막 폴더는 목록에만) | 설정 `compress.folderChoice`(☰ ▸ 설정): 원본이 있는 폴더(기본 — 예전과 같음)·마지막으로 만든 곳·정해 둔 폴더(`compress.fixedFolder`). 그 폴더가 없으면 원본이 있는 폴더. 목록에는 처음 값·원본 폴더·마지막 폴더·정해 둔 폴더(있는 것만) | `CompressDialogRulesTests.만들_곳의_처음_값은_설정대로`, `CompressFlowTests.만들_곳_설정을_저장하고_다시_읽으면_같다` |
+| 시험 단계 알림 | 압축 끝 보고와 40ms 안이라 진행 창 앞 솎아내기가 버림 → 창이 '압축 100%'에 멈춘 듯 | `ArchiveProgress.IsStage` 단계 알림은 솎아내기가 늘 통과, 진행 창은 크기를 모르는 단계면 움직이는 막대. '원본을 살펴보는 중'·'원본과 압축 내용을 맞춰 보는 중'·'원본을 휴지통으로 옮기는 중'도 같은 알림 | `ThrottledArchiveProgressTests.단계_알림은_…`, `CompressFlowTests.시험_단계_알림은_솎아내기를_지나_진행_창에_닿는다` |
+| GZ·BZ2 + 날짜 | `보고서.xlsx_20261013.gz` → 풀면 `보고서.xlsx_20261013`(확장자 깨짐) | 날짜·'(2)' 번호를 원래 확장자 앞에: `보고서_20261013.xlsx.gz`·`보고서_20261013 (2).xlsx.gz`(확장자로 보는 것은 점 뒤 영문·숫자 1~10자 — '보고서 v1.2 최종' 은 끝에) | `CompressFlowTests.GZ_BZ2의_날짜는_원래_확장자_앞에_붙는다`(2)·`각각_따로_BZ2에도_…`, `CompressDialogRulesTests.GZ_BZ2의_날짜는_원래_확장자_앞에` |
+| 원본 지우기 확인 | 이름·크기만 압축 목록과 비교 → 같은 크기로 내용만 바뀐 원본도 휴지통으로 | 압축하기 직전에 원본 파일마다 크기·수정 시각을 재 두고(`CompressOutcome.SourceStamps`), 지우기 전(묻기 전·보내기 직전)에 같아야 지움 | `CompressFlowTests.크기가_같아도_내용이_바뀐_원본은_지우지_않는다`(묻는 동안·압축하는 동안) |
+| 원본 지우기의 화면 굳음 | 진행 창을 닫은 뒤 UI 스레드에서 원본 폴더를 묻기 전·후 두 번 훑고 휴지통도 UI 스레드에서 | 압축 전 재기·묻기 전 맞춰 보기는 진행 창을 띄운 채 작업 스레드, [옮기기] 뒤 다시 맞춰 보기·휴지통은 새 진행 창('원본을 휴지통으로 옮기는 중...')을 띄우고 작업 스레드(보내기 전 [취소]면 안 보냄) | (자동 시험은 흐름이 그대로 도는지만 — 굳지 않는지는 MANUAL_CHECKLIST 14절) |
+| 폴더와 그 안 파일을 같이 고름 | 둘 다 후보 → '원본 2개(크기 두 번)', 보내는 목록에 부모·자식 | 다른 후보 안의 후보·같은 원본 두 번은 빼고 폴더만 | `CompressFlowTests.폴더와_그_안의_파일을_같이_골라도_폴더만_옮긴다`(하나로·각각 따로) |
+| 원본 그 자체 덮기(예전부터) | 'a.zip' 하나를 같은 곳에 a.zip 으로 [바꾸기] → 빈 압축으로 덮고 '압축 완료' | 창: [바꾸기] 없이 '‘a.zip’은(는) 지금 압축하려는 원본이에요…' [새 이름으로][취소], 흐름: 무엇을 골랐든 'a (2).zip'(각각 따로의 덮어쓰기 처리기도) | `CompressFlowTests.원본_그_자체는_바꾸기를_골라도_덮지_않는다`(ZIP·7Z·TAR)·`각각_따로에서도_원본_그_자체는_덮지_않는다`, `CompressDialogRulesTests.원본_그_자체에는_바꾸기를_주지_않는다` |
+| '원본을 휴지통으로' 기억 | 압축 창에서 한 번 켜면 다음 창부터 켜진 채 | 압축 창은 기억하지 않음 — 처음 값은 ☰ ▸ 설정 "압축 창의 '다 만든 뒤 원본을 휴지통으로'를 켠 채로 열기"(기본 끔)에서만 | `CompressFlowTests.원본_지우기는_압축_창에서_기억하지_않는다`(2) |
+
+고치지 않은 지적: 'HEAD(88814ba)만으로는 빌드 안 됨' — 맞는 지적이지만 코드가 아니라 커밋 몫(W2-06 에서 빠진 `Iljip/Services/EngineStreams.cs` 4줄·`Iljip.Tests/Contract/ArchiveEditReviewTests.cs` 를 W2-07 커밋에 같이 넣을 것 — HANDOFF '현재 진행 단계'에 이미 적혀 있음).
+I2-12 의 '해제 방식 기억'은 W2-05 의 `extract.*`(같은 이름 처리·우클릭 풀기 뒤 폴더 열기·다 푼 뒤 압축 지우기)가 맡고, 메인 창 풀기의 대상 폴더 기억·최근 폴더는 I2-13(풀기 창) 몫으로 남깁니다.
+
+### W2-07 에서 고친 것(2026-10-13) — I2-4 각각 따로·I3-4 압축 후 원본 지우기·I3-5 이름에 날짜·I3-6 쓸모없는 파일 빼기·I2-12 설정 기억과 한 화면 압축 창
+
+푼 Skip 은 없습니다(Skip 테스트가 없던 새 기능). 창은 띄우지 않습니다 — 창의 규칙은 순수 VM(`CompressDialogRulesTests`), 그 뒤 흐름은 가짜 창의 답
+(`FakeUserInteraction.CompressionRequestAnswer`)·가짜 휴지통·가짜 시계·가짜 시험기(`FakeCompressTester` — 기본은 진짜 시험기에 맡김)로 시험합니다(`CompressFlowTests`). 진짜 휴지통·셸은 부르지 않습니다.
+새 시험 66개(`CompressFlowTests` 50·`CompressDialogRulesTests` 16 — Theory 줄 포함). 기대가 바뀐 기존 테스트는 없습니다 — 예전 압축 시험(저장 창 `SavePath` + 옵션 창 `CompressionOptions` 답)은
+가짜 창의 `AskCompression` 이 그 두 답을 한 화면 창의 답으로 바꿔(덮어쓰기는 저장 창이 확인한 것으로) 그대로 통과합니다(`CompressSkipTests`·`RoundTripTests`·`SplitCreateTests` 등).
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 압축 창(I2-12) | 저장 창 → 옵션 창 차례로, 매번 처음 값 | 한 화면 창(이름·만들 곳·형식·수준·암호·나누기·확인란·만들 파일 미리 보기), [확인]이면 값을 settings.json `compress` 에 한 번 저장(암호는 저장 안 함), 다음 창의 처음 값 | `CompressDialogRulesTests` 전부, `CompressFlowTests.압축_창의_값을_기억하고_암호는_저장하지_않는다`·`압축_설정을_…`·`깨진_설정이면_…`·`모르는_필드는_보존된다` |
+| 각각 따로(I2-4) | 없음(늘 하나로) | 원본마다 압축 하나(파일은 확장자 뗀 이름·폴더는 폴더 이름), 있던 이름은 '이름 (2)', 진행 창 하나 '2/3', 끝에 요약 창, 못 만든 것만 요약·대기 목록에 남김 | `CompressFlowTests.각각_따로_…`(5) |
+| 이름에 날짜(I3-5) | 없음 | `_20261013`·`_2026-10-13`·`_261013`, 이미 그 날짜가 있으면 안 붙임 | `CompressFlowTests.이름에_날짜를_붙인다`(3)·`날짜는_두_번_붙이지_않는다`·`각각_따로에도_…` |
+| 쓸모없는 파일 빼기(I3-6) | 다 넣음 | 기본 켬 — Thumbs.db·desktop.ini·.DS_Store·._*·__MACOSX/·~$*·*.~tmp(폴더 안에서만 — 직접 고른 것은 담음), '쓸모없는 파일 N개는 뺐어요', 끄면 다 넣음, 목록은 압축 창·설정 창에서 | `CompressFlowTests.기본_빼기_목록의_…`(3)·`화면은_뺀_수를_알린다`·`빼기를_끄면_…`·`사용자_빼기_목록도_…`·`직접_고른_것은_…`·`빼기_목록_규칙` |
+| 압축 후 원본 지우기(I3-4) | 없음 | 기본 끔. 켜면 만든 압축을 시험 → 통과하면 '원본 N개(…)를 휴지통으로 옮길까요?' [옮기기][그대로 두기](기본 [그대로 두기]) → 휴지통만(영구 삭제 없음). 시험 실패·휴지통 없는 곳·뺀 파일이 든 폴더·원본 폴더 안에 만든 압축·압축과 맞지 않는 원본·GZ/BZ2 는 안 지우고 까닭을 알림 | `CompressFlowTests.시험을_통과하고_…`·`진짜_시험기로도_…`(7)·`시험에_실패하면_…`·`그대로_두기면_…`(2)·`원본_지우기는_기본_꺼짐`·`휴지통이_없는_곳의_…`·`각각_따로에서_시험에_실패한_…`·`뺀_파일이_든_폴더는_…`·`압축_파일이_원본_폴더_안이면_…`·`묻는_동안_원본이_바뀌면_…`·`휴지통_실패는_경고만`·`GZ는_원본을_지우지_않는다` |
+| 다 만들고 시험하기 | 없음 | 만든 압축을 모두 풀어 보며 확인(디스크에 안 남김) — '문제없어요' 또는 경고(압축은 남김) | `CompressFlowTests.다_만들고_시험하기`(2)·`진짜_시험기는_망가진_압축을_잡는다`(4) |
 
 ### W2-06 에서 고친 것(2026-10-13) — I2-3 압축 고치기·I3-3 압축 속 파일 고쳐서 다시 넣기
 

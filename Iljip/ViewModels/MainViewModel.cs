@@ -303,7 +303,10 @@ public partial class MainViewModel : ObservableObject
         AddToStaging(paths);
     }
 
-    /// <summary>Staging 목록을 실제로 압축한다.</summary>
+    /// <summary>
+    /// Staging 목록을 실제로 압축한다 — 한 화면 압축 창(W2-07, I2-12: 이름·위치·형식·수준·암호·나누기·각각 따로·날짜·빼기·시험·원본 지우기)을 띄우고
+    /// 그 답대로 만든다(<see cref="CompressStagedAsync"/>, MainViewModel.Compress.cs). 예전 3단계(저장 창 → 옵션 창)는 이 창 하나로 바뀌었다.
+    /// </summary>
     [RelayCommand]
     private async Task CompressAsync()
     {
@@ -321,86 +324,7 @@ public partial class MainViewModel : ObservableObject
 
         if (sourcePaths.Count == 0) return;
 
-        // 출력 이름 제안
-        string defaultDir = Path.GetDirectoryName(sourcePaths[0]) ?? Environment.CurrentDirectory;
-        string defaultName;
-        if (sourcePaths.Count == 1)
-        {
-            defaultName = SuggestFileBaseName(sourcePaths[0]) + ".zip";
-        }
-        else
-        {
-            defaultName = SanitizeFileName(new DirectoryInfo(defaultDir).Name) + ".zip";
-        }
-
-        string? savePath = _ui.AskSavePath("압축 파일로 저장", _locator.BuildSaveFilter(), defaultName, defaultDir, ".zip");
-        if (savePath is null) return;
-
-        // 만들 형식은 확장자로만 고른다(덮어쓸 기존 파일의 내용은 보지 않음)
-        var service = _locator.ResolveByExtension(savePath) ?? _locator.GetDefaultForCompression();
-
-        var compressionOptions = _ui.AskCompressionOptions(Path.GetExtension(savePath));
-        if (compressionOptions is null) return;
-
-        // 실패 정리 때 '이번에 만들거나 고친 파일'만 지우려고 시작 전 모습을 적어 둔다 — 원본을 못 읽어(SourceUnreadable 등)
-        // 압축 파일을 열기도 전에 끝났는데 덮어쓰려던 기존 파일을 지우는 일이 없게.
-        var before = OutputStamp.Of(savePath);
-        var session = _ui.ShowProgress("압축 중...");
-        CompressResult result;
-        try
-        {
-            result = await service.CompressAsync(
-                sourcePaths,
-                savePath,
-                options: compressionOptions,
-                progress: session.Progress,
-                cancellationToken: session.CancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusText = "압축 취소됨";
-            DeletePartialOutput(savePath, before);
-            return;
-        }
-        catch (NothingToCompressException ex)
-        {
-            // 하나도 못 담았다(I0-2) — 서비스가 압축 파일을 만들지 않았다. 빈 압축을 남기지 않고 무엇을 못 읽었는지 알린다.
-            DeletePartialOutput(savePath, before);
-            session.Close();
-            _ui.ShowError(NothingCompressedMessage(ex.Skipped));
-            StatusText = "오류 발생";
-            return;
-        }
-        catch (Exception ex)
-        {
-            // 비취소 실패(I/O·디스크풀·소스 변경 등)로도 부분/손상 아카이브가 디스크에 남아 정상
-            // 파일로 오인될 수 있다. 취소 경로와 동일하게 부분 산출물을 정리한 뒤 오류를 알린다.
-            DeletePartialOutput(savePath, before);
-            session.Close();
-            Logger.LogError($"압축 실패: {savePath}", ex);
-            _ui.ShowError($"압축 실패:\n\n{ErrorMessages.ToUserMessage(ex)}");
-            StatusText = "오류 발생";
-            return;
-        }
-        finally
-        {
-            session.Close();
-        }
-
-        // 건너뛴 파일이 있어도 성공이다 — 결과물은 지우지 않고, 연 뒤에 무엇이 빠졌는지 알린다(I0-2)
-        // 나눠 만들었으면(W2-03) 실제로 생긴 조각 이름('이름 (2)' 로 바뀌었을 수도)으로 알리고 그 세트를 연다(ZIP 은 .zip, 7Z 는 .001).
-        string resultPath = result.OpenPath ?? savePath;
-        StatusText = result.Volumes.Count > 0 ? $"압축 완료: {result.Volumes.Count}개 조각 — {resultPath}" : $"압축 완료: {savePath}";
-
-        // 결과 압축 파일을 자동으로 열어줌 (Staging 비워지고 Archive 모드로 전환).
-        // 방금 넣은 암호를 넘긴다 — 파일 이름까지 암호화한 7z 도 다시 묻지 않고 열리고, 이어서 풀 때도 묻지 않는다(W2-02).
-        await OpenArchiveAsync(resultPath, compressionOptions.HasPassword ? compressionOptions.Password : null);
-
-        var notes = new List<string>();
-        if (result.Volumes.Count > 0) notes.Add(SplitDoneMessage(result.Volumes, result.OpenPath));
-        if (result.Skipped.Count > 0) notes.Add(SkippedMessage(result.Skipped));
-        if (notes.Count > 0)
-            _ui.ShowInfo(string.Join("\n\n", notes));
+        await CompressStagedAsync(sourcePaths);
     }
 
     /// <summary>건너뛴 원본 안내 문구(최대 10줄, 나머지는 '외 N개').</summary>
@@ -426,64 +350,6 @@ public partial class MainViewModel : ObservableObject
         if (skipped.Count > MaxLines)
             lines.Add($"외 {skipped.Count - MaxLines}개");
         return string.Join("\n", lines);
-    }
-
-    /// <summary>압축 실패·취소 때 부분 산출물 지우기 — 시작 전과 달라졌을 때만(새로 생겼거나 고쳐 쓰였을 때).</summary>
-    private static void DeletePartialOutput(string path, OutputStamp before)
-    {
-        if (OutputStamp.Of(path) == before) return;   // 손대지 않은 기존 파일(또는 처음부터 없음)
-        try { File.Delete(path); } catch { /* 정리 실패는 무시 */ }
-    }
-
-    /// <summary>파일이 있는지·크기·수정 시각(바뀌었는지만 본다).</summary>
-    private readonly record struct OutputStamp(bool Exists, long Length, DateTime LastWriteUtc)
-    {
-        public static OutputStamp Of(string path)
-        {
-            try
-            {
-                var fi = new FileInfo(path);
-                return fi.Exists ? new OutputStamp(true, fi.Length, fi.LastWriteTimeUtc) : default;
-            }
-            catch
-            {
-                return default;
-            }
-        }
-    }
-
-    /// <summary>
-    /// 단일 소스 경로에서 SaveFileDialog 기본 파일명(확장자 제외)을 안전하게 만든다.
-    /// 확장자만 있는 파일(.gitignore)·드라이브 루트(C:\)·금지문자 포함 경로에서도
-    /// 비정상 기본명이 만들어지지 않도록 단계적으로 폴백한다.
-    /// </summary>
-    private static string SuggestFileBaseName(string path)
-    {
-        // 1) 확장자를 뗀 파일명
-        string name = Path.GetFileNameWithoutExtension(path);
-        // 2) 비면(점으로 시작하는 파일 등) 확장자 포함 파일명
-        if (string.IsNullOrWhiteSpace(name))
-            name = Path.GetFileName(path);
-        // 3) 그래도 비면(드라이브 루트/구분자로 끝나는 경로) 디렉터리명
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            try { name = new DirectoryInfo(path).Name; } catch { /* 잘못된 경로 */ }
-        }
-        return SanitizeFileName(name);
-    }
-
-    /// <summary>파일명에서 금지문자를 제거하고, 결과가 비면 "archive"로 대체한다.</summary>
-    private static string SanitizeFileName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return "archive";
-
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c.ToString(), string.Empty);
-
-        // Windows는 끝에 마침표/공백을 허용하지 않음
-        name = name.Trim().TrimEnd('.').Trim();
-        return string.IsNullOrWhiteSpace(name) ? "archive" : name;
     }
 
     [RelayCommand]

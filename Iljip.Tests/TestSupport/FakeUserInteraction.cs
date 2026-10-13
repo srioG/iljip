@@ -10,6 +10,7 @@ namespace Iljip.Tests.TestSupport;
 /// 폴더·파일·저장 창은 넣어 둔 값(기본 null = 취소)을 돌려준다. 진행 창은 기록만 하는 가짜.
 /// (W1-B 보관본의 같은 이름 가짜와 모양을 맞춤 — 선택 창은 W1-D 에서 더함)
 /// W2-05: 같은 이름 창(<see cref="AskCollision"/> — 넣어 둔 답, 없으면 '이름 바꾸기')·요약 창(<see cref="Summaries"/>)을 더함.
+/// W2-07: 한 화면 압축 창(<see cref="AskCompression"/> — 넣어 둔 답, 없으면 예전 저장 창·옵션 창 답으로)을 더함.
 /// </summary>
 public sealed class FakeUserInteraction : IUserInteraction
 {
@@ -98,9 +99,15 @@ public sealed class FakeUserInteraction : IUserInteraction
     /// <summary>진행 창이 보고를 받을 때마다 부른다(작업 스레드에서) — 진행 도중 다른 일을 끼워 넣는 시험(W2-06: 다시 넣는 도중 파일을 또 저장).</summary>
     public Action<ArchiveProgress>? OnProgressReport { get; set; }
 
+    /// <summary>
+    /// 진행 창이 이 조건에 맞는 보고를 받으면 [취소]를 누른 것처럼(다음에 여는 진행 창부터 — W2-07 검증 지적 2차: '만든 압축 파일을 시험하는 중' 에서 취소 등).
+    /// </summary>
+    public Func<ArchiveProgress, bool>? CancelWhen { get; set; }
+
     public IProgressSession ShowProgress(string title)
     {
-        var session = new Session(CancelProgress, CancelOnFirstBytes, p => OnProgressReport?.Invoke(p));
+        var cancelWhen = CancelWhen;
+        var session = new Session(CancelProgress, CancelOnFirstBytes, p => OnProgressReport?.Invoke(p), cancelWhen);
         ProgressSessions.Add(session.Recorder);
         return session;
     }
@@ -154,17 +161,52 @@ public sealed class FakeUserInteraction : IUserInteraction
         return TextAnswers.Count > 0 ? TextAnswers.Dequeue() : null;
     }
 
+    // ───── W2-07: 한 화면 압축 창 ─────
+
+    /// <summary>한 화면 압축 창이 불린 기록(넘긴 것 — 설정 기본값·쓸 수 있는 형식·제안 이름).</summary>
+    public List<CompressionDialogRequest> CompressionPrompts { get; } = new();
+
+    /// <summary>
+    /// 한 화면 압축 창의 답(넘긴 것을 보고 만듦 — 원본은 넘긴 것을 쓰는 것이 보통). 비면 예전 관례: <see cref="SavePath"/>(저장 창) +
+    /// <see cref="CompressionOptions"/>(옵션 창) 둘 다 있으면 그 경로·옵션으로(덮어쓰기는 저장 창이 확인한 것으로 봄), 하나라도 없으면 취소(null).
+    /// </summary>
+    public Func<CompressionDialogRequest, CompressionRequest?>? CompressionRequestAnswer { get; set; }
+
+    public CompressionRequest? AskCompression(CompressionDialogRequest request)
+    {
+        CompressionPrompts.Add(request);
+        if (CompressionRequestAnswer is { } answer) return answer(request);
+        if (SavePath is null || CompressionOptions is null) return null;
+        // 예전 3단계(저장 창 → 옵션 창)의 답을 한 화면 창의 답으로 — 형식은 저장 경로의 확장자, 빼기는 설정 기본값(창의 처음 값과 같음)
+        var format = Iljip.Models.CompressionFormats.FromExtension(Path.GetExtension(SavePath)) ?? Iljip.Models.CompressionFormat.Zip;
+        string name = Path.GetFileName(SavePath);
+        string ext = Iljip.Models.CompressionFormats.ExtensionOf(format);
+        string baseName = name.EndsWith(ext, StringComparison.OrdinalIgnoreCase) && name.Length > ext.Length ? name[..^ext.Length] : name;
+        return new CompressionRequest
+        {
+            Sources = request.Sources,
+            OutputFolder = Path.GetDirectoryName(SavePath) ?? string.Empty,
+            BaseName = baseName,
+            Format = format,
+            Options = CompressionOptions,
+            ExcludeEnabled = request.Defaults.ExcludeEnabled,
+            ExcludePatterns = request.Defaults.ExcludePatterns.ToList(),
+            OverwriteExisting = true,
+        };
+    }
+
     private sealed class Session : IProgressSession
     {
         private readonly CancellationTokenSource _cts = new();
 
-        public Session(bool cancelled, bool cancelOnFirstBytes, Action<ArchiveProgress>? onReport = null)
+        public Session(bool cancelled, bool cancelOnFirstBytes, Action<ArchiveProgress>? onReport = null, Func<ArchiveProgress, bool>? cancelWhen = null)
         {
             if (cancelled) _cts.Cancel();
             Recorder = new ProgressRecorder(p =>
             {
                 onReport?.Invoke(p);
                 if (cancelOnFirstBytes && p.BytesProcessed > 0) _cts.Cancel();
+                if (cancelWhen is not null && cancelWhen(p)) _cts.Cancel();
             });
         }
 

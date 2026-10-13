@@ -56,7 +56,7 @@ public interface IUserInteraction
     /// <summary>저장할 경로 고르기. 취소하면 null.</summary>
     string? AskSavePath(string title, string filter, string defaultName, string initialDirectory, string defaultExtension);
 
-    /// <summary>압축 옵션 창. 취소하면 null.</summary>
+    /// <summary>압축 옵션 창. 취소하면 null. (W2-07: 한 화면 압축 창 <see cref="AskCompression"/> 을 옵션 칸만 보이게 띄우는 어댑터 — 일집 화면은 더 쓰지 않음)</summary>
     CompressionOptions? AskCompressionOptions(string targetExtension);
 
     /// <summary>진행 창을 띄운다(곧바로 돌아옴).</summary>
@@ -80,4 +80,13 @@ public interface IUserInteraction
     /// 글 한 줄을 묻는다(새 폴더 이름 등). <paramref name="initialText"/> 를 채워 두고 확장자 앞까지 골라 둔다. 취소하면 null.
     /// </summary>
     string? AskText(string title, string message, string initialText);
+
+    // ───── W2-07(한 화면 압축 창 — I2-12)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// 한 화면 압축 창(이름·위치·형식·수준·암호·나누기·각각 따로·날짜·쓸모없는 파일 빼기·시험·원본 지우기). 취소하면 null.
+    /// 예전 3단계(대기 목록 → 저장 창 → 옵션 창) 중 저장 창·옵션 창을 이 창 하나로 바꿨다. <see cref="AskCompressionOptions"/> 는 이 창을 옵션 칸만 보이게 띄우는 어댑터.
+    /// 같은 이름의 압축 파일이 이미 있으면 창이 '바꿀까요?'를 묻고 답을 <see cref="CompressionRequest.OverwriteExisting"/> 에 담는다.
+    /// </summary>
+    CompressionRequest? AskCompression(CompressionDialogRequest request);
 }

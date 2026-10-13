@@ -52,4 +52,25 @@ public sealed class CompressionOptions
     public long? SplitBytes { get; init; }
 
     public static CompressionOptions Default => new();
+
+    // ───── W2-07(쓸모없는 파일 빼기 I3-6)에서 더한 것 ─────
+
+    /// <summary>
+    /// 담지 않을 것(빼기 목록 — <see cref="Iljip.Services.PatternFileFilter"/>). null 이면 다 담는다(기본 — 서비스를 바로 부르는 쪽은 예전 그대로).
+    /// 폴더 안에서 찾은 것에만 적용(사용자가 직접 고른 파일·폴더는 늘 담음). ZIP·7Z·TAR 만 씀(GZ·BZ2 는 고른 파일 하나뿐).
+    /// 뺀 것은 <see cref="CompressResult.ExcludedPaths"/>.
+    /// </summary>
+    public Iljip.Services.IFileFilter? ExcludeFilter { get; init; }
+
+    /// <summary>빼기 목록만 바꾼 사본(나머지 값은 그대로).</summary>
+    public CompressionOptions WithExcludeFilter(Iljip.Services.IFileFilter? filter) => new()
+    {
+        Level = Level,
+        Password = Password,
+        Encryption = Encryption,
+        Solid = Solid,
+        EncryptFileNames = EncryptFileNames,
+        SplitBytes = SplitBytes,
+        ExcludeFilter = filter,
+    };
 }
