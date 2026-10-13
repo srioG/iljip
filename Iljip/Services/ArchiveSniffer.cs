@@ -269,6 +269,13 @@ public static class ArchiveSniffer
     {
         offset = 0;
         long len = s.Length;
+        // 일집이 만든 자동 풀림 exe(W2-10): 꼬리 'ILJIPSFX' 가 ZIP 데이터 시작을 정확히 적어 둔다 — 끝 머리 찾기보다 먼저(꼬리 24바이트 속
+        // 우연한 끝 머리 서명에 흔들리지 않게)
+        if (IljipSfxData(s) is { } own)
+        {
+            offset = own.Start;
+            return ArchiveKind.ZipSfx;
+        }
         long zipBase = FindZipBase(s, len);
         if (zipBase >= 0)
         {
@@ -277,6 +284,14 @@ public static class ArchiveSniffer
         }
 
         long overlay = PeOverlayOffset(head);
+        // 덧붙은 영역이 ZIP 로컬 머리로 바로 시작하는데 끝 머리(EOCD)·일집 꼬리가 없으면 끝이 잘린(덜 받아진) ZIP 자동 풀림이다 — '압축 아님'이 아니라
+        // ZIP 자동 풀림으로 보고, 여는 쪽(SfxArchiveService)이 '끝부분이 잘려 있어요'로 알린다(W2-10 검증 지적 2차: 끝이 잘린 일집 자동 풀림이
+        // 'Unsupported archive type: .exe'·지원하지 않는 형식이었음). 7z·RAR 등을 찾기 전에 본다 — 잘린 ZIP 안에 저장만 한 .7z 가 있어도 그 7z 를 압축 자체로 잘못 열지 않게.
+        if (OverlayStartsZip(s, overlay, len))
+        {
+            offset = overlay;
+            return ArchiveKind.ZipSfx;
+        }
         if (overlay > 0 && overlay < len)
         {
             var win = ReadAt(s, overlay, (int)Math.Min(HeadSize, len - overlay));
@@ -286,6 +301,45 @@ public static class ArchiveSniffer
         var (headKind, headAt) = FirstEmbedded(head, from: 1);   // 0 이면 'MZ' 가 아니므로 1 부터
         if (headKind != ArchiveKind.Unknown) { offset = headAt; return headKind; }
         return ArchiveKind.Unknown;
+    }
+
+    /// <summary>
+    /// 끝이 잘린 ZIP 자동 풀림인가: 'MZ' 실행 파일인데 일집 꼬리도 ZIP 끝 머리(EOCD)도 없고, PE 섹션이 끝나는 곳(덧붙은 영역)이 ZIP 로컬 머리로 시작한다
+    /// (<see cref="Detect(Stream, out long, bool)"/> 는 이것도 <see cref="ArchiveKind.ZipSfx"/> 로 본다 — W2-10 검증 지적 2차).
+    /// 여는 쪽이 엔진에 맡기기 전에 '끝부분이 잘려 있어요'로 알리게(엔진은 'Failed to locate the Zip Header' 같은 영어로 끝남). 못 읽으면 false.
+    /// </summary>
+    internal static bool IsTruncatedZipSfx(string path)
+    {
+        try
+        {
+            using var s = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096);
+            long len = s.Length;
+            var head = ReadAt(s, 0, (int)Math.Min(HeadSize, len));
+            if (head.Length < 2 || head[0] != (byte)'M' || head[1] != (byte)'Z') return false;
+            if (IljipSfxData(s) is not null || FindZipBase(s, len) >= 0) return false;
+            return OverlayStartsZip(s, PeOverlayOffset(head), len);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>덧붙은 영역(<paramref name="overlay"/>)이 ZIP 로컬 머리로 시작하는가.</summary>
+    private static bool OverlayStartsZip(Stream s, long overlay, long len) =>
+        overlay > 0 && overlay + 30 <= len && IsZipLocalHeader(ReadAt(s, overlay, 30));
+
+    /// <summary>
+    /// ZIP 로컬 머리(30바이트)다운가: 서명 'PK\3\4' + 풀 때 필요한 판(63 이하 — 6.3 까지) + 압축 방식이 아는 값(저장·deflate·deflate64·bzip2·lzma·zstd·xz·ppmd·AES 99)
+    /// + 이름 길이 1 이상. exe 의 서명 표 등 우연히 같은 글자로 시작하는 것을 거른다.
+    /// </summary>
+    private static bool IsZipLocalHeader(byte[] h)
+    {
+        if (h.Length < 30 || BinaryPrimitives.ReadUInt32LittleEndian(h) != 0x04034B50) return false;
+        int version = BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(4, 2)) & 0xFF;
+        int method = BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(8, 2));
+        int nameLength = BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(26, 2));
+        return version <= 63 && nameLength > 0 && method is 0 or 8 or 9 or 12 or 14 or 93 or 95 or 98 or 99;
     }
 
     /// <summary>영역 안에서 검증을 통과한 첫 압축(7z·RAR·EGG·ALZ)과 그 위치. 없으면 (Unknown, -1).</summary>
@@ -418,6 +472,19 @@ public static class ArchiveSniffer
     /// 위치값이 파일 처음 기준(반디집 SFX)이면 0, 앞에 붙인 exe 만큼 밀린 상대값이면 그 길이. 없으면 -1.
     /// (그 기준점부터 보이는 스트림을 열면 보통 ZIP 처럼 읽힌다 — <see cref="OffsetStream"/>)
     /// </summary>
+    /// <summary>
+    /// 일집 자동 풀림 exe(W2-10)의 ZIP 데이터 시작·길이: 꼬리(<see cref="SfxBuilder.TryReadTrailer"/>)가 맞고 그 자리가 ZIP 머리(로컬 머리·빈 ZIP 의 끝 머리)로
+    /// 시작할 때만. 아니면 null. 스트림 위치는 바뀐다.
+    /// </summary>
+    internal static (long Start, long Length)? IljipSfxData(Stream s)
+    {
+        if (!SfxBuilder.TryReadTrailer(s, out long start, out long length)) return null;
+        var sig = ReadAt(s, start, 4);
+        if (sig.Length < 4) return null;
+        uint v = BinaryPrimitives.ReadUInt32LittleEndian(sig);
+        return v is 0x04034B50 or 0x06054B50 ? (start, length) : null;
+    }
+
     private static long FindZipBase(Stream s, long len)
     {
         int tailLen = (int)Math.Min(len, 65535 + 22);

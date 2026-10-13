@@ -172,11 +172,117 @@ public class CompressDialogXamlTests
                 Assert.False(w.ExcludeCheck.IsChecked);
                 Assert.Equal(new[] { "*.bak", "임시/" }, PatternFileFilter.ParseLines(w.ExcludeBox.Text));
                 Assert.Null(w.Result);   // [확인] 전에는 결과 없음
+                Assert.True(w.SfxMailWarningCheck.IsChecked);   // W2-10: 기본은 '묻기'
                 Assert.Empty(log.Errors);
             }
             finally
             {
                 w.Close();
+            }
+        });
+    }
+
+    /// <summary>
+    /// 계약(W2-10, I3-1): 압축 창에서 '자동 풀림 EXE' 를 고르면 형식 칸 바로 아래 안내(회사 메일은 exe 를 막는 경우가 많음)가 보이고,
+    /// ZIP 암호 방식 칸은 보이고 나누기·7z 칸은 숨는다. ZIP 으로 돌아가면 안내가 숨는다. 묶기 오류 0.
+    /// </summary>
+    [Fact]
+    public void 자동풀림을_고르면_압축_창에_메일_안내가_보인다()
+    {
+        using var t = new TempDir("xamlsfx");
+        var request = Request(t, out _, out _);
+        request = new CompressionDialogRequest
+        {
+            Sources = request.Sources,
+            AllSourcesAreFiles = request.AllSourcesAreFiles,
+            SuggestedFolder = request.SuggestedFolder,
+            SuggestedBaseName = request.SuggestedBaseName,
+            AvailableFormats = request.AvailableFormats.Append(CompressionFormat.Sfx).ToArray(),
+            Defaults = request.Defaults,
+        };
+        WpfAppScope.Run(log =>
+        {
+            AssertBindingLogWorks(log);
+            var vm = new CompressionDialogViewModel(request, new FakeClock().SetLocal(2026, 10, 14));
+            var w = new CompressionOptionsDialog(vm);
+            try
+            {
+                WpfAppScope.Pump();
+                Assert.Equal(Visibility.Collapsed, w.SfxNoticeBox.Visibility);
+
+                w.FormatCombo.SelectedValue = CompressionFormat.Sfx;
+                WpfAppScope.Pump();
+                Assert.Equal(CompressionFormat.Sfx, vm.Format);
+                Assert.Equal(Visibility.Visible, w.SfxNoticeBox.Visibility);
+                Assert.Equal("회사 메일은 실행 파일(.exe)을 막는 경우가 많아요. 받는 사람이 못 받을 수 있어요. 메일로 보낼 거면 ZIP을 권해요.", w.SfxNoticeText.Text);
+                Assert.Equal(Visibility.Visible, w.ZipEncryptionPanel.Visibility);
+                Assert.Equal(Visibility.Collapsed, w.SplitPanel.Visibility);
+                Assert.Equal(Visibility.Collapsed, w.SevenZipPanel.Visibility);
+                Assert.True(w.PasswordBox1.IsEnabled);
+                Assert.Equal("묶음.exe", vm.PreviewName);
+
+                vm.Format = CompressionFormat.Zip;
+                WpfAppScope.Pump();
+                Assert.Equal(Visibility.Collapsed, w.SfxNoticeBox.Visibility);
+                Assert.Empty(log.Errors);
+            }
+            finally
+            {
+                w.Close();
+            }
+        });
+    }
+
+    /// <summary>계약(W2-10): 설정 창의 '자동 풀림 EXE 를 만들기 전에 … 안내 묻기' 칸은 sfx.skipMailWarning 의 반대 — 껐으면(다시 묻지 않기) 빈 칸으로 열린다.</summary>
+    [Fact]
+    public void 설정_창의_메일_안내_칸은_건너뛰기의_반대()
+    {
+        var s = new AppSettings();
+        s.Sfx.SkipMailWarning = true;
+        WpfAppScope.Run(log =>
+        {
+            var w = new SettingsDialog(s);
+            try
+            {
+                WpfAppScope.Pump();
+                Assert.False(w.SfxMailWarningCheck.IsChecked);
+                Assert.Empty(log.Errors);
+            }
+            finally
+            {
+                w.Close();
+            }
+        });
+    }
+
+    /// <summary>
+    /// 계약(W2-10): 선택 창에 확인란 글자를 주면 버튼 아래에 그 확인란('다시 묻지 않기')이 보이고, 켜면 <see cref="ChoiceDialog.IsChecked"/>.
+    /// 글자를 주지 않으면(예전 선택 창들) 숨는다. 띄우지 않고 만들기만 한다.
+    /// </summary>
+    [Fact]
+    public void 선택_창의_다시_묻지_않기_확인란()
+    {
+        WpfAppScope.Run(log =>
+        {
+            var with = new ChoiceDialog("문구", new[] { "그래도 만들기", "ZIP으로 만들기", "취소" }, 0, "다시 묻지 않기");
+            var without = new ChoiceDialog("문구", new[] { "예", "아니요" });
+            try
+            {
+                WpfAppScope.Pump();
+                Assert.Equal(Visibility.Visible, with.OptionCheck.Visibility);
+                Assert.Equal("다시 묻지 않기", with.OptionCheck.Content);
+                Assert.False(with.IsChecked);
+                with.OptionCheck.IsChecked = true;
+                Assert.True(with.IsChecked);
+                Assert.Equal(-1, with.ChosenIndex);   // 버튼을 누르기 전
+                Assert.Equal(Visibility.Collapsed, without.OptionCheck.Visibility);
+                Assert.False(without.IsChecked);
+                Assert.Empty(log.Errors);
+            }
+            finally
+            {
+                with.Close();
+                without.Close();
             }
         });
     }

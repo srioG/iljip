@@ -83,7 +83,7 @@ public sealed partial class CompressionDialogViewModel : ObservableObject
     /// <summary>형식.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Extension), nameof(PasswordEnabled), nameof(ShowZipEncryption), nameof(ShowSevenZipOptions), nameof(ShowSplit),
-        nameof(Hint), nameof(CanEncryptFileNames), nameof(ExcludeAvailable), nameof(DeleteAvailable), nameof(PreviewName))]
+        nameof(Hint), nameof(CanEncryptFileNames), nameof(ExcludeAvailable), nameof(DeleteAvailable), nameof(PreviewName), nameof(ShowSfxNotice))]
     private CompressionFormat _format;
 
     /// <summary>압축 파일 이름(확장자·날짜 없이).</summary>
@@ -187,6 +187,12 @@ public sealed partial class CompressionDialogViewModel : ObservableObject
 
     /// <summary>아래 안내 문구.</summary>
     public string Hint => Layout.Hint;
+
+    /// <summary>자동 풀림 EXE 를 골랐는가 — 형식 칸 아래에 '회사 메일은 exe 를 막아요' 안내를 늘 보인다(W2-10, I3-1).</summary>
+    public bool ShowSfxNotice => CompressionOptionsRules.IsSfx(Extension);
+
+    /// <summary>그 안내 문구.</summary>
+    public string SfxNotice => CompressionOptionsRules.SfxMailNotice;
 
     /// <summary>'파일 이름도 암호로 숨기기'를 고를 수 있는가 — 7Z 이고 암호를 넣었을 때만.</summary>
     public bool CanEncryptFileNames => CompressionOptionsRules.CanEncryptFileNames(Extension, HasPassword ? "*" : null);

@@ -749,6 +749,49 @@ public class CommandLineTests
     }
 
     /// <summary>
+    /// [W2-10 검증 지적 2차] 끝이 잘린 일집 자동 풀림 exe(꼬리·ZIP 끝 머리가 없음 — 덜 받아진 첨부)를 창 없이 풀면 '지원하지 않는 형식'(종료 코드 2 ·
+    /// 'Unsupported archive type: .exe')이 아니라 손상으로 끝난다 — 종료 코드 1 + 쉬운 한국어 한 줄 '압축 파일의 끝부분이 잘려 있어요…'(재사용장치가 '압축 아님'으로 가르는 말 없음)·
+    /// 대상에 아무것도 없음.
+    /// 멀쩡한 것은 0 으로 풀고, 스텁만 있는 exe(붙은 압축 없음)는 예전처럼 2.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_끝이_잘린_자동풀림은_손상으로_1()
+    {
+        using var tmp = new TempDir("exesfxcut");
+        string src = tmp.Dir("src", "한글");
+        var data = new byte[300_000];
+        new Random(8).NextBytes(data);
+        File.WriteAllBytes(Path.Combine(src, "가.bin"), data);
+        File.WriteAllText(Path.Combine(src, "나.txt"), string.Concat(Enumerable.Repeat("나", 50_000)));
+        string good = tmp.P("good.exe");
+        await Iljip.Services.SfxBuilder.CreateAsync(new[] { src }, good);
+        byte[] all = File.ReadAllBytes(good);
+        string cut = tmp.P("cut.exe");
+        File.WriteAllBytes(cut, all[..^5000]);
+        string bare = tmp.P("stubonly.exe");
+        File.Copy(Iljip.Services.SfxBuilder.StubPath, bare);
+
+        string okDest = tmp.P("out_good");
+        var (okCode, okErr) = await RunIljipCapture(new[] { "--extract-to", good, okDest });
+        Assert.True(okCode == 0, okErr);
+        Assert.Equal(data, File.ReadAllBytes(Path.Combine(okDest, "한글", "가.bin")));
+
+        string dest = tmp.P("out_cut");
+        var (code, err) = await RunIljipCapture(new[] { "--extract-to", cut, dest });
+        Assert.True(code == 1, $"종료 코드 {code} — {err}");
+        string line = err.Trim();
+        Assert.DoesNotContain('\n', line);
+        Assert.Contains("끝부분이 잘려 있어요", line);
+        foreach (var bad in new[] { "압축 파일이 아닌", "압축파일이 아닌", "not archive", "not an archive", "unsupported archive" })
+            Assert.DoesNotContain(bad, line, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Directory.Exists(dest) && Directory.EnumerateFileSystemEntries(dest).Any(), "대상에 무언가 남음");
+
+        var (bareCode, bareErr) = await RunIljipCapture(new[] { "--extract-to", bare, tmp.P("out_bare") });
+        Assert.Equal(2, bareCode);
+        Assert.Contains("Unsupported archive type: .exe", bareErr);
+    }
+
+    /// <summary>
     /// 암호가 필요한 파일(헤더 암호 7z)은 종료 코드 1 + 쉬운 한국어 문구. 재사용장치가 '압축 아님'으로 가르는 말
     /// ('압축 파일이 아닌'·'unsupported archive')은 들어 있지 않다. 파일은 남지 않는다.
     /// </summary>

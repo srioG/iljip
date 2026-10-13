@@ -45,6 +45,8 @@ public partial class SettingsDialog : Window
         // W2-07(I3-6): 쓸모없는 파일 빼기
         ExcludeCheck.IsChecked = c.ExcludeEnabled;
         ExcludeBox.Text = PatternFileFilter.ToLines(c.ExcludePatterns);
+        // W2-10(I3-1): 자동 풀림 exe 를 만들기 전 메일 안내를 묻는가(설정 값은 '건너뛰기'라 거꾸로)
+        SfxMailWarningCheck.IsChecked = !_settings.Sfx.SkipMailWarning;
     }
 
     private void ExcludeReset_Click(object sender, RoutedEventArgs e) => ExcludeBox.Text = PatternFileFilter.ToLines(PatternFileFilter.DefaultPatterns);
@@ -90,6 +92,7 @@ public partial class SettingsDialog : Window
         _settings.Compress.DeleteOriginalsAfter = DeleteOriginalsCheck.IsChecked == true;
         _settings.Compress.ExcludeEnabled = ExcludeCheck.IsChecked == true;
         _settings.Compress.ExcludePatterns = PatternFileFilter.ParseLines(ExcludeBox.Text);
+        _settings.Sfx.SkipMailWarning = SfxMailWarningCheck.IsChecked != true;
         Result = _settings;
         DialogResult = true;
     }

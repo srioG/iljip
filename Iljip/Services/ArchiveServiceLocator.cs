@@ -139,8 +139,13 @@ public sealed class ArchiveServiceLocator
     /// 만들 형식으로 처리기를 고를 때 쓴다(W2-07 검증 지적 2차): 'backup.tar' 를 GZ 로 만든 'backup.tar.gz' 를 이름으로 고르면
     /// '.tar.gz'(압축된 TAR — 풀기만 됨) 처리기가 골라진다.
     /// </summary>
+    /// <remarks>
+    /// '.exe' 는 자동 풀림 처리기(W2-10 — 압축 창의 '자동 풀림 EXE' 형식으로 만들기, 만든 exe 시험·목록). 확장자 표(<see cref="Resolve"/>)에는 넣지 않는다 —
+    /// 열기·풀기·끌어 놓기·우클릭에서 .exe 를 확장자로 압축으로 치지 않는 규칙은 그대로(내용으로만 — <see cref="ResolveByContent"/>).
+    /// </remarks>
     public IArchiveService? ForExtension(string? extension) =>
-        !string.IsNullOrEmpty(extension) && _byExtension.TryGetValue(extension, out var svc) ? svc : null;
+        string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase) ? _sfx
+        : !string.IsNullOrEmpty(extension) && _byExtension.TryGetValue(extension, out var svc) ? svc : null;
 
     /// <summary>
     /// 등록된 확장자 중 파일 이름 끝과 맞는 가장 긴 것('a.tar.gz' → '.tar.gz', 'a.7z.001' → '.7z.001', '보고서.v2.tar.gz' → '.tar.gz'). 없으면 null.

@@ -49,6 +49,11 @@
                     <TextBlock Text="형식" FontWeight="SemiBold" Margin="0,14,0,6" />
                     <ComboBox x:Name="FormatCombo" Height="28" ItemsSource="{Binding Formats}" DisplayMemberPath="Label" SelectedValuePath="Format"
                               SelectedValue="{Binding Format}" />
+                    <!-- W2-10(I3-1): 자동 풀림 EXE 를 고르면 늘 보이는 안내(회사 메일은 exe 첨부를 막는 경우가 많음) -->
+                    <Border x:Name="SfxNoticeBox" Margin="0,8,0,0" Padding="10,7" CornerRadius="4" BorderThickness="1" BorderBrush="#D97706"
+                            Visibility="{Binding ShowSfxNotice, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <TextBlock x:Name="SfxNoticeText" TextWrapping="Wrap" FontSize="12" Foreground="#D97706" Text="{Binding SfxNotice, Mode=OneWay}" />
+                    </Border>
                 </StackPanel>
 
                 <!-- 3. 수준. 항목 글자는 코드(CompressionOptionsRules.LevelLabels)에서 채운다 — 저장만·빠름·보통·최대 -->

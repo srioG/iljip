@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    일집 자동 풀림 스텁(W2-10, I3-1) — 받는 사람 PC 에 일집이 없어도 스스로 풀리는 exe 의 앞부분.
+    만드는 법(일집 SfxBuilder): [이 exe] + [ZIP 데이터] + [꼬리 24바이트: 'ILJIPSFX' + 데이터 시작 위치 8 + 데이터 길이 8].
+
+    ★ .NET Framework 4.6.2 를 대상으로 한다(.NET 8 은 받는 사람 PC 에 런타임이 없을 수 있고, 자체 포함 발행은 약 70MB).
+      Windows 10 1607 부터 4.6.2 이상이 들어 있다(설계는 net48 — 쓰는 API 가 모두 4.6.2 에 있어 낮춰 더 오래된 PC 에서도 돌게 함).
+      참조 어셈블리는 NuGet 패키지 Microsoft.NETFramework.ReferenceAssemblies 로(이 PC 에 개발자 팩이 없어도 빌드되게).
+    ★ 압축 암호 계산(WinZip AES·ZipCrypto·CRC-32)과 풀 곳 임시 폴더 규칙(주인 표시·원래 파일 옮기기·같은 풀 곳 잠금 — W2-10 검증 지적 1차)은
+      일집 본체와 같은 소스(Iljip\Services\Shared)를 링크한다 — 구현은 하나.
+    ★ 출력은 Directory.Build.props 대로 D:\Python\일집-build\dotnet\Iljip.SfxStub\ 아래(저장소 안 bin 이 아님).
+      일집 본체(Iljip.csproj)가 빌드할 때 이 프로젝트를 먼저 빌드해 출력 폴더의 sfx\Iljip.SfxStub.exe 로 복사한다.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Iljip.SfxStub</RootNamespace>
+    <AssemblyName>Iljip.SfxStub</AssemblyName>
+    <Version>0.2.0</Version>
+    <Authors>Iljip</Authors>
+    <Product>일집 자동 풀림</Product>
+    <AssemblyTitle>일집 자동 풀림</AssemblyTitle>
+    <Description>일집으로 만든 자동 풀림 파일</Description>
+    <Copyright>© 2026</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 64비트 Windows 에서는 64비트로(큰 파일). 32비트 Windows 에서도 돈다 -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <!-- 만든 exe 에는 pdb·설정 파일이 따라가지 않는다(스텁 한 파일만 붙임) — pdb 의 빌드 경로가 남지 않게 -->
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Deterministic + pdb 없음: 같은 소스면 같은 바이트(만든 자동 풀림 exe 의 앞부분이 빌드마다 바뀌지 않게 — 백신 평판에도 유리, 빌드 경로도 안 남음) -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <NeutralLanguage>ko-KR</NeutralLanguage>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="Exists('..\Iljip\Resources\iljip.ico')">
+    <ApplicationIcon>..\Iljip\Resources\iljip.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+  <!-- 일집 본체와 같은 소스: 암호 계산(WinZip AES·ZipCrypto·CRC-32)·풀 곳 임시 폴더 규칙(SfxStagingCore.cs) -->
+  <ItemGroup>
+    <Compile Include="..\Iljip\Services\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

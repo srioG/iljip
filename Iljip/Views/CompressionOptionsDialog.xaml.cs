@@ -196,7 +196,7 @@ public partial class CompressionOptionsDialog : Window
         }
 
         bool hasPassword = layout.PasswordEnabled && !string.IsNullOrEmpty(p1);
-        var encryption = CompressionOptionsRules.IsZip(_vm.Extension) && ZipCryptoRadio.IsChecked == true ? ZipEncryption.ZipCrypto : ZipEncryption.Aes256;
+        var encryption = CompressionOptionsRules.UsesZipEncryption(_vm.Extension) && ZipCryptoRadio.IsChecked == true ? ZipEncryption.ZipCrypto : ZipEncryption.Aes256;
 
         // 2) 다른 프로그램과의 호환(한글 암호, ZIP 만 — 7Z 암호는 UTF-16 이라 반디집·7-Zip 과 맞음).
         //    방식을 ZipCrypto 로 바꾸면 바뀐 방식으로 한 번 더 판정한다(경고를 건너뛰지 않게).

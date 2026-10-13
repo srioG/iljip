@@ -344,3 +344,40 @@ public sealed class ArchiveEditException : ArchiveException
     {
     }
 }
+
+// ───── W2-10(자동 풀림 exe 만들기 — I3-1)에서 더한 것 ─────
+
+/// <summary>
+/// 자동 풀림 exe 를 만드는 부품(실행 파일 옆 <c>sfx\Iljip.SfxStub.exe</c>)이 없거나 읽을 수 없다(설치가 덜 됐거나 보안 프로그램이 지움·격리).
+/// 압축 창은 부품이 있을 때만 '자동 풀림 EXE' 형식을 보인다 — 그 사이에 없어졌을 때 이 문구로 알린다.
+/// </summary>
+public sealed class SfxStubMissingException : ArchiveException
+{
+    public const string DefaultMessage =
+        "자동 풀림 exe 를 만드는 부품(sfx\\Iljip.SfxStub.exe)을 찾지 못했어요. 보안 프로그램이 지웠을 수 있어요. 일집을 다시 설치하거나 담당자에게 알려 주세요.";
+
+    public SfxStubMissingException(Exception? inner = null)
+        : base(DefaultMessage, inner)
+    {
+    }
+}
+
+/// <summary>
+/// 만들 자동 풀림 exe 가 4GB 를 넘는다(<see cref="SfxBuilder.MaxExeBytes"/>) — Windows 는 4GB 넘는 실행 파일을 시작하지 않아(받는 사람이 두 번 눌러도
+/// '이 앱은 PC 에서 실행할 수 없습니다') 만들지 않았다(W2-10 검증 지적 2차). 임시 파일은 지웠고 덮어쓰려던 파일은 그대로다. ZIP 은 크기 제한이 없다.
+/// </summary>
+public sealed class SfxTooLargeException : ArchiveException
+{
+    public SfxTooLargeException(long exeBytes)
+        : base(MessageFor(exeBytes))
+    {
+        ExeBytes = exeBytes;
+    }
+
+    /// <summary>만들었으면 됐을 exe 크기(바이트).</summary>
+    public long ExeBytes { get; }
+
+    internal static string MessageFor(long exeBytes) =>
+        $"자동 풀림 exe 가 4GB 를 넘어서(약 {CompressFlow.FormatSize(exeBytes)}) 만들지 않았어요. 4GB 가 넘는 실행 파일은 받는 사람 PC 에서 실행되지 않아요(Windows 제한). " +
+        "ZIP으로 만들어 주세요(ZIP 은 크기 제한이 없고, 나눠 만들 수도 있어요).";
+}

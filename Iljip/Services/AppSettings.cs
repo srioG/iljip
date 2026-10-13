@@ -30,6 +30,9 @@ public sealed class AppSettings
     /// <summary>화면(ui.*) — W2-09(트리 너비).</summary>
     public UiSettings Ui { get; set; } = new();
 
+    /// <summary>자동 풀림 exe(sfx.*) — W2-10(만들기 전 '회사 메일은 exe 를 막아요' 안내를 다시 묻지 않기).</summary>
+    public SfxSettings Sfx { get; set; } = new();
+
     /// <summary>읽은 JSON 에 묶음이 null 로 들어 있었을 때 기본값으로 채운다.</summary>
     internal AppSettings Normalize()
     {
@@ -38,6 +41,7 @@ public sealed class AppSettings
         Compress.ExcludePatterns ??= new List<string>(PatternFileFilter.DefaultPatterns);
         Extract.RecentFolders ??= new List<string>();
         Ui ??= new UiSettings();
+        Sfx ??= new SfxSettings();
         return this;
     }
 
@@ -120,6 +124,19 @@ public sealed class ExtractSettings
         while (f.Length > 3 && (f.EndsWith('\\') || f.EndsWith('/'))) f = f[..^1];
         return f;
     }
+}
+
+/// <summary>sfx.* — 자동 풀림 exe(W2-10, I3-1).</summary>
+public sealed class SfxSettings
+{
+    /// <summary>
+    /// sfx.skipMailWarning — 자동 풀림 exe 를 만들기 직전의 '회사 메일은 실행 파일(.exe)을 막는 경우가 많아요' 질문을 건너뛸지(기본 꺼짐 = 늘 물음).
+    /// 그 질문 창의 '다시 묻지 않기'로 켜고, ☰ ▸ 설정에서 되돌린다. 압축 창의 형식 칸 아래 안내는 이 값과 상관없이 늘 보인다.
+    /// </summary>
+    public bool SkipMailWarning { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 /// <summary>ui.* — 화면(W2-09).</summary>

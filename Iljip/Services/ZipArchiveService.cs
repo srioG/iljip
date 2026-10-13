@@ -35,6 +35,7 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
         if (!SplitVolumeStream.IsNumberedFirstVolume(zipPath))
         {
             if (SpannedZipStream.IsLastVolume(zipPath)) return SpannedZipStream.Open(zipPath);
+            if (IsSfxPath(zipPath)) return OpenSfxZip(zipPath);
             return new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
         }
         var s = SplitVolumeStream.Open(zipPath);
@@ -51,12 +52,40 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
     }
 
     /// <summary>
+    /// 자동 풀림 exe 안의 ZIP 인가(경로가 .exe — <see cref="SfxArchiveService"/> 가 ZIP 자동 풀림을 이 처리기에 맡길 때만 온다, W2-10).
+    /// 그러면 암호 판정(CP949 한글 암호)·WinZip AES 인증값·CRC·이름 판별이 보통 ZIP 과 똑같다.
+    /// </summary>
+    internal static bool IsSfxPath(string path) => path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 자동 풀림 exe 안의 ZIP 만 보이는 스트림: 일집이 만든 것(꼬리 'ILJIPSFX')은 꼬리가 적은 ZIP 부분만, 다른 ZIP 자동 풀림(반디집 등)은
+    /// ZIP 위치값의 기준점부터 파일 끝까지(<see cref="ArchiveSniffer"/>). ZIP 을 못 찾으면 파일 그대로(엔진이 손상으로 알림).
+    /// </summary>
+    private static Stream OpenSfxZip(string path)
+    {
+        var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+        try
+        {
+            if (ArchiveSniffer.IljipSfxData(fs) is { } own) return new OffsetStream(fs, own.Start, own.Length);
+            fs.Position = 0;
+            if (ArchiveSniffer.Detect(fs, out long zipBase, peekInner: false) == ArchiveKind.ZipSfx && zipBase > 0) return new OffsetStream(fs, zipBase);
+            fs.Position = 0;
+            return fs;
+        }
+        catch
+        {
+            fs.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
     /// 숫자 분할 첫 조각·PKZIP 나눔의 마지막 조각이면 이어 붙인 스트림으로 연다(한글 이름 판별·암호 판정은 보통 ZIP 과 같음). 아니면 베이스 그대로.
     /// (W2-03 전에는 나눔 ZIP 을 SharpCompress 가 형제 조각을 찾아 열었다 — 목록이 마지막 조각을 넘으면 못 읽어 <see cref="SpannedZipStream"/> 로 바꿈)
     /// </summary>
     protected override IArchive OpenForRead(string archivePath, SharpCompress.Readers.ReaderOptions options)
     {
-        if (!SplitVolumeStream.IsNumberedFirstVolume(archivePath) && !SpannedZipStream.IsLastVolume(archivePath))
+        if (!SplitVolumeStream.IsNumberedFirstVolume(archivePath) && !SpannedZipStream.IsLastVolume(archivePath) && !IsSfxPath(archivePath))
             return base.OpenForRead(archivePath, options);
         var s = OpenRawStream(archivePath);
         try
@@ -163,6 +192,24 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
             return RewriteWithoutUnreadable(archivePath,
                 dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken))
+                .WithExcluded(sources.Excluded);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// 자동 풀림 exe 의 데이터가 될 보통 ZIP 을 <paramref name="zipPath"/>(임시 파일)에 쓴다(W2-10 — <see cref="SfxBuilder"/>).
+    /// <see cref="CompressAsync"/> 와 같은 규칙(잠긴 원본 건너뛰기·빼기 목록·암호 방식·수준)이고, 나누지 않으며,
+    /// 만들 exe(<paramref name="alsoSkip"/> — 덮어쓸 기존 exe 가 원본 폴더 안에 있을 수 있음)는 담지 않는다.
+    /// </summary>
+    internal static Task<CompressResult> CompressForSfxAsync(
+        IEnumerable<string> sourcePaths, string zipPath, CompressionOptions options, string alsoSkip,
+        IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            var sources = SourceCollector.Collect(sourcePaths, options.ExcludeFilter, cancellationToken);
+            return RewriteWithoutUnreadable(zipPath,
+                    dropped => WriteZip(sources, dropped, zipPath, options, progress, cancellationToken, alsoSkip: alsoSkip))
                 .WithExcluded(sources.Excluded);
         }, cancellationToken);
     }

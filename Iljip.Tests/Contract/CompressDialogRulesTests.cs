@@ -333,7 +333,8 @@ public class CompressDialogRulesTests
         var vm = Vm(defaults: new CompressSettings { LastFormat = CompressionFormat.SevenZip }, formats: request.AvailableFormats);
         Assert.DoesNotContain(vm.Formats, c => c.Format == CompressionFormat.SevenZip);
         Assert.Equal(CompressionFormat.Zip, vm.Format);
-        Assert.Equal(new[] { "ZIP", "TAR", "GZ", "BZ2" }, vm.Formats.Select(c => c.Label.Split(' ')[0]));
+        // W2-10: 맨 끝의 '자동 풀림 EXE'(스텁이 있을 때 — 시험 출력에도 sfx 폴더가 복사됨)는 7z.dll 과 상관없이 있다
+        Assert.Equal(new[] { "ZIP", "TAR", "GZ", "BZ2", "자동" }, vm.Formats.Select(c => c.Label.Split(' ')[0]));
     }
 
     /// <summary>계약: [확인] 전에 보는 것 — 빈 이름·쓸 수 없는 글자·없는 폴더·이상한 경로·GZ 에 폴더·GZ 에 여러 파일(각각 따로면 됨).</summary>

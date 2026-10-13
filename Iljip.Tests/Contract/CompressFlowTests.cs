@@ -1128,7 +1128,8 @@ public class CompressFlowTests
         Assert.Equal(c.Src, one.SuggestedFolder);
         Assert.True(one.AllSourcesAreFiles);
         Assert.Contains(CompressionFormat.SevenZip, one.AvailableFormats);
-        Assert.Equal(new[] { CompressionFormat.Zip, CompressionFormat.SevenZip, CompressionFormat.Tar, CompressionFormat.GZip, CompressionFormat.BZip2 },
+        // W2-10: 자동 풀림 EXE(스텁이 있을 때 — 테스트 출력에도 sfx 폴더가 복사됨)가 맨 끝에 더해졌다
+        Assert.Equal(new[] { CompressionFormat.Zip, CompressionFormat.SevenZip, CompressionFormat.Tar, CompressionFormat.GZip, CompressionFormat.BZip2, CompressionFormat.Sfx },
             one.AvailableFormats);
 
         var two = c.Vm.BuildCompressionDialogRequest(new[] { a, c.Dir("폴더") });

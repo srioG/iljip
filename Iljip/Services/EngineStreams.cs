@@ -147,6 +147,14 @@ internal sealed class OffsetStream : Stream
         _length = Math.Max(0, inner.Length - start);
     }
 
+    /// <summary>[시작, 시작+길이) 만 보이게(W2-10 — 일집 자동 풀림 exe 의 ZIP 부분: 뒤의 꼬리 24바이트를 뺌). 파일보다 길면 파일 끝까지.</summary>
+    public OffsetStream(Stream inner, long start, long length)
+    {
+        _inner = inner;
+        _start = start;
+        _length = Math.Max(0, Math.Min(length, inner.Length - start));
+    }
+
     public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
 
     public override int Read(Span<byte> buffer)

@@ -13,5 +13,7 @@
         <TextBlock x:Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,16" />
         <!-- 고를 버튼들(코드에서 채움, 첫 버튼이 기본) -->
         <StackPanel x:Name="ButtonsPanel" />
+        <!-- W2-10: 확인란 하나('다시 묻지 않기' 등) — 글자를 주었을 때만 보임 -->
+        <CheckBox x:Name="OptionCheck" Margin="0,4,0,0" Visibility="Collapsed" FontSize="12" />
     </StackPanel>
 </Window>

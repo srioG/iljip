@@ -97,4 +97,15 @@ public interface IUserInteraction
     /// '다른 곳에 풀기'(툴바·Ctrl+E·선택 항목 풀기)·명령줄 '--extract'·열기 창에서 여러 개 고르기가 예전 폴더 고르기 창(<see cref="PickFolder"/>) 대신 쓴다.
     /// </summary>
     ExtractTarget? AskExtractTarget(ExtractTargetRequest request);
+
+    // ───── W2-10(자동 풀림 exe — 만들기 전 안내)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// <see cref="Choose"/> 와 같은 창(문구 + 버튼 여럿)에 확인란 하나(예: '다시 묻지 않기')를 더한 것. 고른 버튼 순번(창을 닫으면 -1)과 확인란 값.
+    /// 자동 풀림 exe 를 만들기 직전 '회사 메일은 실행 파일(.exe)을 막는 경우가 많아요'에 쓴다.
+    /// </summary>
+    ChoiceWithCheck ChooseWithCheck(string message, IReadOnlyList<string> choices, string checkText, int defaultIndex = 0);
 }
+
+/// <summary><see cref="IUserInteraction.ChooseWithCheck"/> 의 답: 고른 버튼 순번(창을 닫으면 -1)과 확인란을 켰는지.</summary>
+public readonly record struct ChoiceWithCheck(int Index, bool Checked);

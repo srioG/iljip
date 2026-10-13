@@ -353,31 +353,10 @@ public static class ZipPasswordProbe
 
     // ───── ZipCrypto(전통 PKWARE 암호) 1바이트 검사 ─────
 
-    private static readonly uint[] CrcTable = Enumerable.Range(0, 256).Select(n =>
-    {
-        uint c = (uint)n;
-        for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
-        return c;
-    }).ToArray();
-
-    /// <summary>암호 바이트로 12바이트 암호 머리를 풀어 마지막 바이트가 받아들일 값 중 하나인지.</summary>
-    internal static bool ZipCryptoCheck(byte[] password, byte[] head12, byte[] accepted)
-    {
-        uint k0 = 0x12345678, k1 = 0x23456789, k2 = 0x34567890;
-        void Update(byte c)
-        {
-            k0 = CrcTable[(k0 ^ c) & 0xFF] ^ (k0 >> 8);
-            k1 = unchecked((k1 + (k0 & 0xFF)) * 134775813 + 1);
-            k2 = CrcTable[(k2 ^ (byte)(k1 >> 24)) & 0xFF] ^ (k2 >> 8);
-        }
-        foreach (byte c in password) Update(c);
-        byte last = 0;
-        foreach (byte e in head12)
-        {
-            uint t = (k2 | 2) & 0xFFFF;
-            last = (byte)(e ^ (byte)((t * (t ^ 1)) >> 8));
-            Update(last);
-        }
-        return Array.IndexOf(accepted, last) >= 0;
-    }
+    /// <summary>
+    /// 암호 바이트로 12바이트 암호 머리를 풀어 마지막 바이트가 받아들일 값 중 하나인지. 키 계산은 자동 풀림 스텁과 같은 공유 소스
+    /// <see cref="ZipCryptoKeys"/>(Services/Shared — W2-10).
+    /// </summary>
+    internal static bool ZipCryptoCheck(byte[] password, byte[] head12, byte[] accepted) =>
+        ZipCryptoKeys.CheckHeader(password, head12, accepted, out _);
 }

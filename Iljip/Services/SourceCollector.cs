@@ -17,6 +17,12 @@ internal sealed class SourceSet
 
     /// <summary>빼기 목록(I3-6, W2-07)에 걸려 담지 않은 것(원본 경로 — 파일·폴더. 뺀 폴더는 안을 보지 않고 하나로 셈).</summary>
     public List<string> Excluded { get; } = new();
+
+    /// <summary>
+    /// 담을 파일의 크기 합(훑을 때 같이 옴 — 파일마다 따로 묻지 않음). 자동 풀림 exe 가 4GB 를 넘을지 만들기 전에 어림하는 데 쓴다(W2-10 검증 지적 2차).
+    /// 크기를 못 읽은 파일은 0 으로 셈.
+    /// </summary>
+    public long TotalBytes { get; set; }
 }
 
 /// <summary>
@@ -56,6 +62,7 @@ internal static class SourceCollector
             if (File.Exists(src))
             {
                 set.Files.Add((src, Path.GetFileName(src)));
+                set.TotalBytes += LengthOf(src);
                 continue;
             }
             if (!Directory.Exists(src))
@@ -112,12 +119,23 @@ internal static class SourceCollector
                 {
                     string path = Path.Combine(dir, child.Name);
                     if ((child.Attributes & FileAttributes.Directory) != 0)
+                    {
                         pending.Enqueue(path);
+                    }
                     else
+                    {
                         set.Files.Add((path, Rel(path)));
+                        if (child is FileInfo fi) set.TotalBytes += fi.Length;   // 훑을 때 같이 온 크기(따로 묻지 않음)
+                    }
                 }
             }
         }
         return set;
+    }
+
+    private static long LengthOf(string file)
+    {
+        try { return new FileInfo(file).Length; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return 0; }
     }
 }

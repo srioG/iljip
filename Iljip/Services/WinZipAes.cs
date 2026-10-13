@@ -1,6 +1,5 @@
 using System.IO;
 using System.IO.Compression;
-using System.Security.Cryptography;
 
 namespace Iljip.Services;
 
@@ -16,28 +15,21 @@ namespace Iljip.Services;
 /// </list>
 /// 안쪽 압축 방식은 저장(0)·Deflate(8)·BZip2(12)만 직접 푼다. 그 밖은 null(호출자가 엔진에 맡기거나 '못 푸는 방식'으로 알림).
 /// </summary>
+/// <remarks>
+/// 암호 계산(키 만들기·AES-CTR·HMAC)은 자동 풀림 스텁과 같은 공유 소스 <see cref="WinZipAesKeys"/>·<see cref="WinZipAesCipher"/>(Services/Shared — W2-10)를 쓴다.
+/// 여기에는 ZIP 에서 항목 데이터를 찾아 여는 일(본체 전용)만 남는다.
+/// </remarks>
 internal static class WinZipAes
 {
-    public const int AuthCodeLength = 10;
-    private const int Iterations = 1000;
+    public const int AuthCodeLength = WinZipAesKeys.AuthCodeLength;
 
-    public static int KeyLength(int strength) => strength switch
-    {
-        1 => 16,
-        2 => 24,
-        3 => 32,
-        _ => throw new InvalidDataException($"알 수 없는 AES 세기: {strength}"),
-    };
+    public static int KeyLength(int strength) => WinZipAesKeys.KeyLength(strength);
 
-    public static int SaltLength(int strength) => KeyLength(strength) / 2;
+    public static int SaltLength(int strength) => WinZipAesKeys.SaltLength(strength);
 
     /// <summary>암호 바이트가 이 salt·확인값(PV)과 맞는가.</summary>
-    public static bool PasswordVerifierMatches(byte[] password, byte[] salt, byte[] pv, int strength)
-    {
-        int keyLen = KeyLength(strength);
-        byte[] derived = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA1, keyLen * 2 + 2);
-        return derived[^2] == pv[0] && derived[^1] == pv[1];
-    }
+    public static bool PasswordVerifierMatches(byte[] password, byte[] salt, byte[] pv, int strength) =>
+        WinZipAesKeys.PasswordMatches(password, salt, pv[0], pv[1], strength);
 
     /// <summary>이 항목의 안쪽 압축 방식을 직접 풀 수 있는가.</summary>
     public static bool CanDecompress(ZipCentralEntry e) => e.AesMethod is 0 or 8 or 12;
@@ -54,18 +46,17 @@ internal static class WinZipAes
         try
         {
             var (dataStart, _) = ZipPasswordProbe.LocalData(fs, e);
-            int keyLen = KeyLength(e.AesStrength);
-            int saltLen = keyLen / 2;
+            int saltLen = SaltLength(e.AesStrength);
             byte[] saltPv = ZipPasswordProbe.ReadAt(fs, dataStart, saltLen + 2);
-            byte[] derived = Rfc2898DeriveBytes.Pbkdf2(password, saltPv.AsSpan(0, saltLen), Iterations, HashAlgorithmName.SHA1, keyLen * 2 + 2);
-            if (derived[^2] != saltPv[saltLen] || derived[^1] != saltPv[saltLen + 1])
+            byte[] derived = WinZipAesKeys.Derive(password, saltPv[..saltLen], e.AesStrength);
+            if (!WinZipAesKeys.VerifierMatches(derived, saltPv[saltLen], saltPv[saltLen + 1]))
                 throw new WrongPasswordException(entryPath: e.Name);
 
             long cipherLen = e.CompressedSize - saltLen - 2 - AuthCodeLength;
             if (cipherLen < 0) throw new InvalidDataException($"AES 항목 크기가 맞지 않아요: {e.Name}");
 
             fs.Position = dataStart + saltLen + 2;
-            var dec = new DecryptStream(fs, cipherLen, derived[..keyLen], derived[keyLen..(keyLen * 2)]);
+            var dec = new DecryptStream(fs, cipherLen, new WinZipAesCipher(derived, e.AesStrength));
             Stream plain = e.AesMethod switch
             {
                 0 => dec,
@@ -81,59 +72,30 @@ internal static class WinZipAes
         }
     }
 
-    /// <summary>AES-CTR 로 암호문을 풀고, 읽은 암호문으로 HMAC 을 쌓는다. 원본 파일 스트림을 소유한다.</summary>
+    /// <summary>AES-CTR 로 암호문을 풀고, 읽은 암호문으로 HMAC 을 쌓는다(계산은 공유 <see cref="WinZipAesCipher"/>). 원본 파일 스트림을 소유한다.</summary>
     private sealed class DecryptStream : Stream
     {
-        private const int BlocksPerRefill = 256;   // 한 번에 4 KiB 씩 키 흐름을 만든다
-
         private readonly Stream _base;
         private long _remaining;
-        private readonly Aes _aes;
-        private readonly IncrementalHash _hmac;
-        private readonly byte[] _counter = new byte[16];
-        private readonly byte[] _counterBlocks = new byte[16 * BlocksPerRefill];
-        private readonly byte[] _keyStream = new byte[16 * BlocksPerRefill];
-        private int _keyPos;
+        private readonly WinZipAesCipher _cipher;
         private bool _verified;
 
-        public DecryptStream(Stream @base, long cipherLength, byte[] aesKey, byte[] hmacKey)
+        public DecryptStream(Stream @base, long cipherLength, WinZipAesCipher cipher)
         {
             _base = @base;
             _remaining = cipherLength;
-            _aes = Aes.Create();
-            _aes.Key = aesKey;
-            _hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA1, hmacKey);
-            _keyPos = _keyStream.Length;
+            _cipher = cipher;
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
-
-        public override int Read(Span<byte> buffer)
+        public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_remaining <= 0 || buffer.Length == 0) return 0;
-            int want = (int)Math.Min(buffer.Length, _remaining);
-            int n = _base.Read(buffer[..want]);
+            if (_remaining <= 0 || count == 0) return 0;
+            int want = (int)Math.Min(count, _remaining);
+            int n = _base.Read(buffer, offset, want);
             if (n <= 0) throw new EndOfStreamException("AES 데이터가 중간에 끝났어요(파일이 잘렸을 수 있어요).");
             _remaining -= n;
-            _hmac.AppendData(buffer[..n]);
-            for (int i = 0; i < n; i++)
-            {
-                if (_keyPos == _keyStream.Length) Refill();
-                buffer[i] ^= _keyStream[_keyPos++];
-            }
+            _cipher.Decrypt(buffer, offset, n);
             return n;
-        }
-
-        private void Refill()
-        {
-            for (int b = 0; b < BlocksPerRefill; b++)
-            {
-                // 리틀 엔디언 128비트 카운터 +1 (첫 블록은 1)
-                for (int i = 0; i < 16 && ++_counter[i] == 0; i++) { }
-                Buffer.BlockCopy(_counter, 0, _counterBlocks, b * 16, 16);
-            }
-            _aes.EncryptEcb(_counterBlocks, _keyStream, PaddingMode.None);
-            _keyPos = 0;
         }
 
         /// <summary>남은 암호문을 HMAC 에 넣고(풀지는 않음) 뒤의 인증값 10바이트와 맞춰 본다.</summary>
@@ -145,13 +107,12 @@ internal static class WinZipAes
             {
                 int n = _base.Read(buf, 0, (int)Math.Min(buf.Length, _remaining));
                 if (n <= 0) throw new EndOfStreamException("AES 데이터가 중간에 끝났어요(파일이 잘렸을 수 있어요).");
-                _hmac.AppendData(buf, 0, n);
+                _cipher.AppendCiphertext(buf, 0, n);
                 _remaining -= n;
             }
             var stored = new byte[AuthCodeLength];
             _base.ReadExactly(stored);
-            byte[] mac = _hmac.GetHashAndReset();
-            if (!CryptographicOperations.FixedTimeEquals(mac.AsSpan(0, AuthCodeLength), stored))
+            if (!_cipher.AuthCodeMatches(stored, 0))
                 throw new InvalidDataException("AES 인증값(HMAC)이 맞지 않아요 — 데이터가 손상됐어요.");
             _verified = true;
         }
@@ -170,8 +131,7 @@ internal static class WinZipAes
         {
             if (disposing)
             {
-                _aes.Dispose();
-                _hmac.Dispose();
+                _cipher.Dispose();
                 _base.Dispose();
             }
             base.Dispose(disposing);

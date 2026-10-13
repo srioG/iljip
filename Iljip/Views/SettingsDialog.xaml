@@ -77,6 +77,13 @@
                     <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}"
                                Text="한 줄에 이름 하나. * 는 아무 글자, 끝에 / 를 붙이면 폴더(예: __MACOSX/). 직접 고른 파일·폴더는 빼지 않아요." />
                 </DockPanel>
+
+                <!-- W2-10(I3-1): sfx.skipMailWarning — 자동 풀림 exe 를 만들기 전 '회사 메일은 exe 를 막아요' 질문(그 창의 '다시 묻지 않기'로 껐으면 여기서 되살림) -->
+                <CheckBox x:Name="SfxMailWarningCheck" Margin="0,12,0,4">
+                    <TextBlock TextWrapping="Wrap" Text="자동 풀림 EXE 를 만들기 전에 '회사 메일은 exe 를 막아요' 안내 묻기" />
+                </CheckBox>
+                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" Margin="22,0,0,4"
+                           Text="꺼도 압축 창에서 자동 풀림 EXE 를 고르면 같은 안내가 늘 보여요." />
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

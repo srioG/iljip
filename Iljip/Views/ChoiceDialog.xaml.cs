@@ -14,11 +14,20 @@ public partial class ChoiceDialog : Window
     /// <summary>고른 버튼 순번(0부터). 고르지 않고 닫으면 -1.</summary>
     public int ChosenIndex { get; private set; } = -1;
 
-    public ChoiceDialog(string message, IReadOnlyList<string> choices, int defaultIndex = 0)
+    /// <summary>확인란을 켰는가(<c>checkText</c> 를 주었을 때만 보임 — W2-10 '다시 묻지 않기').</summary>
+    public bool IsChecked => OptionCheck.IsChecked == true;
+
+    /// <param name="checkText">주면 버튼 아래에 이 글자의 확인란을 보인다(W2-10).</param>
+    public ChoiceDialog(string message, IReadOnlyList<string> choices, int defaultIndex = 0, string? checkText = null)
     {
         if (defaultIndex < 0 || defaultIndex >= choices.Count) defaultIndex = 0;
         InitializeComponent();
         MessageText.Text = message;
+        if (!string.IsNullOrEmpty(checkText))
+        {
+            OptionCheck.Content = checkText;
+            OptionCheck.Visibility = Visibility.Visible;
+        }
         for (int i = 0; i < choices.Count; i++)
         {
             int index = i;

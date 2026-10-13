@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <assemblyIdentity version="1.0.0.0" name="Iljip.SfxStub.app" />
+
+  <!--
+    늘 호출자 권한으로 실행한다(관리자 승격을 묻지 않음).
+    ★ 이 선언이 없으면 Windows 의 '설치 프로그램 감지'가 이름에 setup·install 등이 든 exe 를 관리자 권한으로 띄우려 한다 — 받는 사람이
+      '설치.exe' 같은 이름으로 받으면 UAC 창이 뜰 수 있어 꼭 둔다.
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <!-- 화면 배율이 125%·150% 여도 글자가 흐리지 않게(창은 글꼴 기준으로 커짐). 긴 경로(260자 넘음)도 쓸 수 있게(Windows 설정이 켜져 있을 때) -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+  <!-- 버튼·진행 막대를 요즘 Windows 모양으로 -->
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"
+                        processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*" />
+    </dependentAssembly>
+  </dependency>
+
+</assembly>

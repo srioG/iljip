@@ -28,10 +28,28 @@ internal static class CompressionOptionsRules
 
     public static bool IsSevenZip(string? targetExtension) => string.Equals(targetExtension, ".7z", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>자동 풀림 EXE(W2-10 — 안은 ZIP).</summary>
+    public static bool IsSfx(string? targetExtension) => string.Equals(targetExtension, ".exe", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>ZIP 암호 방식(AES-256·ZipCrypto)을 고르는 형식인가 — ZIP 과 자동 풀림 EXE.</summary>
+    public static bool UsesZipEncryption(string? targetExtension) => IsZip(targetExtension) || IsSfx(targetExtension);
+
+    /// <summary>
+    /// 자동 풀림 EXE 를 고르면 형식 칸 바로 아래에 늘 보이는 안내(W2-10 — 회사 메일은 exe 첨부를 막는 경우가 많음).
+    /// 만들기 직전에도 한 번 더 묻는다(<c>MainViewModel</c> — ☰ ▸ 설정에서 끌 수 있음).
+    /// </summary>
+    internal const string SfxMailNotice =
+        "회사 메일은 실행 파일(.exe)을 막는 경우가 많아요. 받는 사람이 못 받을 수 있어요. 메일로 보낼 거면 ZIP을 권해요.";
+
     public static Layout LayoutFor(string? targetExtension)
     {
         if (IsZip(targetExtension))
             return new Layout(true, true, false, "* AES-256 에 한글 암호를 쓰면 반디집·알집에서 안 풀릴 수 있어요 — 영문·숫자를 권장해요.") { ShowSplit = true };
+        if (IsSfx(targetExtension))
+            return new Layout(true, true, false,
+                "* 받는 사람 PC 에 일집·반디집이 없어도 두 번 눌러 풀 수 있어요(Windows 10·11). 한글 이름·한글 암호도 이 exe 로는 풀려요.\n" +
+                "* 처음 받은 PC 에서는 'Windows의 PC 보호' 창이나 백신 경고가 뜰 수 있어요(서명 없는 새 실행 파일이라서). 회사 보안 설정에 따라 실행이 아예 막히기도 해요.\n" +
+                "* 4GB 가 넘는 exe 는 Windows 에서 실행되지 않아 만들지 않아요 — 큰 자료는 ZIP으로 보내 주세요.");
         if (IsSevenZip(targetExtension))
             return new Layout(true, false, true,
                 "* 7Z 는 AES-256 으로 암호를 걸어요. 한글 암호도 반디집·7-Zip 에서 풀려요.\n" +
@@ -109,7 +127,11 @@ internal static class CompressionOptionsRules
     public static bool CanEncryptFileNames(string? targetExtension, string? password) =>
         IsSevenZip(targetExtension) && !string.IsNullOrEmpty(password);
 
-    /// <summary>한글 암호 호환 경고(<see cref="Iljip.Services.PasswordPolicy.CheckCompat"/>)를 볼 형식인가 — ZIP 만(7Z 암호는 UTF-16 이라 반디집과 호환).</summary>
+    /// <summary>
+    /// 한글 암호 호환 경고(<see cref="Iljip.Services.PasswordPolicy.CheckCompat"/>)를 볼 형식인가 — ZIP 만(7Z 암호는 UTF-16 이라 반디집과 호환).
+    /// 자동 풀림 EXE(W2-10)는 받는 사람이 그 exe 로 풀고, 스텁이 암호의 UTF-8·CP949 바이트를 둘 다 맞춰 보므로 경고하지 않는다.
+    /// (만들기 직전 메일 질문에서 [ZIP으로 만들기]를 고르면 보통 ZIP 이 되므로 그때 <c>MainViewModel.ConfirmZipPasswordCompat</c> 가 같은 판정으로 묻는다.)
+    /// </summary>
     public static bool ChecksPasswordCompat(string? targetExtension) => IsZip(targetExtension);
 
     public static CompressionLevelOption LevelOf(int index) => index switch
@@ -135,7 +157,7 @@ internal static class CompressionOptionsRules
         {
             Level = LevelOf(levelIndex),
             Password = hasPassword ? password : null,
-            Encryption = IsZip(targetExtension) ? encryption : ZipEncryption.Aes256,
+            Encryption = UsesZipEncryption(targetExtension) ? encryption : ZipEncryption.Aes256,
             Solid = !sevenZip || solid,
             EncryptFileNames = sevenZip && hasPassword && encryptFileNames,
             SplitBytes = layout.ShowSplit && splitBytes > 0 ? splitBytes : null,

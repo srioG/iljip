@@ -15,6 +15,12 @@ public enum CompressionFormat
     GZip,
     /// <summary>BZ2 — 파일 하나만.</summary>
     BZip2,
+
+    /// <summary>
+    /// 자동 풀림 EXE(W2-10, I3-1) — 받는 사람에게 프로그램이 없어도 두 번 눌러 풀리는 exe(일집 자체 스텁 + ZIP). ZIP 과 같은 수준·암호 방식, 나누기는 없음.
+    /// 스텁(sfx\Iljip.SfxStub.exe)이 있을 때만 고를 수 있다. 회사 메일은 exe 첨부를 막는 경우가 많아 창이 늘 안내한다.
+    /// </summary>
+    Sfx,
 }
 
 /// <summary>압축 파일 이름 뒤에 붙일 날짜 모양(I3-5). 예: 보고서_20261013.zip.</summary>
@@ -53,6 +59,7 @@ public static class CompressionFormats
         CompressionFormat.Tar => ".tar",
         CompressionFormat.GZip => ".gz",
         CompressionFormat.BZip2 => ".bz2",
+        CompressionFormat.Sfx => ".exe",
         _ => ".zip",
     };
 
@@ -64,6 +71,7 @@ public static class CompressionFormats
         ".tar" => CompressionFormat.Tar,
         ".gz" => CompressionFormat.GZip,
         ".bz2" => CompressionFormat.BZip2,
+        ".exe" => CompressionFormat.Sfx,
         _ => null,
     };
 
@@ -74,23 +82,25 @@ public static class CompressionFormats
         CompressionFormat.Tar => "TAR (묶기만 · 압축 안 함)",
         CompressionFormat.GZip => "GZ (파일 하나씩)",
         CompressionFormat.BZip2 => "BZ2 (파일 하나씩)",
+        CompressionFormat.Sfx => "자동 풀림 EXE (프로그램 없이 풀림 · 메일로는 막힐 수 있음)",
         _ => "ZIP (어디서나 열림 · 권장)",
     };
 
     /// <summary>파일 하나만 담는 형식(GZ·BZ2).</summary>
     public static bool IsSingleFile(CompressionFormat format) => format is CompressionFormat.GZip or CompressionFormat.BZip2;
 
-    /// <summary>암호를 걸 수 있는가(ZIP·7Z).</summary>
-    public static bool SupportsPassword(CompressionFormat format) => format is CompressionFormat.Zip or CompressionFormat.SevenZip;
+    /// <summary>암호를 걸 수 있는가(ZIP·7Z·자동 풀림 EXE — 자동 풀림은 ZIP 과 같은 AES-256·ZipCrypto).</summary>
+    public static bool SupportsPassword(CompressionFormat format) => format is CompressionFormat.Zip or CompressionFormat.SevenZip or CompressionFormat.Sfx;
 
-    /// <summary>나눠 만들 수 있는가(ZIP·7Z — W2-03).</summary>
+    /// <summary>나눠 만들 수 있는가(ZIP·7Z — W2-03. 자동 풀림 EXE 는 한 파일이어야 풀리므로 안 됨).</summary>
     public static bool SupportsSplit(CompressionFormat format) => format is CompressionFormat.Zip or CompressionFormat.SevenZip;
 
     /// <summary>
-    /// 압축한 뒤 원본을 휴지통으로 옮길 수 있는가(I3-4) — 목록으로 이름·크기를 맞춰 볼 수 있는 ZIP·7Z·TAR 만.
+    /// 압축한 뒤 원본을 휴지통으로 옮길 수 있는가(I3-4) — 목록으로 이름·크기를 맞춰 볼 수 있는 ZIP·7Z·TAR(·자동 풀림 EXE — 안은 ZIP, W2-10) 만.
     /// GZ·BZ2 는 목록에 크기가 없어 원본과 맞춰 볼 수 없으므로 하지 않는다.
     /// </summary>
-    public static bool SupportsDeleteOriginals(CompressionFormat format) => format is CompressionFormat.Zip or CompressionFormat.SevenZip or CompressionFormat.Tar;
+    public static bool SupportsDeleteOriginals(CompressionFormat format) =>
+        format is CompressionFormat.Zip or CompressionFormat.SevenZip or CompressionFormat.Tar or CompressionFormat.Sfx;
 
     /// <summary>쓸모없는 파일 빼기를 쓰는가(폴더를 담는 형식 — ZIP·7Z·TAR).</summary>
     public static bool SupportsExclude(CompressionFormat format) => !IsSingleFile(format);

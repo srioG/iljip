@@ -57,6 +57,24 @@
     <Resource Include="Resources\iljip.ico" Condition="Exists('Resources\iljip.ico')" />
   </ItemGroup>
 
+  <!-- W2-10(I3-1): 자동 풀림 스텁(Iljip.SfxStub — .NET Framework 4.6.2, 받는 사람 PC 에 일집이 없어도 풀리는 exe 의 앞부분).
+       참조하지 않고(다른 프레임워크) 먼저 빌드만 해서, 그 exe 를 출력·발행 폴더의 sfx\Iljip.SfxStub.exe 로 둔다(SfxBuilder 가 읽어 압축 앞에 붙임).
+       발행 RID(win-x64 등)·단일 파일 설정은 스텁에 넘기지 않는다(AnyCPU 한 판). 스텁 출력은 Directory.Build.props 대로 저장소 밖. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Iljip.SfxStub\Iljip.SfxStub.csproj" ReferenceOutputAssembly="false" Private="false"
+                      SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="TargetFramework;RuntimeIdentifier;SelfContained;PublishSingleFile;PublishReadyToRun;Platform" />
+  </ItemGroup>
+  <Target Name="IljipIncludeSfxStub" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild Projects="..\Iljip.SfxStub\Iljip.SfxStub.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;PublishSingleFile;PublishReadyToRun;Platform">
+      <Output TaskParameter="TargetOutputs" ItemName="_IljipSfxStubExe" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_IljipSfxStubExe)" Link="sfx\Iljip.SfxStub.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"
+            ExcludeFromSingleFile="true" Visible="false" />
+    </ItemGroup>
+  </Target>
+
   <!-- 계약 테스트가 internal 도우미(AlzNameScanner 등)를 직접 시험할 수 있게 -->
   <ItemGroup>
     <InternalsVisibleTo Include="Iljip.Tests" />

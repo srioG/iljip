@@ -40,6 +40,10 @@ public sealed class CreatedArchiveTester : ICreatedArchiveTester
                 // 일집이 만든 .bz2(순수 bzip2 스트림)는 형식 판별(ArchiveFactory)로 열리지 않는다 — 풀기 길로 시험
                 TestByExtracting(service, archivePath, pw, cancellationToken);
                 return;
+            case SfxArchiveService sfx:
+                // 자동 풀림 exe(W2-10): 안쪽 ZIP 을 ZIP 처리기로 끝까지 풀어 보기(CP949 한글 ZipCrypto 암호·AES 인증값·CRC)
+                sfx.TestSync(archivePath, pw, cancellationToken);
+                return;
             case SharpCompressArchiveServiceBase sc:
                 sc.TestEntriesSync(archivePath, pw, _ => true, cancellationToken);
                 return;

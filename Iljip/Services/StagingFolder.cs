@@ -10,8 +10,8 @@ namespace Iljip.Services;
 /// </summary>
 internal sealed class StagingFolder : IDisposable
 {
-    /// <summary>임시 폴더 이름 머리(숨김).</summary>
-    internal const string Prefix = ".일집-임시-";
+    /// <summary>임시 폴더 이름 머리(숨김) — 자동 풀림 스텁과 같은 이름(<see cref="SfxStaging.Prefix"/>).</summary>
+    internal const string Prefix = SfxStaging.Prefix;
 
     public string FullPath { get; }
 
@@ -111,20 +111,10 @@ internal sealed class StagingFolder : IDisposable
         }
     }
 
-    /// <summary>같은 대상 폴더에 남은 하루 지난 임시 폴더(비정상 종료 흔적)를 지운다. 실패해도 조용히 넘어간다.</summary>
-    internal static void CleanupStale(string destinationFolder)
-    {
-        try
-        {
-            foreach (var d in Directory.EnumerateDirectories(destinationFolder, Prefix + "*"))
-            {
-                if (Directory.GetCreationTime(d) < DateTime.Now.AddDays(-1))
-                    Delete(d, attempts: 1);
-            }
-        }
-        catch
-        {
-            // 정리는 덤 — 실패 무시
-        }
-    }
+    /// <summary>
+    /// 같은 대상 폴더에 남은 임시 폴더(비정상 종료 흔적)를 정리한다 — 자동 풀림 스텁과 같은 규칙(<see cref="SfxStaging.CleanupStale"/>, W2-10 검증 지적 1차):
+    /// 이 본체가 만든 것(주인 표시 없음)은 예전처럼 하루 지난 것만, 강제로 끊긴 자동 풀림의 것(주인 표시가 있고 아무도 안 엶)은 바로,
+    /// 살아 있는 것은 건드리지 않음. 자동 풀림이 덮어쓰려고 비켜 둔 사용자 원래 파일은 지우지 않고 '덮어쓰기 전 원래 파일 (…)' 폴더로 옮긴다. 실패해도 조용히 넘어간다.
+    /// </summary>
+    internal static void CleanupStale(string destinationFolder) => SfxStaging.CleanupStale(destinationFolder, DateTime.Now);
 }

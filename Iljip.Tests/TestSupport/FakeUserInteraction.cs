@@ -217,6 +217,25 @@ public sealed class FakeUserInteraction : IUserInteraction
             : new ExtractTarget(folder, MakeFolder: request.Archives.Count > 1, DeleteArchiveAfter: request.DeleteArchiveAfter, OpenFolderAfter: false);
     }
 
+    // ───── W2-10: 확인란이 있는 선택 창(자동 풀림 exe 를 만들기 전 '회사 메일은 exe 를 막아요' + '다시 묻지 않기') ─────
+
+    /// <summary>확인란이 있는 선택 창이 불린 기록(문구, 버튼 문구들, 확인란 글자, 기본 버튼 순번). 버튼 고르기는 <see cref="Choose"/> 와 같은 답을 쓴다.</summary>
+    public List<(string Message, IReadOnlyList<string> Choices, string CheckText, int DefaultIndex)> CheckChoicePrompts { get; } = new();
+
+    /// <summary>확인란 답(기본 꺼짐).</summary>
+    public bool CheckAnswer { get; set; }
+
+    /// <summary>
+    /// 버튼은 <see cref="Choose"/> 와 같은 규칙(넣어 둔 순번 → <see cref="ChooseByLabel"/> → -1)으로 고르고 <see cref="ChoicePrompts"/> 에도 남긴다(창 하나로 셈).
+    /// 확인란은 <see cref="CheckAnswer"/>(창을 닫으면 -1 과 함께 그대로 돌려줌 — 부르는 쪽이 버튼에 따라 씀).
+    /// </summary>
+    public ChoiceWithCheck ChooseWithCheck(string message, IReadOnlyList<string> choices, string checkText, int defaultIndex = 0)
+    {
+        CheckChoicePrompts.Add((message, choices.ToList(), checkText, defaultIndex));
+        int index = Choose(message, choices, defaultIndex);
+        return new ChoiceWithCheck(index, CheckAnswer);
+    }
+
     private sealed class Session : IProgressSession
     {
         private readonly CancellationTokenSource _cts = new();

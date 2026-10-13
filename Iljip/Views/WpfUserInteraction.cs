@@ -105,6 +105,15 @@ public sealed class WpfUserInteraction : IUserInteraction
         return dlg.ChosenIndex;
     }
 
+    /// <summary>W2-10: 같은 선택 창에 확인란('다시 묻지 않기' 등)을 더해 띄운다.</summary>
+    public ChoiceWithCheck ChooseWithCheck(string message, IReadOnlyList<string> choices, string checkText, int defaultIndex = 0)
+    {
+        var dlg = new ChoiceDialog(message, choices, defaultIndex, checkText);
+        Prepare(dlg);
+        dlg.ShowDialog();
+        return new ChoiceWithCheck(dlg.ChosenIndex, dlg.IsChecked);
+    }
+
     public string? PickFolder(string title)
     {
         var dlg = new OpenFolderDialog { Title = title };
