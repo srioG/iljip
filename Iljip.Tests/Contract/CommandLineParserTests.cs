@@ -86,14 +86,21 @@ public class CommandLineParserTests
     }
 
     /// <summary>
-    /// 알아보는 키워드 목록(셸 확장 계약 확인에 씀)은 각각 해석된다. W2-06 에서 '--add-to'(압축 파일에 넣기)·'--add-to-pick'(기존 압축을 골라 넣기 — 검증 지적)을 더해 8개.
+    /// 알아보는 키워드 목록(셸 확장 계약 확인에 씀)은 각각 해석된다. W2-06 에서 '--add-to'(압축 파일에 넣기)·'--add-to-pick'(기존 압축을 골라 넣기 — 검증 지적)을 더해 8개,
+    /// W2-11 에서 '--compress-to'(만들 곳을 정한 압축)·'--extract-to-folder-in'(그 폴더 안 '이름' 폴더에 풀기)을 더해 10개,
+    /// W2-11 검증 지적에서 '--extract-into'(여럿을 그 폴더에 바로 풀기 — 관리자 권한으로 다시 시도)를 더해 11개.
+    /// 동사 앞 표시('--new-window'·'--elevated')는 키워드가 아니라 <see cref="CommandLineParser.Flags"/>(W2-11 시험은 아래 표시 시험들).
     /// </summary>
     [Fact]
     public void 키워드_목록은_모두_해석된다()
     {
-        Assert.Equal(8, CommandLineParser.Keywords.Count);
+        Assert.Equal(11, CommandLineParser.Keywords.Count);
         Assert.Contains(CommandLineParser.AddToKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.AddToPickKeyword, CommandLineParser.Keywords);
+        Assert.Contains(CommandLineParser.CompressToKeyword, CommandLineParser.Keywords);
+        Assert.Contains(CommandLineParser.ExtractToFolderInKeyword, CommandLineParser.Keywords);
+        Assert.Contains(CommandLineParser.ExtractIntoKeyword, CommandLineParser.Keywords);
+        Assert.Empty(CommandLineParser.Flags.Intersect(CommandLineParser.Keywords));
         foreach (var k in CommandLineParser.Keywords)
         {
             var cmd = CommandLineParser.Parse(new[] { k, "a.zip", "dest" });
@@ -193,5 +200,173 @@ public class CommandLineParserTests
         Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to-pick" }).Verb);
         Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--add-to-pick", "" }).Verb);
         Assert.Equal("a.zip", CommandLineParser.Parse(new[] { "--add-to", "a.zip", "x" }).Archive);
+    }
+
+    // ───────────────────────────── W2-11: 새 창·관리자 권한 표시, 새 동사 ─────────────────────────────
+
+    /// <summary>
+    /// W2-11(I3-15 새 창): '--new-window' 만이면 빈 새 창(None + 표시), '--new-window a.zip' 이면 표시 + 경로(끌어 놓기와 같은 처리),
+    /// '--new-window --open a.zip' 이면 표시 + 열기. 표시는 메인 창 여부를 바꾸지 않는다.
+    /// </summary>
+    [Fact]
+    public void new_window_표시()
+    {
+        var empty = CommandLineParser.Parse(new[] { "--new-window" });
+        Assert.Equal(CommandVerb.None, empty.Verb);
+        Assert.True(empty.NewWindow);
+        Assert.False(empty.Elevated);
+        Assert.True(empty.ShowMainWindow);
+
+        var path = CommandLineParser.Parse(new[] { "--new-window", "a.zip" });
+        Assert.Equal(CommandVerb.Paths, path.Verb);
+        Assert.Equal(new[] { "a.zip" }, path.Paths);
+        Assert.True(path.NewWindow);
+
+        var open = CommandLineParser.Parse(new[] { "--new-window", "--open", @"C:\받은 파일\보고서.zip" });
+        Assert.Equal(CommandVerb.Open, open.Verb);
+        Assert.Equal(@"C:\받은 파일\보고서.zip", open.Archive);
+        Assert.True(open.NewWindow);
+
+        // 표시가 없으면 예전 그대로(둘 다 false), 기존 None 은 그대로
+        var plain = CommandLineParser.Parse(new[] { "--open", "a.zip" });
+        Assert.False(plain.NewWindow);
+        Assert.False(plain.Elevated);
+        Assert.False(ParsedCommand.None.NewWindow);
+    }
+
+    /// <summary>
+    /// W2-11(I3-16): '--elevated' 는 맨 앞에 붙는 표시 — 뒤의 동사는 예전대로. '--elevated --extract-to a b' 도 대화형 ExtractTo(메인 창 없이 진행 창만).
+    /// 표시는 맨 앞에 연달아 올 때만(경로 자리의 '--elevated' 는 경로) — 대소문자는 키워드처럼 가린다.
+    /// </summary>
+    [Fact]
+    public void elevated_표시()
+    {
+        var to = CommandLineParser.Parse(new[] { "--elevated", "--extract-to", @"C:\a.zip", @"C:\Program Files\풀 곳" });
+        Assert.Equal(CommandVerb.ExtractTo, to.Verb);
+        Assert.True(to.Elevated);
+        Assert.Equal(@"C:\a.zip", to.Archive);
+        Assert.Equal(@"C:\Program Files\풀 곳", to.Dest);
+        Assert.False(to.ShowMainWindow);
+
+        var both = CommandLineParser.Parse(new[] { "--elevated", "--new-window", "--compress", "x.txt" });
+        Assert.Equal(CommandVerb.Compress, both.Verb);
+        Assert.True(both.Elevated);
+        Assert.True(both.NewWindow);
+
+        Assert.True(CommandLineParser.Parse(new[] { "--elevated" }).Elevated);
+        var tail = CommandLineParser.Parse(new[] { "--compress", "x.txt", "--elevated" });
+        Assert.False(tail.Elevated);
+        Assert.Equal(new[] { "x.txt", "--elevated" }, tail.Paths);
+        var upper = CommandLineParser.Parse(new[] { "--ELEVATED", "a.zip" });
+        Assert.False(upper.Elevated);
+        Assert.Equal(CommandVerb.Paths, upper.Verb);
+    }
+
+    /// <summary>
+    /// W2-11: '--compress-to 만들폴더 원본…'(만들 곳을 정한 압축 — 메인 창), '--extract-to-folder-in 폴더 압축…'(그 폴더 안 '이름' 폴더 — 메인 창 없이).
+    /// 모자라면 None.
+    /// </summary>
+    [Fact]
+    public void compress_to와_extract_to_folder_in()
+    {
+        var c = CommandLineParser.Parse(new[] { "--compress-to", @"C:\Program Files\만들 곳", @"C:\자료\a.txt", "", @"C:\자료\폴더 b" });
+        Assert.Equal(CommandVerb.CompressTo, c.Verb);
+        Assert.Equal(@"C:\Program Files\만들 곳", c.Dest);
+        Assert.Equal(new[] { @"C:\자료\a.txt", @"C:\자료\폴더 b" }, c.Paths);
+        Assert.Null(c.Archive);
+        Assert.True(c.ShowMainWindow);
+
+        var x = CommandLineParser.Parse(new[] { "--extract-to-folder-in", @"C:\Program Files\풀 곳", @"C:\a.zip", @"C:\b.7z" });
+        Assert.Equal(CommandVerb.ExtractToFolderIn, x.Verb);
+        Assert.Equal(@"C:\Program Files\풀 곳", x.Dest);
+        Assert.Equal(@"C:\a.zip", x.Archive);
+        Assert.Equal(new[] { @"C:\a.zip", @"C:\b.7z" }, x.Archives);
+        Assert.False(x.ShowMainWindow);
+
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--compress-to", @"C:\곳" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--compress-to", " ", "a.txt" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--extract-to-folder-in", @"C:\곳" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--extract-to-folder-in", "", "a.zip" }).Verb);
+        // '--extract-to-folder' 와 섞이지 않는다
+        Assert.Equal(CommandVerb.ExtractToFolder, CommandLineParser.Parse(new[] { "--extract-to-folder", "a.zip" }).Verb);
+    }
+
+    /// <summary>
+    /// W2-11 검증 지적: '--extract-into 폴더 압축…'(여럿을 그 폴더에 바로 — 메인 창 없이). 모자라면 None.
+    /// ★ 창 없이 풀기('--extract-to' 가 첫 인자 — 재사용장치 계약)와 섞이지 않는다: '--extract-to' 는 예전처럼 압축 하나·폴더.
+    /// </summary>
+    [Fact]
+    public void extract_into는_여럿을_그_폴더에_바로()
+    {
+        var x = CommandLineParser.Parse(new[] { "--extract-into", @"C:\Program Files\풀 곳", @"C:\가.zip", "", @"C:\나.7z" });
+        Assert.Equal(CommandVerb.ExtractInto, x.Verb);
+        Assert.Equal(@"C:\Program Files\풀 곳", x.Dest);
+        Assert.Equal(@"C:\가.zip", x.Archive);
+        Assert.Equal(new[] { @"C:\가.zip", @"C:\나.7z" }, x.Archives);
+        Assert.False(x.ShowMainWindow);
+
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--extract-into", @"C:\곳" }).Verb);
+        Assert.Equal(CommandVerb.None, CommandLineParser.Parse(new[] { "--extract-into", " ", "a.zip" }).Verb);
+        var to = CommandLineParser.Parse(new[] { "--extract-to", "a.zip", @"C:\곳" });
+        Assert.Equal(CommandVerb.ExtractTo, to.Verb);
+        Assert.Equal("a.zip", to.Archive);
+        Assert.False(StartupDecision.IsHeadlessExtract(new[] { "--extract-into", "a.zip", @"C:\곳" }, _ => true));
+        Assert.True(StartupDecision.IsHeadlessExtract(new[] { "--extract-to", "a.zip", @"C:\곳" }, _ => true));
+    }
+
+    /// <summary>
+    /// W2-11: <see cref="CommandLineParser.ToArgs"/> 는 <see cref="CommandLineParser.Parse"/> 의 반대 — 모든 동사·표시를 다시 해석하면 같은 명령.
+    /// '--elevated' 는 늘 맨 앞(창 없이 풀기 판정 'args[0] == --extract-to' 에 걸리지 않게).
+    /// </summary>
+    [Fact]
+    public void ToArgs는_다시_해석하면_같은_명령()
+    {
+        var none = Array.Empty<string>();
+        var commands = new[]
+        {
+            new ParsedCommand(CommandVerb.Open, @"C:\a b\보고서.zip", null, none),
+            new ParsedCommand(CommandVerb.Extract, "a.zip", null, none) { Archives = new[] { "a.zip", "b.7z" } },
+            new ParsedCommand(CommandVerb.ExtractHere, "a.zip", null, none) { Archives = new[] { "a.zip" } },
+            new ParsedCommand(CommandVerb.ExtractToFolder, "a.zip", null, none) { Archives = new[] { "a.zip", "c.rar" } },
+            new ParsedCommand(CommandVerb.ExtractTo, @"C:\a.zip", @"C:\풀 곳\", none),
+            new ParsedCommand(CommandVerb.ExtractToFolderIn, "a.zip", @"D:\곳", none) { Archives = new[] { "a.zip", "b.zip" } },
+            new ParsedCommand(CommandVerb.ExtractInto, "a.zip", @"D:\풀 곳", none) { Archives = new[] { "a.zip", "b.7z" } },
+            new ParsedCommand(CommandVerb.Compress, null, null, new[] { "x.txt", @"C:\폴더 y" }),
+            new ParsedCommand(CommandVerb.CompressTo, null, @"C:\Program Files\곳", new[] { "x.txt" }),
+            new ParsedCommand(CommandVerb.AddTo, "a.zip", null, new[] { "x.txt", "y" }),
+            new ParsedCommand(CommandVerb.AddTo, null, null, new[] { "x.txt" }),
+            new ParsedCommand(CommandVerb.Paths, null, null, new[] { "a.zip", "b.txt" }),
+        };
+        foreach (var cmd in commands)
+            foreach (var (nw, el) in new[] { (false, false), (true, false), (false, true), (true, true) })
+            {
+                var flagged = cmd with { NewWindow = nw, Elevated = el };
+                var args = CommandLineParser.ToArgs(flagged);
+                if (el) Assert.Equal("--elevated", args[0]);
+                var back = CommandLineParser.Parse(args.ToArray());
+                string what = string.Join(" | ", args);
+                Assert.True(cmd.Verb == back.Verb, what);
+                Assert.True(cmd.Archive == back.Archive, what);
+                Assert.True(cmd.Dest == back.Dest, what);
+                Assert.True(cmd.Archives.SequenceEqual(back.Archives), what);
+                Assert.True(cmd.Paths.SequenceEqual(back.Paths), what);
+                Assert.True(nw == back.NewWindow && el == back.Elevated, what);
+            }
+        Assert.Empty(CommandLineParser.ToArgs(ParsedCommand.None));
+        Assert.Equal(new[] { "--new-window" }, CommandLineParser.ToArgs(ParsedCommand.None with { NewWindow = true }));
+    }
+
+    /// <summary>W2-11: 새 동사의 메인 창 여부(그 폴더 안 '이름' 폴더에 풀기는 우클릭 풀기처럼 진행 창만, 만들 곳을 정한 압축은 압축 창 — 메인 창).</summary>
+    [Theory]
+    [InlineData(false, "--extract-to-folder-in", @"C:\곳", "a.zip")]
+    [InlineData(false, "--extract-into", @"C:\곳", "a.zip", "b.7z")]
+    [InlineData(true, "--compress-to", @"C:\곳", "a.txt")]
+    [InlineData(false, "--elevated", "--extract-to", "a.zip", @"C:\곳")]
+    [InlineData(false, "--elevated", "--extract-here", "a.zip")]
+    [InlineData(true, "--elevated", "--open", "a.zip")]
+    [InlineData(true, "--new-window")]
+    public void W2_11_메인_창_여부(bool showMainWindow, params string[] args)
+    {
+        Assert.Equal(showMainWindow, CommandLineParser.Parse(args).ShowMainWindow);
     }
 }

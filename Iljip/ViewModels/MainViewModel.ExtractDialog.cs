@@ -82,13 +82,21 @@ public partial class MainViewModel
     /// </summary>
     private void RememberExtractTarget(ExtractTarget target, bool succeeded)
     {
+        bool push = succeeded && !_services.TempLocations.IsTemporary(target.Folder);
+        void Change(AppSettings s)
+        {
+            var e = s.Extract;
+            e.MakeFolder = target.MakeFolder;
+            e.DialogOpenFolderAfter = target.OpenFolderAfter;
+            if (push) e.PushRecentFolder(target.Folder);
+        }
+
         var x = Settings.Extract;
         var before = (x.MakeFolder, x.DialogOpenFolderAfter, Recent: string.Join("\n", x.RecentFolders ?? new List<string>()));
-        x.MakeFolder = target.MakeFolder;
-        x.DialogOpenFolderAfter = target.OpenFolderAfter;
-        if (succeeded && !_services.TempLocations.IsTemporary(target.Folder)) x.PushRecentFolder(target.Folder);
+        Change(Settings);
         var after = (x.MakeFolder, x.DialogOpenFolderAfter, Recent: string.Join("\n", x.RecentFolders ?? new List<string>()));
-        if (before != after) _services.Settings.Save(Settings);
+        // 최신 설정에도 같은 바꾸기만(최근 푼 곳은 맨 앞에 넣기 — 다른 창이 넣은 곳은 그대로) — W2-11 검증 지적
+        if (before != after) SaveSettings(Change);
     }
 
     /// <summary>탐색기로 폴더를 연다(못 열어도 풀기는 끝났다 — 창은 띄우지 않고 기록만).</summary>

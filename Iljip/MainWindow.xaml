@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Iljip.ViewModels"
         xmlns:conv="clr-namespace:Iljip.Converters"
+        xmlns:views="clr-namespace:Iljip.Views"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
         Height="620" Width="940"
@@ -72,7 +73,7 @@
                     </Button>
 
                     <Button Style="{StaticResource ToolbarButton}" Command="{Binding CompressCommand}"
-                            ToolTip="담은 항목을 압축 (Ctrl+N)"
+                            ToolTip="담은 항목을 압축"
                             IsEnabled="{Binding IsStagingMode}"
                             Visibility="{Binding IsArchiveMode, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                         <StackPanel Orientation="Horizontal">
@@ -154,6 +155,11 @@
                         <TextBlock Text="☰" FontSize="16" Foreground="{DynamicResource FgMutedBrush}" />
                         <Button.ContextMenu>
                             <ContextMenu>
+                                <!-- W2-11(I3-15): 새 창(창 두 개로 나란히)·연 압축 파일 다른 이름으로 저장(복사·ZIP↔7Z)·압축 파일 지우기(휴지통) -->
+                                <MenuItem Header="새 창 (Ctrl+N)" Command="{Binding NewWindowCommand}" />
+                                <MenuItem Header="다른 이름으로 저장..." Command="{Binding SaveArchiveAsCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                                <MenuItem Header="이 압축 파일 지우기..." Command="{Binding DeleteArchiveFileCommand}" IsEnabled="{Binding IsArchiveMode}" />
+                                <Separator />
                                 <!-- W2-06(I2-3): 압축 고치기(ZIP·7z) -->
                                 <MenuItem Header="압축 파일에 파일 넣기..." Command="{Binding AddFilesToArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
                                 <MenuItem Header="압축 파일에 폴더 넣기..." Command="{Binding AddFolderToArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
@@ -319,27 +325,9 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- 빈 상태 안내 (클릭 통과) -->
-                <Border Grid.RowSpan="2" Visibility="{Binding IsEmptyState, Converter={x:Static conv:BoolToVisibility.Instance}}"
-                        IsHitTestVisible="False">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Path Data="{StaticResource IconBox}" Width="76" Height="76" Stretch="Uniform"
-                              Fill="{DynamicResource FgMutedBrush}" Opacity="0.45"
-                              HorizontalAlignment="Center" />
-                        <TextBlock Text="압축 파일을 끌어다 놓으면 열려요"
-                                   Margin="0,18,0,4" FontSize="14"
-                                   Foreground="{DynamicResource FgBrush}"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="일반 파일·폴더를 놓으면 압축 목록에 담겨요"
-                                   FontSize="13"
-                                   Foreground="{DynamicResource FgMutedBrush}"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="담은 뒤 [압축 실행] 버튼을 눌러주세요"
-                                   Margin="0,12,0,0" FontSize="12"
-                                   Foreground="{DynamicResource FgMutedBrush}"
-                                   HorizontalAlignment="Center" />
-                    </StackPanel>
-                </Border>
+                <!-- W2-11(I3-15): 시작 화면(빈 상태 안내 대신) — 큰 단추 셋·끌어다 놓기 안내·최근 파일. 끌어 놓기는 창(PreviewDrop)이 그대로 받는다 -->
+                <views:StartView x:Name="StartScreen" Grid.RowSpan="2"
+                                 Visibility="{Binding IsStartVisible, Converter={x:Static conv:BoolToVisibility.Instance}}" />
             </Grid>
         </Grid>
 
@@ -366,7 +354,8 @@
 
     <Window.InputBindings>
         <KeyBinding Modifiers="Ctrl" Key="O" Command="{Binding OpenCommand}" />
-        <KeyBinding Modifiers="Ctrl" Key="N" Command="{Binding CompressCommand}" />
+        <!-- W2-11: Ctrl+N = 새 창(탐색기와 같음 — 예전 '압축 실행'은 툴바 단추·시작 화면 [압축하기]) -->
+        <KeyBinding Modifiers="Ctrl" Key="N" Command="{Binding NewWindowCommand}" />
         <KeyBinding Modifiers="Ctrl" Key="E" Command="{Binding ExtractCommand}" />
     </Window.InputBindings>
 </Window>

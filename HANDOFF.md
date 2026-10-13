@@ -59,6 +59,9 @@
   받은 암호로 이어서 풂 — W2-02). 암호 창은 [취소]할 때까지 다시 물음
 - CLI 인자: `--open`, `--extract`, `--extract-here`(그 자리에), `--extract-to-folder`(이름 폴더에, 있으면 '이름 (2)'), `--extract-to`, `--compress`, `--add-to`(W2-06 — 압축에 넣기), `--add-to-pick`(W2-06 검증 지적 — 넣을 압축을 고르는 창부터) — 해석은 `Services/CommandLineParser.cs`
   (W2-05: 풀기 동사 뒤 압축 여러 개 = 여러 개 풀기, 탐색기 우클릭 풀기는 메인 창 없이 진행 창만 → 끝나면 '이름' 폴더를 탐색기로)
+  (W2-11: `--compress-to <만들 폴더> <원본…>`(만들 곳을 정한 압축 창), `--extract-to-folder-in <폴더> <압축…>`(그 폴더 안 '이름' 폴더마다 — 메인 창 없이),
+  `--extract-into <폴더> <압축…>`(검증 지적 — 여럿을 그 폴더에 바로, 메인 창 없이. ★ 창 없이 풀기 `--extract-to` 와는 다른 키워드), 동사 앞 표시
+  `--new-window`(단일 인스턴스를 건너뛰는 새 창)·`--elevated`(관리자 권한으로 다시 뜬 일집 — 다시 권하지 않음). `CommandLineParser.ToArgs` 가 `Parse` 의 반대)
 - **W2-05(2026-10-13)**: 같은 이름 파일이 있으면 덮어쓰기·건너뛰기·이름 바꾸기·취소 + '남은 파일도 똑같이'(☰ ▸ 설정에서 기본 동작 고정), '다 푼 뒤 압축 파일을 휴지통으로'(기본 끔), 여러 압축 한꺼번에 풀기(진행 창 하나·암호 한 번·끝에 요약)
 - **W2-06(2026-10-13)**: 열린 ZIP·7Z 고치기 — 파일 넣기(끌어 놓기·메뉴)·지우기(Del)·이름 바꾸기(F2)·새 폴더, 임시 파일에 다 쓰고 검사한 뒤에만 바꿔 넣음(실패면 원본 그대로, 암호·방식·한글 이름 유지),
   `--add-to <압축> <경로…>`(창 없이 넣기). 압축 속 파일을 열어 고쳐 저장하면 '압축에 다시 넣을까요?'(I3-3)
@@ -71,9 +74,17 @@
 - **W2-10(2026-10-14)**: **자동 풀림 EXE 만들기** — 압축 창 형식 '자동 풀림 EXE'. 받는 사람에게 프로그램이 없어도 두 번 눌러 풀림(한국어 화면·풀 위치 묻기·한글 이름·한글 암호 —
   AES-256·ZipCrypto), 무인 모드 `이름.exe /s /d:폴더 [/p:암호]`. 형식 칸 아래와 만들기 직전에 '회사 메일은 실행 파일(.exe)을 막는 경우가 많아요…'([그래도 만들기][ZIP으로 만들기][취소] + '다시 묻지 않기'),
   일집 안에서도 열고 풂·'다 만들고 시험하기'. 4GB 가 넘는 exe 는 Windows 가 실행하지 않아 만들지 않음(만들기 전에 묻고 ZIP 권함), 나중에 코드 서명해도 풀림(검증 지적 2차)
+- **W2-11(2026-10-14)**: **시작 화면**(빈 창 — [압축 파일 열기][압축하기][압축 풀기…]·끌어 놓기 안내·**최근 파일** 10개, 없는 파일은 흐리게 '없음' → '목록에서 뺄까요?', 오른쪽 클릭 메뉴),
+  ☰ ▸ **새 창**(Ctrl+N — 일집 창 둘로 나란히)·**다른 이름으로 저장**(같은 형식은 복사 — 나뉜 압축은 조각 전부, ZIP↔7Z 는 풀고 다시 압축·'같은 암호를 걸까요?')·**이 압축 파일 지우기**(묻고 닫은 뒤 조각 전부 휴지통으로),
+  권한이 필요한 곳(Program Files 등)에 풀기·압축하다 막히면 **'관리자 권한으로 다시 시도'**(UAC 로 같은 작업을 다시 — 암호는 넘기지 않음, 관리자 창 제목 끝 '(관리자)')
 - C++ 셸 확장 5개 메뉴: "일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축"
 
-## 현재 진행 단계 (2026-10-14 W2-10 검증 지적 수정 2차 후)
+## 현재 진행 단계 (2026-10-14 W2-11 후)
+
+**W2-11(시작 화면·최근 파일·압축 파일 관리 I3-15, 관리자 권한으로 다시 시도 I3-16) 작업 + 검증 지적 수정 1차 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음).
+새 파일(아직 git 에 없음 — 커밋할 때 같이): `Iljip/Services/`(`RecentFilesService.cs`·`ArchiveSaveAs.cs`·`ElevationService.cs`·`CommandLineQuoting.cs`·`IProcessLauncher.cs`·`MappedDrives.cs`·`StartupDecision.cs`·검증 지적 1차에 `SettingsPatch.cs`),
+`Iljip/ViewModels/MainViewModel.Start.cs`·`MainViewModel.Elevation.cs`, `Iljip/Views/StartView.xaml(.cs)`, 시험 `Iljip.Tests/Contract/`(`RecentFilesTests.cs`·`StartScreenTests.cs`·`ElevationTests.cs`·`StartupDecisionTests.cs`).
+계약 테스트 실패 0(전체 2041 — 통과 2041·건너뜀 0, W2-11 직후 2018·W2-10 검증 지적 2차 뒤 1937 에서). 아래 변경 이력 'W2-11'·'W2-11 검증 지적 수정(1차)'. 그 전(W2-10) 기록:
 
 **W2-10(자동 풀림 EXE 만들기 I3-1) 작업 + 검증 지적 수정 1차·2차 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음). 새 프로젝트 `Iljip.SfxStub/`·`Iljip/Services/Shared/`(검증 지적 1차에 `SfxStagingCore.cs`, 2차에 `SfxTrailerCore.cs` 더함)·`Iljip/Services/SfxBuilder.cs`·
 새 시험 두 파일이 아직 git 에 없다(untracked) — 커밋할 때 같이 넣을 것(`Iljip.csproj` 가 스텁 프로젝트를 참조하므로 빠지면 빌드가 안 됨). `Iljip.sln` 에도 스텁 프로젝트를 더했다.
@@ -114,7 +125,7 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
 2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
 3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함), W2-02 에서 7z 만들기(I2-1) 끝, W2-03 에서 분할 만들기(I2-2) 끝
-   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)·16절(자동 풀림 EXE — W2-10: 화면 모드·다른 PC 의 SmartScreen·백신·회사 메일)도 볼 것
+   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)·16절(자동 풀림 EXE — W2-10: 화면 모드·다른 PC 의 SmartScreen·백신·회사 메일)·17절(시작 화면·최근 파일·다른 이름으로 저장·지우기·새 창, 진짜 UAC 와 관리자 일집 — W2-11)도 볼 것
 
 ### MSIX 셸 확장(예전 진행 상황 — 그대로)
 
@@ -240,6 +251,14 @@ dotnet run --project Iljip
 - [ ] (선택) 자동 풀림 exe 코드 서명: 서명은 **만든 exe 마다**(만든 뒤 signtool 등으로 — 검증 지적 2차부터 스텁이 끝의 서명 표를 건너뛰고 꼬리를 찾음, 서명 도구의 파일 모양을 규격대로 흉내 내 시험.
       진짜 signtool·인증서로는 확인 안 함 — 이 PC 에 없음). 스텁만 서명해 두는 방법은 뒤에 ZIP 을 붙이면 서명 범위 밖 데이터가 생겨 확인 안 됨. 인증서·비용은 사람이 정할 일
 - [ ] (선택) 자동 풀림 exe 를 우클릭 메뉴('자동 풀림 exe 로 압축')에 — C++ 셸 확장·재배포 범위
+- [x] **W2-11**: 시작 화면·최근 파일·다른 이름으로 저장·이 압축 파일 지우기·새 창(I3-15), 관리자 권한으로 다시 시도(I3-16)(아래 변경 이력)
+- [ ] W2-11 남은 확인: MANUAL_CHECKLIST 17절(시작 화면 생김새·작은 창, 진짜 휴지통으로 지우고 되살리기, 두 창 함께 쓰기, **진짜 UAC 창·관리자 일집의 진행 창·제목·끌어 놓기**, 표준 사용자 계정의 관리자 암호 묻기, 네트워크 드라이브, 관리자가 만든 파일 지우기,
+  검증 지적 1차 줄 — 두 창의 최근 파일·설정, 없는 파일 정리, 여럿을 Program Files 에 바로 풀기, 읽기 전용 덮어쓰기, `--add-to` 다시 시도, `--elevated` 만 붙인 창의 제목)
+- [ ] (W2-11 검증 지적 1차에서 남김) 압축 파일 **자체에** 쓸 권한이 없을 때 고치기 문구가 '다른 프로그램이 쓰고 있어서…'(`ArchiveSwap.EnsureWritable` 이 접근 거부를 잠김으로 봄) — 권한 문구·관리자 권한으로 다시 시도로 가르기
+- [ ] W2-08 다시 할 때: '관리자 권한으로 다시 시도'는 지금 `MainViewModel.OfferElevatedRetry`(기존 `Choose`)가 물음 — 문제 창(ShowProblem·ErrorCatalog)이 들어오면 '권한 없음' 분류의 Actions 로(`ElevationService.ActionsFor`·`RetryActionId` 를 그대로 쓰면 됨)
+- [ ] (선택) 압축 고치기(넣기·지우기·이름 바꾸기)의 권한 오류에도 '관리자 권한으로 다시 시도' — 지금은 `ArchiveSwap.EnsureWritable` 이 권한 오류를 '다른 프로그램이 압축 파일을 쓰고 있어…'(LockedMessage)로 바꿔 대부분 권하지 않음(기존 시험이 그 문구에 기댐). `--add-to` 만 인자(`--elevated --add-to`)를 넘기게 해 둠
+- [ ] 임시 폴더 청소기(`TempJanitor`): 바꿔 저장하는 도중 일집이 강제로 끝나면 `temp\convert\guid` 가 남음(정상 끝·실패·취소는 지움)
+- [ ] (선택) 탐색기 오른쪽 끌기 메뉴('여기에 압축'·'여기에 풀기') — `--compress-to`·`--extract-to-folder-in` 명령줄은 W2-11 에서 끝(C++ 셸 확장·재배포 범위)
 - [ ] 다크 모드
 - [ ] 미리보기 (압축 내부 텍스트/이미지)
 - [ ] 압축 파일 내부 폴더 트리 탐색 (현재 flat list)
@@ -725,6 +744,62 @@ dotnet run --project Iljip
   위험·못 본 것: 화면 모드(4GB 질문·다시 묻는 진행 창·덮어쓰기 시간·잘린 exe 열기)는 실행해 보지 않음(MANUAL_CHECKLIST 16절 '(검증 지적 2차)' 줄). 원래 있던 폴더를 한 번 훑는 것은 그 폴더에 파일이 아주 많으면(수십만) 처음 한 번 그만큼 걸림.
   지우는 동안 남은 파일이 오래 잠겨(백신 등) 끝내 못 지우면 표시를 놓고 끝나므로 그 남은 원래 파일은 다음 풀기가 '지난번 흔적'으로 옮겨 알림(예전과 같음 — 드묾). 스텁 크기 68,096 → 70,656 바이트(Release, 같은 소스면 같은 바이트).
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+
+- **2026-10-14 W2-11 — 시작 화면·최근 파일·압축 파일 관리(I3-15), 관리자 권한으로 다시 시도(I3-16)(커밋 전, 배포 안 함)**: 둘 다 Skip 이 없던 새 기능.
+  ① **시작 화면**: `Views/StartView.xaml`(UserControl)이 메인 창의 빈 화면 안내 글 자리를 대신함 — 보이는 때는 `MainViewModel.IsStartVisible`(= 압축도 모으는 목록도 없을 때, 열기·닫기·목록이 바뀔 때 알림).
+  큰 단추 [압축 파일 열기](기존 열기)·[압축하기](파일 고르기 → 모으는 목록 → 한 화면 압축 창)·[압축 풀기…](하나면 열고 풀기 창, 여럿이면 풀기 창 한 번 + 여러 개 풀기), 끌어 놓기 안내, '최근 파일'(오른쪽 클릭: 열기·새 창으로 열기·들어 있는 폴더 열기·목록에서 지우기·모두 지우기).
+  ② **최근 파일**: `Services/RecentFilesService.cs` + 설정 `recent.files`(`AppSettings.Recent` 를 덧붙임 — 경로·마지막으로 연 시각 UTC, 빈 경로는 읽을 때 버림). 압축을 열 때마다 맨 앞(전체 경로, 대소문자 무시로 하나, 10개),
+  임시 폴더(`TempLocations.IsTemporary` — 일집 temp·%TEMP%·Outlook 첨부 INetCache) 안은 넣지 않음. **열 때마다 저장하지 않고 창을 닫을 때 한 번**(`MainViewModel.SaveOnExit` — W2-09 트리 너비 저장과 합쳐 한 번, DLP 연속 저장 경합 교훈 · 기존 'SaveCount == 1' 시험들도 그대로),
+  목록에서 빼기·모두 지우기는 바로 저장. 저장할 때마다 저장된 목록과 합침(`RecentFilesService.Merge` — 늦게 연 시각, 이 실행에서 뺀 것은 빼고 — 창 두 개가 서로의 것을 지우지 않게). 없는 파일은 흐리게 '없음', 누르면
+  '‘이름’을 찾을 수 없어요… 최근 파일 목록에서 뺄까요?'([목록에서 빼기][그대로 두기]). 있는지는 로컬만 바로 보고 네트워크 경로는 보지 않음(끊긴 NAS 로 시작 화면이 굳지 않게 — 누를 때 작업 스레드에서 5초까지).
+  ③ **다른 이름으로 저장**(☰): `Services/ArchiveSaveAs.cs`(이름 꼬리 `SuffixOf` — '.7z.001'·'.tar.gz'·'.part1.rar', 처음 이름 '이름 - 복사본'+꼬리, 계획, 복사) + `MainViewModel.Start.cs`. 고른 이름의 꼬리가 같으면 **복사** —
+  나뉜 압축은 `ArchiveVolumes.AllParts` 조각 전부를 이름 부분만 바꿔(새 이름의 조각이 하나라도 있거나 숫자 조각의 다음 번호가 있으면 섞이지 않게 하지 않음), 새 파일 옆 숨김 임시 파일에 다 쓴 뒤 이름을 바꿈(하나는 `OutputFiles.ReplaceExisting`, 여럿은 덮어쓰지 않고 — 실패면 놓은 조각까지 지움, 수정 시각 원본대로).
+  '.zip'·'.7z'(7z.dll 이 있을 때)로 바꾸면 **변환** — `%LOCALAPPDATA%\Iljip\temp\convert\guid` 에 다 풀고(맞았던 암호, 모르면 묻기), 원래 암호가 있었으면 '원래 압축 파일에 암호가 걸려 있었어요. 새 파일에도 같은 암호를 걸까요?'([같은 암호 걸기][암호 없이 저장][취소]),
+  ZIP 이면 압축 창과 같은 한글 암호 호환 질문, 새 파일 옆 임시 파일에 만들고 하나라도 못 담았으면(`CompressResult.Skipped`) 실패로, 끝나면(실패·취소도) 임시 파일·temp\convert 를 지움. 다 되면 새 파일을 엶. 그 밖의 꼬리는 '…형식으로는 저장할 수 없어요' 안내.
+  ④ **이 압축 파일 지우기**(☰): 묻고('‘a.zip’을 휴지통으로 옮길까요?' — 기본 [취소], 나뉜 조각 수, 열어 고쳐 놓고 넣지 않은 파일이 있으면 그 경고) → 먼저 닫기(보기·찾기 + 이 압축의 작업 폴더와 연 파일 감시 — 쉬는 작업 폴더 포함) → `IRecycleBin.Send(조각 전부)` → 시작 화면·최근에서 뺌.
+  휴지통이 없는 곳(네트워크·USB)은 지우지 않고 알림(영구 삭제 안 함), 못 옮기면 알리고 다시 엶.
+  ⑤ **새 창**: ☰ 새 창·**Ctrl+N**(★ 예전 Ctrl+N = '압축 실행'을 바꿈 — 탐색기·브라우저와 같게, 압축은 툴바 [압축] 단추)·최근 파일 '새 창으로 열기' → `IProcessLauncher.StartNewInstance(일집, ["--new-window", …])`(관리자 창이면 `--elevated` 도 — 자식은 관리자 권한을 물려받음).
+  App: 새 순수 함수 `Services/StartupDecision.cs`(Headless·Independent·FirstInstance·Forward) — `--new-window`·`--elevated` 로 뜬 일집은 **단일 인스턴스 뮤텍스를 만들지도 파이프 서버를 열지도 않음**(그래서 우클릭 명령은 늘 처음 띄운 보통 일집이 받고, 뒤에 켠 보통 일집이 따로 뜬 창을 기다리지 않음).
+  ★ 재사용장치 계약: 창 없이 풀기(`--extract-to` 가 첫 인자) 판정은 `StartupDecision.IsHeadlessExtract` 로 옮겼을 뿐 같다(시험) — `--elevated` 가 앞에 붙으면 대화형(진행 창). 종료 코드·문구는 손대지 않음.
+  ⑥ **관리자 권한으로 다시 시도**: `Services/ElevationService.cs`(권한 오류 판정·질문 문구·인자 만들기)·`CommandLineQuoting.cs`(Windows `CommandLineToArgvW` 규칙 따옴표 — 시험이 실제 API 로 되읽음)·`IProcessLauncher.cs`(진짜는 `runas`, Win32 1223 = UAC [아니요])·`MappedDrives.cs`(`WNetGetConnectionW`) + `MainViewModel.Elevation.cs`.
+  권한 오류(UnauthorizedAccess·0x80070005·Win32 5 — 안쪽 예외까지, 일집 `ArchiveException` 은 아님)면 오류 창 대신 '…쓸 권한이 없어요…\n\n관리자 권한으로 다시 해 볼까요? (Windows 가 허락을 물어요…)' [관리자 권한으로 다시 시도][닫기].
+  같은 작업 인자: 다른 곳에 풀기(하나) `--elevated --extract-to 압축 폴더`, 우클릭 여기에 `--extract-here`, '이름' 폴더 `--extract-to-folder`, 풀기 창의 여러 개 '이름' 폴더 **`--extract-to-folder-in 폴더 압축…`**(새 동사), 압축 **`--compress-to 만들폴더 원본…`**(새 동사 — 관리자 창이 압축 창을 만들 곳 그 폴더로 띄움, 설정의 '만들 곳' 선택은 안 바꿈),
+  나타낼 수 없는 작업(고른 항목만 풀기·다른 이름으로 저장·여럿을 한 폴더에 바로)은 **'관리자 권한으로 일집 다시 열기'**(`--elevated --open 압축`). 여러 개 풀기는 요약 창 뒤 권한으로 못 푼 것만 묻기. **암호는 인자에 넣지 않음**(다른 프로그램이 명령줄을 볼 수 있어서 — 관리자 창에서 다시 묻거나 입력).
+  경로는 전체 경로로, 매핑 드라이브는 UNC(관리자 쪽에서는 Z: 가 안 보여서) — 모르면 '네트워크 드라이브는 관리자 권한으로 다시 시도할 수 없어요…'. `--elevated` 창·이미 관리자인 일집은 다시 권하지 않음(무한 반복 방지 — 예전처럼 오류 창, 제목 끝 ' (관리자)').
+  W2-08(문제 창 ShowProblem·ErrorCatalog)이 main 에 없어 기존 `Choose` 로 묻는다 — W2-08 을 다시 할 때 `ElevationService.ActionsFor`·`RetryActionId` 를 '권한 없음' 분류의 Actions 로.
+  덧붙이기만 한 것: `AppSettings.Recent`·`RecentSettings`·`RecentFile`, `AppServices.Processes`·`MappedDrives`, `CommandVerb.CompressTo`·`ExtractToFolderIn`, `ParsedCommand.NewWindow`·`Elevated`(기존 멤버 이름·모양 그대로). `ArchiveExceptions`·`IUserInteraction` 은 바꾸지 않음.
+  시험: 새 81개(`RecentFilesTests` 10, `StartScreenTests.cs` 의 `StartScreenTests` 10·`SaveAsTests` 18·`DeleteArchiveTests` 8, `ElevationTests` 19, `StartupDecisionTests` 6, `CommandLineParserTests` 10 — Theory 줄 포함).
+  권한 오류는 시험 임시 폴더에만 현재 사용자 '파일·폴더 만들기 거부' 권한을 걸어 진짜로 만듦(끝나면 되돌림 — 시스템 설정·레지스트리는 건드리지 않음), UAC·새 프로세스는 가짜(`FakeProcessLauncher`) — 인자와 분기만 봄.
+  기대가 바뀐 기존 시험 2개: `MainWindowEditUiTests.메인_창이_읽히고_고치기_장치가_있다`(☰ 메뉴 기대 목록 맨 앞에 새 셋 — 시작 화면·Ctrl+N 단언도 더함), `CommandLineParserTests.키워드_목록은_모두_해석된다`(키워드 8→10 — 새 키워드·표시와 안 겹침 단언 더함).
+  일부러 고장 내 보기: 다섯 가지(휴지통에 보낸 뒤에 닫기·따로 뜨는 창도 단일 인스턴스·임시 폴더 제외 끄기·이미 있는 조각 확인 끄기·관리자 창에서도 권하기)를 한꺼번에 넣으면 새 시험 11개 실패, 되살린 뒤 0.
+  계약 테스트: 전체 2018 — 통과 2018·건너뜀 0·**실패 0**.
+  위험·못 본 것: **진짜 UAC 창·관리자 일집**(진행 창·제목·Ctrl+N)은 띄워 보지 않음 — 관리자 창에는 Windows 가 보통 탐색기에서의 **끌어 놓기를 막음**(UIPI — 알려진 Windows 동작). 표준 사용자가 다른 관리자 계정 암호로 UAC 를 통과하면 관리자 일집은 **그 계정의**
+  설정·최근 목록·임시 폴더를 쓰고, 관리자 일집이 만든 파일은 주인이 Administrators(보통 탐색기에서 지울 때 묻을 수 있음). 압축 고치기(넣기·지우기·이름 바꾸기)는 `ArchiveSwap.EnsureWritable` 이 권한 오류를 '다른 프로그램이 압축 파일을 쓰고 있어…'로 바꿔 대부분 권하지 않음(기존 시험이 그 문구에 기대 그대로 둠).
+  `subst` 드라이브는 UNC 로 바꾸지 않음. 창 두 개면 최근 파일 밖의 설정(압축 창 마지막 값·트리 너비 등)은 예전처럼 나중에 저장한 창 것(→ 검증 지적 1차에서 고침). 바꿔 저장 중 강제 종료면 temp\convert 가 남음(청소기 없음). 시작 화면 생김새·진짜 휴지통은 MANUAL_CHECKLIST 17절.
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+
+- **2026-10-14 W2-11 검증 지적 수정(1차)(커밋 전, 배포 안 함)**: 지적 7개 모두 직접 확인 — 모두 맞아 고침(건너뛴 지적 없음).
+  ① **(major) 창 두 개면 최근 파일·설정이 서로 지워짐**: 각 창이 켜질 때 읽은 사본 전체를 쓰던 저장 네 곳(설정 창 `ApplySettings`·풀기 창 `RememberExtractTarget`·압축 창 `RememberCompressSettings`·트리 너비)과 닫을 때 저장을
+  모두 `MainViewModel.SaveSettings`(ExtractSettings.cs) 하나로 — 새 `ISettingsStore.Update(change)` 가 **저장 직전에 최신 settings.json 을 다시 읽어** 이 창이 바꾼 것만 얹는다:
+  설정 창은 `Services/SettingsPatch.cs`(새 — 이 창 설정과 창 결과의 JSON 잎 차이, 목록은 한 칸, `recent` 묶음은 빼고), 풀기 창·압축 창·트리 너비는 그 칸 바꾸기를 최신 설정에 다시(최근 푼 곳은 맨 앞에 넣기 그대로),
+  최근 파일은 `RecentFilesService` 가 저장 전까지 이 창에서 **넣은 것·뺀 것만** 기억해(`AddedThisSession`·`RemovedThisSession`·`MarkSaved`) `Merge` 로 얹음 — 예전 합치기는 이 창 목록 전체를 '내 것'으로 써서 다른 창이 뺀 줄을 되살렸음.
+  '모두 지우기'는 저장된 줄까지 비움. 저장한 뒤 이 창의 최근 목록을 저장된 것으로 바꿔 다시 보임(다른 창이 연 것도). `JsonSettingsStore`: 쓰기(`Save`·`Update`)를 설정 파일 경로 해시 이름의 뮤텍스(`Local\Iljip.Settings.…`, 3초)로 한 번에 하나 —
+  같은 `.tmp` 경합, 읽기는 잠김이면 200ms×3 다시, **있는데 못 읽으면 `Update` 는 쓰지 않고 null**(기본값으로 덮어쓰지 않음) → 화면은 바꾼 것을 들고 있다가 다음 저장(닫을 때 포함)에 다시. `InMemorySettingsStore` 에 `Update`·`UpdateCount`·`FailUpdates`(시험용).
+  덤으로 찾은 버그: 설정 창 적용이 `_settings` 객체를 바꿔 끼워 `RecentFilesService` 가 옛 객체를 쥐고 있었음 — 그 뒤 연 압축이 닫을 때 저장되지 않았다(`AppSettings.CopyFrom` 으로 내용만 바꿈).
+  ② **읽기 전용 파일 덮어쓰기에도 관리자 권한 권함**: `OutputFiles.ReplaceExisting` 이 대상이 읽기 전용이면 기다리지 않고 새 `ReadOnlyTargetException`(IOException — '…읽기 전용이라 덮어쓰지 못했어요. …[속성] → '읽기 전용'을 끄고…')을 던지고
+  `ElevationService.IsAccessDenied` 가 그것(안쪽에 있어도)은 권한 오류로 안 봄. 그 밖의 접근 거부는 '이 폴더에 쓸 권한이 없거나 다른 프로그램(보안 프로그램 포함)이 쓰고 있어요', 공유 위반은 '…쓰고 있어요. 그 프로그램을 닫고…'로 갈라 관리자 질문과 앞뒤가 맞게.
+  쓰려던 곳이 네트워크(UNC·네트워크 드라이브 — `FolderProbe.IsNetwork`, 디스크를 보지 않음)면 권하지 않음(`ElevationService.CanHelpWriteTo` — `OfferElevatedRetry` 에 쓰려던 곳 인자를 더해 부르는 곳 여섯 모두 넘김: 풀 곳·만들 곳·고칠 압축·저장할 파일).
+  ③ **지우기 실패에도 열어 고친 파일이 사라짐**: `DeleteArchiveFileAsync` 가 작업 폴더·감시(`ReleaseWorkspacesOf`)를 휴지통으로 옮긴 **뒤에만** 놓음(작업 폴더는 일집 임시 폴더라 압축 파일을 잡지 않음 — 보기 닫기는 그대로 먼저).
+  ④ **MANUAL 알려진 점·`--add-to` 시험**: 압축 고치기는 폴더에 새 파일을 못 만들면 권함(넣기 `--add-to` = 같은 명령, 그 밖 = 다시 열기) — 시험 둘. 압축 파일 **자체에** 쓸 권한이 없으면(Program Files 에 원래 있던 파일)
+  `ArchiveSwap.EnsureWritable` 이 여전히 '다른 프로그램이 이 압축 파일을 쓰고 있어서…'로 바꿔 권하지 않음 — MANUAL 17절 알려진 점에 그대로 적음(남은 일).
+  ⑤ **여럿을 한 폴더에 바로 풀다 막히면 첫 압축만 다시 엶**: 새 동사 `CommandVerb.ExtractInto`(`--extract-into 폴더 압축…` — 메인 창 없이, 규칙 Into) — `ElevatedRetryFor` 가 여럿이면 그것(하나는 예전대로 `--extract-to`). 키워드 10→11.
+  ⑥ **'(관리자)'가 인자를 따름**: 제목은 `IsRunningElevated`(실제 토큰 — `ProcessLauncher.IsCurrentProcessElevated` 는 한 번만 봄), 다시 권하지 않기는 '--elevated' 표시 또는 실제 권한(UAC 가 꺼진 PC 의 무한 반복 막기는 유지).
+  ⑦ **'없는 파일 정리'**: 시작 화면 '최근 파일' 옆 [없는 파일 정리](흐린 '없음' 줄이 있을 때만 — `HasMissingRecentFiles`)·오른쪽 클릭 메뉴 → '찾을 수 없는 파일 N개(…)를 최근 파일 목록에서 뺄까요?' [목록에서 빼기][취소] — 네트워크 줄은 보지 않으므로 빼지 않음.
+  시험: 새 23개(`RecentFilesTests` 9·`StartScreenTests` 3·`DeleteArchiveTests` 1·`ElevationTests` 8·`CommandLineParserTests` 2). 기대가 바뀐 기존 시험은 Iljip.Tests/README 'W2-11 검증 지적 수정(1차)'(약하게 한 것 없음).
+  일부러 고장 내 보기: 예전처럼 사본 전체 쓰기 → 창 두 개 시험 5개 실패, 지우기 순서·읽기 전용 판정·`--extract-into`·네트워크 판정·제목을 예전대로 → 8개 실패, 되살린 뒤 0.
+  계약 테스트: 전체 2041 — 통과 2041·건너뜀 0·**실패 0**.
+  위험·못 본 것: 이미 떠 있는 창은 다른 창이 바꾼 설정을 다시 켤 때부터 씀(그 창의 설정 창도 켜질 때 값 — 손대지 않은 칸은 저장된 값을 되돌리지 않음). 네트워크 드라이브 판정은 실제 매핑 드라이브로 못 봄(UNC 모양만 시험).
+  뮤텍스는 같은 사용자 세션 안만(다른 계정으로 UAC 를 통과한 관리자 일집은 어차피 다른 %LOCALAPPDATA%). MANUAL_CHECKLIST 17절 '(검증 지적)' 줄. `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

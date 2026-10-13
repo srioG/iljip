@@ -180,7 +180,12 @@ public partial class MainViewModel
     /// 고치기 한 번: 진행 창(취소 가능) + 같은 이름이면 묻기(넣기) + 암호(없거나 틀리면 묻고 다시 — 취소하면 그만). 끝나면 지금 보는 압축이면 목록을 다시 읽는다.
     /// 실패하면 쉬운 한국어 오류 창(원본은 그대로). 됐으면 결과, 취소·실패면 null — 실패(오류 창을 보임)였으면 <paramref name="failed"/> 에 true.
     /// </summary>
-    private Task<EditResult?> RunEditAsync(string archive, IReadOnlyList<EditOp> ops, string title, string? knownPassword = null, StrongBox<bool>? failed = null) =>
+    /// <param name="elevateAs">
+    /// 권한 오류일 때 관리자 권한으로 다시 할 같은 명령(W2-11, I3-16 — '--add-to 압축 경로…'). null 이면 명령줄로 나타낼 수 없는 고치기라
+    /// '관리자 권한으로 일집 다시 열기'(그 압축을 관리자 일집에서 엶)만 권한다.
+    /// </param>
+    private Task<EditResult?> RunEditAsync(string archive, IReadOnlyList<EditOp> ops, string title, string? knownPassword = null, StrongBox<bool>? failed = null,
+        ParsedCommand? elevateAs = null) =>
         InCommandGateAsync(async () =>
         {
             var editor = ArchiveServiceLocator.EditorFor(archive);
@@ -231,7 +236,10 @@ public partial class MainViewModel
                 {
                     session.Close();
                     Logger.LogError($"압축 고치기 실패: {archive}", ex);
-                    _ui.ShowError($"압축 파일을 고치지 못했어요. 원래 압축 파일은 그대로예요.\n\n{ErrorMessages.ToUserMessage(ex)}");
+                    string failure = $"압축 파일을 고치지 못했어요. 원래 압축 파일은 그대로예요.\n\n{ErrorMessages.ToUserMessage(ex)}";
+                    // W2-11(I3-16): 압축 파일이 있는 곳에 쓸 권한이 없으면 관리자 권한으로(넣기는 같은 명령, 그 밖의 고치기는 일집 다시 열기)
+                    if (!OfferElevatedRetry(ex, failure, elevateAs, archive, archive))
+                        _ui.ShowError(failure);
                     StatusText = "오류 발생";
                     if (failed is not null) failed.Value = true;
                     return null;
@@ -317,7 +325,8 @@ public partial class MainViewModel
             _ui.ShowError($"‘{Path.GetFileName(full)}’에 넣지 못했어요.\n\n{ArchiveServiceLocator.NotEditableMessage(full)}");
             return;
         }
-        var result = await RunEditAsync(full, new EditOp[] { new EditOp.Add(sources, string.Empty) }, "압축 파일에 넣는 중...");
+        var result = await RunEditAsync(full, new EditOp[] { new EditOp.Add(sources, string.Empty) }, "압축 파일에 넣는 중...",
+            elevateAs: new ParsedCommand(CommandVerb.AddTo, full, null, sources));
         if (result is null) return;
         _ui.ShowInfo($"{AddedStatus(result)}.\n({Path.GetFileName(full)})");
     }

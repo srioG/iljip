@@ -9,10 +9,17 @@ namespace Iljip.ViewModels;
 // 하나로 만들면 예전처럼 결과를 열어 보이고 안내(나눈 조각·건너뛴 파일·뺀 파일·시험·원본 지우기)를 한 창에, 각각 따로면 요약 창(W2-05 ShowSummary).
 public partial class MainViewModel
 {
+    /// <summary>압축 대기 목록의 원본 경로들(목록 차례대로).</summary>
+    private List<string> StagedSources() =>
+        Entries.Select(e => e.SourcePath).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).ToList();
+
     /// <summary>압축 대기 목록(<paramref name="sourcePaths"/>)으로 한 화면 압축 창을 띄우고 그 답대로 만든다.</summary>
-    private async Task CompressStagedAsync(IReadOnlyList<string> sourcePaths)
+    /// <param name="forcedFolder">
+    /// 압축 창 '만들 곳'의 처음 값을 이 폴더로(W2-11 — '--compress-to': 관리자 권한으로 다시 시도·오른쪽 끌기). null 이면 설정(compress.folderChoice)대로.
+    /// </param>
+    private async Task CompressStagedAsync(IReadOnlyList<string> sourcePaths, string? forcedFolder = null)
     {
-        var request = _ui.AskCompression(BuildCompressionDialogRequest(sourcePaths));
+        var request = _ui.AskCompression(BuildCompressionDialogRequest(sourcePaths, forcedFolder));
         if (request is null) return;
         bool skipMailWarningNextTime = false;
         if (request.Format == CompressionFormat.Sfx)
@@ -41,9 +48,8 @@ public partial class MainViewModel
                     return;
                 }
             }
-            // '다시 묻지 않기'는 아무것도 취소하지 않고 만들기로 갈 때만 기억한다(저장은 아래에서 압축 설정과 한 번)
-            if (skipMailWarningNextTime) Settings.Sfx.SkipMailWarning = true;
-            RememberCompressSettings(request);
+            // '다시 묻지 않기'는 아무것도 취소하지 않고 만들기로 갈 때만 기억한다(저장은 압축 설정과 한 번)
+            RememberCompressSettings(request, skipMailWarningNextTime);
             result = await flow.RunAsync(request, session);
         }
         finally
@@ -73,30 +79,42 @@ public partial class MainViewModel
             }
         }
 
-        if (request.EachSeparately) ShowEachSeparatelyResult(result);
+        if (request.EachSeparately) ShowEachSeparatelyResult(request, result);
         else await ShowSingleResultAsync(request, result);
     }
+
+    /// <summary>
+    /// 압축을 관리자 권한으로 다시 할 명령(W2-11, I3-16): '--compress-to 만들폴더 원본…' — 관리자 일집에서 같은 원본·같은 만들 곳으로 압축 창이 다시 뜬다
+    /// (암호·옵션은 창에서 다시 — 암호는 인자에 넣지 않음).
+    /// </summary>
+    private static ParsedCommand? CompressRetryFor(CompressionRequest request, IReadOnlyList<string> sources) =>
+        sources.Count == 0 || string.IsNullOrWhiteSpace(request.OutputFolder)
+            ? null
+            : new ParsedCommand(CommandVerb.CompressTo, null, request.OutputFolder, sources.ToList());
 
     /// <summary>
     /// 한 화면 압축 창에 넘길 것: 설정(compress.* — 사본이라 창이 고쳐도 [확인] 전에는 그대로), 쓸 수 있는 형식(7Z 는 7z.dll 을 쓸 수 있을 때만),
     /// 제안 위치(첫 원본이 있는 폴더 — 창은 설정 compress.folderChoice 가 '마지막으로 만든 곳'·'정해 둔 폴더'면 그 폴더로 연다)·
     /// 이름(원본 하나면 그 이름, 여럿이면 그 폴더 이름 — 예전 저장 창 제안과 같음).
     /// </summary>
-    internal CompressionDialogRequest BuildCompressionDialogRequest(IReadOnlyList<string> sourcePaths)
+    internal CompressionDialogRequest BuildCompressionDialogRequest(IReadOnlyList<string> sourcePaths, string? forcedFolder = null)
     {
         var formats = new List<CompressionFormat> { CompressionFormat.Zip };
         if (SevenZipLibrary.IsAvailable) formats.Add(CompressionFormat.SevenZip);
         formats.AddRange(new[] { CompressionFormat.Tar, CompressionFormat.GZip, CompressionFormat.BZip2 });
         // W2-10(I3-1): 자동 풀림 EXE — 스텁(실행 파일 옆 sfx\Iljip.SfxStub.exe)이 있을 때만(설치가 덜 됐거나 백신이 지웠으면 형식에 없음)
         if (SfxBuilder.IsAvailable) formats.Add(CompressionFormat.Sfx);
+        var defaults = Settings.Clone().Compress;
+        // W2-11: 만들 곳을 정해서 왔으면(--compress-to) 창은 설정의 '처음 값 고르기' 대신 그 폴더로 연다(사본만 바꿈 — 설정은 그대로)
+        if (!string.IsNullOrWhiteSpace(forcedFolder)) defaults.FolderChoice = CompressFolderChoice.SourceFolder;
         return new CompressionDialogRequest
         {
             Sources = sourcePaths,
             AllSourcesAreFiles = sourcePaths.All(File.Exists),
-            SuggestedFolder = Path.GetDirectoryName(sourcePaths[0]) ?? Environment.CurrentDirectory,
+            SuggestedFolder = !string.IsNullOrWhiteSpace(forcedFolder) ? forcedFolder : Path.GetDirectoryName(sourcePaths[0]) ?? Environment.CurrentDirectory,
             SuggestedBaseName = CompressNaming.SuggestBaseName(sourcePaths),
             AvailableFormats = formats,
-            Defaults = Settings.Clone().Compress,
+            Defaults = defaults,
         };
     }
 
@@ -105,10 +123,24 @@ public partial class MainViewModel
     /// 그 형식에서 쓰지 않는 칸(TAR 의 나누기, GZ 의 빼기, 원본 하나의 각각 따로, 암호 없는 7z 의 이름 숨기기)은 기억한 값을 그대로 둔다.
     /// '원본을 휴지통으로'는 기억하지 않는다(W2-07 검증 지적 — 한 번 켰다고 다음 창부터 켜진 채로 열리지 않게. 처음 값은 ☰ ▸ 설정에서만).
     /// 만든 곳은 compress.lastFolder 로 기억한다(설정이 '마지막으로 만든 곳'이면 다음 창의 처음 값).
+    /// 저장은 <see cref="SaveSettings"/> — 최신 설정에 이 칸들만 얹는다(다른 창이 바꾼 설정 창의 값 등은 그대로 — W2-11 검증 지적).
     /// </summary>
-    private void RememberCompressSettings(CompressionRequest request)
+    /// <param name="skipMailWarning">자동 풀림 exe 안내의 '다시 묻지 않기'를 골랐는가(sfx.skipMailWarning 을 켬 — 같은 저장에 함께).</param>
+    private void RememberCompressSettings(CompressionRequest request, bool skipMailWarning = false)
     {
-        var c = Settings.Compress;
+        void Change(AppSettings s)
+        {
+            RememberCompressChoices(s.Compress, request);
+            if (skipMailWarning) s.Sfx.SkipMailWarning = true;
+        }
+
+        Change(Settings);
+        SaveSettings(Change);
+    }
+
+    /// <summary>창의 답을 압축 설정 칸에 옮긴다(<see cref="RememberCompressSettings"/> — 이 창의 설정과 저장 직전 최신 설정에 똑같이).</summary>
+    private static void RememberCompressChoices(CompressSettings c, CompressionRequest request)
+    {
         var o = request.Options;
         // 자동 풀림 EXE 는 마지막 형식으로 기억하지 않는다(W2-10) — 다음 압축 창이 exe 로 열려 메일로 보내다 막히는 일이 없게(그 전 형식 그대로)
         if (request.Format != CompressionFormat.Sfx) c.LastFormat = request.Format;
@@ -129,7 +161,6 @@ public partial class MainViewModel
         }
         c.TestAfter = request.TestAfter;
         if (!string.IsNullOrWhiteSpace(request.OutputFolder)) c.LastFolder = request.OutputFolder;
-        _services.Settings.Save(Settings);
     }
 
     // ───── W2-10(I3-1): 자동 풀림 exe 를 만들기 전 안내 ─────
@@ -349,9 +380,12 @@ public partial class MainViewModel
                 StatusText = "압축 취소됨";
                 return;
             }
-            _ui.ShowError(o.Error is NothingToCompressException none
+            string failure = o.Error is NothingToCompressException none
                 ? NothingCompressedMessage(none.Skipped)
-                : $"압축 실패:\n\n{(o.Error is { } ex ? ErrorMessages.ToUserMessage(ex) : o.Reason)}");
+                : $"압축 실패:\n\n{(o.Error is { } ex ? ErrorMessages.ToUserMessage(ex) : o.Reason)}";
+            // W2-11(I3-16): 만들 곳에 쓸 권한이 없으면(읽기 전용·Program Files 등) '관리자 권한으로 다시 시도' — 같은 원본·같은 만들 곳으로 압축 창부터('--compress-to')
+            if (o.Error is null || !OfferElevatedRetry(o.Error, failure, CompressRetryFor(request, request.Sources), null, request.OutputFolder))
+                _ui.ShowError(failure);
             StatusText = "오류 발생";
             return;
         }
@@ -381,7 +415,7 @@ public partial class MainViewModel
     /// 각각 따로(I2-4)의 끝: 요약 창(만든 수·못 만든 것과 까닭·뺀 파일·시험·원본 지우기). 압축한 원본은 대기 목록에서 빼고(못 만든 것은 남겨 다시 할 수 있게),
     /// 다 비면 빈 화면으로.
     /// </summary>
-    private void ShowEachSeparatelyResult(CompressFlowResult result)
+    private void ShowEachSeparatelyResult(CompressionRequest request, CompressFlowResult result)
     {
         int total = result.Outcomes.Count + result.NotStarted.Count;
         // 시험만 취소했으면 압축은 다 됐지만 그렇다고 알린다(W2-07 검증 지적 2차 — 예전엔 그냥 '압축 완료')
@@ -399,5 +433,11 @@ public partial class MainViewModel
         }
 
         _ui.ShowSummary(result.ToSummary());
+
+        // W2-11(I3-16): 만들 곳에 쓸 권한이 없어 못 만든 것이 있으면 요약 뒤에 한 번 묻는다(그 원본들만 '--compress-to')
+        var denied = result.Outcomes.Where(o => !o.Succeeded && ElevationService.IsAccessDenied(o.Error)).ToList();
+        if (denied.Count > 0)
+            OfferElevatedRetry(denied[0].Error!, $"압축 파일 {denied.Count}개는 만들 곳에 쓸 권한이 없어 만들지 못했어요.",
+                CompressRetryFor(request, denied.SelectMany(o => o.Sources).ToList()), null, request.OutputFolder);
     }
 }

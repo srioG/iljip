@@ -48,18 +48,24 @@ public partial class App : Application
         // 이미 일집이 떠 있으면, 새로 들어온 명령줄 인자를 기존 창에 넘기고 이 프로세스는 종료한다.
         // W2-05: 넘긴 쪽이 '받았음'(1바이트)을 확인한다 — 앞 일집이 우클릭 풀기를 마치고 끝나는 중이라 받지 않으면(또는 못 넘기면)
         // 그 일집이 끝나기를 잠깐 기다려 이 프로세스가 첫 일집이 되고, 그래도 안 되면 혼자 처리한다(명령을 잃지 않게).
-        _mutex = new Mutex(initiallyOwned: true, MutexName, out bool isFirstInstance);
-        if (!isFirstInstance)
+        // W2-11: 새 창('--new-window')·관리자 권한으로 다시 시도('--elevated')는 뮤텍스를 잡지 않고 파이프로 넘기지도 열지도 않는다
+        // (StartupDecision — 뒤에 켜는 일집이 이 창이 아니라 처음 일집에 붙게. 관리자 일집의 파이프는 권한이 달라 막히기도 함).
+        _elevatedInstance = CommandLineParser.Parse(e.Args).Elevated;
+        if (!StartupDecision.SkipsSingleInstance(e.Args))
         {
-            if (ForwardArgsToRunningInstance(e.Args))
+            _mutex = new Mutex(initiallyOwned: true, MutexName, out bool isFirstInstance);
+            if (StartupDecision.Decide(e.Args, isFirstInstance) == StartupKind.Forward)
             {
-                Shutdown();
-                return;
+                if (ForwardArgsToRunningInstance(e.Args))
+                {
+                    Shutdown();
+                    return;
+                }
+                isFirstInstance = TryTakeOverSingleInstance();
             }
-            isFirstInstance = TryTakeOverSingleInstance();
+            _ownsMutex = isFirstInstance;
+            if (isFirstInstance) StartPipeServer();
         }
-        _ownsMutex = isFirstInstance;
-        if (isFirstInstance) StartPipeServer();
 
         // 창을 닫아도 저절로 끝나지 않게 한다 — 끝내는 때는 '메인 창을 닫았고 우클릭 풀기가 없음' 또는 '메인 창 없이 우클릭 풀기만 하고 다 끝남'
         // (W2-05 — 우클릭 풀기는 메인 창 없이 진행·암호·결과 창만 띄워, 그 창들이 닫힐 때마다 앱이 끝나면 안 된다. ShutdownIfIdleAsync)
@@ -87,6 +93,7 @@ public partial class App : Application
         var win = new MainWindow();
         MainWindow = win;
         win.Closed += MainWindow_Closed;
+        MarkElevated(win);
 
         // W2-05(I1-6): 탐색기 우클릭 풀기('여기에 풀기'·'"이름"\ 에 풀기')는 메인 창을 띄우지 않고 진행 창만 — 끝나면(결과 폴더를 연 뒤) 앱을 끝낸다.
         // 창(VM)은 만들어 두기만 한다: 그사이 다른 명령(열기 등)이 파이프로 들어오면 그때 띄운다.
@@ -124,6 +131,15 @@ public partial class App : Application
 
     /// <summary>끝내기로 했다 — 이후 파이프로 오는 명령은 받지 않는다(넘긴 쪽이 직접 처리).</summary>
     private bool _shuttingDown;
+
+    /// <summary>'관리자 권한으로 다시 시도'로 뜬 일집인가(W2-11 — '--elevated'). 다시 권한 상승을 권하지 않는다.</summary>
+    private bool _elevatedInstance;
+
+    /// <summary>창의 VM 에 '관리자 권한으로 다시 시도로 뜬 일집' 표시를 넘긴다(다시 권하지 않음 — 제목의 '(관리자)'는 VM 이 실제 권한으로 정함).</summary>
+    private void MarkElevated(Window win)
+    {
+        if (_elevatedInstance && win.DataContext is MainViewModel vm) vm.IsElevatedInstance = true;
+    }
 
     /// <summary>우클릭 풀기 하나를 메인 창 없이 한다. 끝나면 할 일이 없을 때 앱을 끝낸다.</summary>
     private async Task RunWindowlessAsync(MainViewModel vm, string[] args)
@@ -174,6 +190,7 @@ public partial class App : Application
         {
             var fresh = new MainWindow();
             fresh.Closed += MainWindow_Closed;
+            MarkElevated(fresh);
             MainWindow = fresh;
             _mainWindowClosed = false;
             _mainWindowShown = false;
@@ -196,13 +213,8 @@ public partial class App : Application
         return win.DataContext as MainViewModel;
     }
 
-    private static bool IsHeadlessExtractCommand(string[] args)
-    {
-        return args.Length >= 3
-               && args[0].Equals("--extract-to", StringComparison.OrdinalIgnoreCase)
-               && File.Exists(args[1])
-               && !string.IsNullOrWhiteSpace(args[2]);
-    }
+    /// <summary>창 없이 풀기인가(재사용장치 계약 — 판정은 <see cref="StartupDecision.IsHeadlessExtract"/>, W2-11 에서 떼어 냄. 판정 자체는 예전과 같음).</summary>
+    private static bool IsHeadlessExtractCommand(string[] args) => StartupDecision.IsHeadlessExtract(args);
 
     private static async Task<int> RunHeadlessExtractAsync(string[] args)
     {

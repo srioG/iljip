@@ -147,6 +147,9 @@ internal static class OutputFiles
     /// <paramref name="sourcePath"/> 로 <paramref name="targetPath"/>(원래 있던 파일)를 바꾼다(같은 볼륨 — File.Move 덮어쓰기 한 번).
     /// 다른 프로그램(DLP·백신·엑셀)이 잡고 있으면 200ms 간격으로 3번 다시 해 보고, 그래도 안 되면 원래 파일을 그대로 둔 채
     /// 쉬운 한국어 문구의 IOException(원래 HResult 유지 — 공간·권한 판정이 그대로 되게).
+    /// W2-11 검증 지적: 원래 파일이 '읽기 전용'이라 못 바꾼 것은 다시 해 봐도·관리자 권한으로도 안 되므로 기다리지 않고 <see cref="ReadOnlyTargetException"/>
+    /// ('읽기 전용'을 끄라는 안내 — 관리자 권한으로 다시 시도를 권하지 않음). 그 밖의 접근 거부는 '쓸 권한이 없거나 다른 프로그램이 쓰고 있어요',
+    /// 공유 위반은 '다른 프로그램이 쓰고 있어요 — 그 프로그램을 닫고'로 문구를 가른다(예전 한 문구는 관리자 권한 질문과 앞뒤가 맞지 않았음).
     /// </summary>
     internal static void ReplaceExisting(string sourcePath, string targetPath)
     {
@@ -157,16 +160,34 @@ internal static class OutputFiles
                 File.Move(sourcePath, targetPath, overwrite: true);
                 return;
             }
+            catch (UnauthorizedAccessException ex) when (IsReadOnlyFile(targetPath))
+            {
+                throw new ReadOnlyTargetException(targetPath, ex);
+            }
             catch (Exception ex) when (IsTransientLock(ex) && attempt < MoveLockRetries)
             {
                 Thread.Sleep(MoveLockDelayMs);
             }
             catch (Exception ex) when (IsTransientLock(ex))
             {
-                throw new IOException(
-                    $"'{Path.GetFileName(targetPath)}' 파일을 덮어쓰지 못했어요. 다른 프로그램(보안 프로그램 포함)이 쓰고 있거나 읽기 전용이에요. 그 프로그램을 닫고 다시 해 주세요.",
-                    ex) { HResult = ex.HResult };
+                string why = ex is UnauthorizedAccessException
+                    ? "이 폴더에 쓸 권한이 없거나 다른 프로그램(보안 프로그램 포함)이 쓰고 있어요."
+                    : "다른 프로그램(보안 프로그램 포함)이 쓰고 있어요. 그 프로그램을 닫고 다시 해 주세요.";
+                throw new IOException($"'{Path.GetFileName(targetPath)}' 파일을 덮어쓰지 못했어요. {why}", ex) { HResult = ex.HResult };
             }
+        }
+    }
+
+    /// <summary>있는 파일이고 '읽기 전용' 속성인가(모르면 false).</summary>
+    internal static bool IsReadOnlyFile(string path)
+    {
+        try
+        {
+            return File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReadOnly) != 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -209,6 +230,23 @@ internal static class OutputFiles
             yield return Combine($"{name} ({i}){ext}");
         yield return Combine($"{name} ({Guid.NewGuid():N}){ext}");
     }
+}
+
+/// <summary>
+/// 덮어쓸 파일이 '읽기 전용'이라 못 바꿈(W2-11 검증 지적). 권한 문제가 아니라 파일 속성이라 관리자 권한으로 다시 해도 같다 —
+/// <see cref="ElevationService.IsAccessDenied"/> 가 권한 오류로 보지 않는다. 문구는 쉬운 한국어(속성에서 '읽기 전용'을 끄라는 안내), 원래 파일은 그대로.
+/// </summary>
+public sealed class ReadOnlyTargetException : IOException
+{
+    public ReadOnlyTargetException(string targetPath, Exception inner)
+        : base($"'{Path.GetFileName(targetPath)}' 파일이 읽기 전용이라 덮어쓰지 못했어요. 탐색기에서 그 파일을 오른쪽 클릭 → [속성] → '읽기 전용'을 끄고 다시 해 주세요.", inner)
+    {
+        TargetPath = targetPath;
+        HResult = inner.HResult;
+    }
+
+    /// <summary>덮어쓰려던 파일.</summary>
+    public string TargetPath { get; }
 }
 
 /// <summary>

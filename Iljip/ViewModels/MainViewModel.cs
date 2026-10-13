@@ -38,6 +38,7 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(IsStagingMode));
             OnPropertyChanged(nameof(IsEmptyState));
             OnPropertyChanged(nameof(HasAnyContent));
+            OnPropertyChanged(nameof(IsStartVisible));   // W2-11: 시작 화면
         };
     }
 
@@ -46,11 +47,12 @@ public partial class MainViewModel : ObservableObject
     private string? _currentArchivePath;
 
     public string WindowTitle =>
-        IsArchiveMode
+        (IsArchiveMode
             ? $"{Path.GetFileName(CurrentArchivePath!)} - 일집"
             : IsStagingMode
                 ? $"새 압축 ({Entries.Count}개 항목) - 일집"
-                : "일집";
+                : "일집")
+        + (IsRunningElevated ? ElevatedTitleSuffix : string.Empty);   // W2-11: 실제로 관리자 권한으로 도는 창('--elevated' 표시가 아니라 토큰 — 검증 지적)
 
     partial void OnCurrentArchivePathChanged(string? value)
     {
@@ -61,6 +63,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEmptyState));
         OnPropertyChanged(nameof(HasAnyContent));
         OnPropertyChanged(nameof(CanEditArchive));   // W2-06
+        OnPropertyChanged(nameof(IsStartVisible));   // W2-11: 시작 화면
     }
 
     // ===== 모드 판별 =====
@@ -180,6 +183,7 @@ public partial class MainViewModel : ObservableObject
                 _archivePassword = string.IsNullOrEmpty(password) ? null : password;
                 BuildFolderTree();
                 StatusText = $"{entries.Count}개 항목";
+                RememberRecentFile(archivePath);   // W2-11(I3-15): 시작 화면 '최근 파일' 맨 앞에(저장은 창을 닫을 때 한 번)
                 return true;
             }
             catch (Exception ex) when (IsPasswordRelated(ex))
@@ -449,7 +453,14 @@ public partial class MainViewModel : ObservableObject
             {
                 session.Close();
                 Logger.LogError($"압축 해제 실패: {archivePath}", ex);
-                _ui.ShowError($"압축 해제 실패:\n\n{ErrorMessages.ToUserMessage(ex)}");
+                // W2-11(I3-16): 쓸 권한이 없는 곳(Program Files 등)이면 '관리자 권한으로 다시 시도'를 묻는다 — 전체 풀기는 같은 명령('--extract-to 압축 폴더'),
+                // 고른 항목만 풀기는 명령줄로 나타낼 수 없어 '관리자 권한으로 일집 다시 열기'
+                string failure = $"압축 해제 실패:\n\n{ErrorMessages.ToUserMessage(ex)}";
+                var retry = selectedPaths is null
+                    ? new ParsedCommand(CommandVerb.ExtractTo, archivePath, destFolder, Array.Empty<string>())
+                    : null;
+                if (!OfferElevatedRetry(ex, failure, retry, archivePath, destFolder))
+                    _ui.ShowError(failure);
                 StatusText = "오류 발생";
                 return false;
             }

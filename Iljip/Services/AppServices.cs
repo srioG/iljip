@@ -29,6 +29,12 @@ public sealed class AppServices
     /// <summary>'잠깐 두는' 폴더(W2-09 검증 지적 — 임시 폴더의 압축은 풀기 창이 바탕 화면을 권하고, 일집 임시 폴더에는 풀지 않음).</summary>
     public TempLocations TempLocations { get; init; } = TempLocations.System;
 
+    /// <summary>일집 하나 더 띄우기(W2-11 — 새 창 I3-15·관리자 권한으로 다시 시도 I3-16). 시험은 가짜(진짜 프로세스·UAC 를 부르지 않음).</summary>
+    public IProcessLauncher Processes { get; init; } = new ProcessLauncher();
+
+    /// <summary>네트워크 드라이브(Z:) → UNC(W2-11 — 관리자 일집에는 사용자가 연결한 드라이브가 보이지 않음). 시험은 가짜 매핑.</summary>
+    public IMappedDriveResolver MappedDrives { get; init; } = new MappedDriveResolver();
+
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();
 }

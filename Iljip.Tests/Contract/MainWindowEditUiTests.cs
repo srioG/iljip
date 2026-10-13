@@ -54,7 +54,28 @@ public class MainWindowEditUiTests
 
                 var menuButton = Assert.IsType<Button>(w.FindName("MenuButton"));
                 var menu = menuButton.ContextMenu!.Items.OfType<MenuItem>().Select(m => (string)m.Header).ToList();
-                Assert.Equal(new[] { "압축 파일에 파일 넣기...", "압축 파일에 폴더 넣기...", "새 폴더...", "이름 바꾸기 (F2)", "지우기 (Del)", "설정..." }, menu);
+                // W2-11(I3-15): 맨 앞에 새 창·다른 이름으로 저장·이 압축 파일 지우기가 더해짐(고치기 항목·설정은 그대로)
+                Assert.Equal(new[]
+                {
+                    "새 창 (Ctrl+N)", "다른 이름으로 저장...", "이 압축 파일 지우기...",
+                    "압축 파일에 파일 넣기...", "압축 파일에 폴더 넣기...", "새 폴더...", "이름 바꾸기 (F2)", "지우기 (Del)", "설정...",
+                }, menu);
+
+                // W2-11(I3-15): 빈 창의 목록 자리에 시작 화면(큰 단추 셋·최근 파일·모두 지우기)이 읽힌다, Ctrl+N 은 새 창
+                var start = Assert.IsType<Iljip.Views.StartView>(w.FindName("StartScreen"));
+                Assert.Equal("OpenCommand", CommandPath(Assert.IsType<Button>(start.FindName("OpenButton"))));
+                Assert.Equal("StartCompressCommand", CommandPath(Assert.IsType<Button>(start.FindName("CompressButton"))));
+                Assert.Equal("StartExtractCommand", CommandPath(Assert.IsType<Button>(start.FindName("ExtractButton"))));
+                Assert.Equal("ClearRecentCommand", CommandPath(Assert.IsType<Button>(start.FindName("ClearRecentButton"))));
+                // W2-11 검증 지적: 찾을 수 없는 줄만 한꺼번에 빼는 '없는 파일 정리'(그런 줄이 있을 때만 보임)
+                var removeMissing = Assert.IsType<Button>(start.FindName("RemoveMissingRecentButton"));
+                Assert.Equal("RemoveMissingRecentCommand", CommandPath(removeMissing));
+                Assert.Equal("HasMissingRecentFiles", System.Windows.Data.BindingOperations.GetBinding(removeMissing, UIElement.VisibilityProperty)?.Path.Path);
+                Assert.Equal("RecentFiles", System.Windows.Data.BindingOperations.GetBinding(
+                    Assert.IsType<ItemsControl>(start.FindName("RecentList")), ItemsControl.ItemsSourceProperty)?.Path.Path);
+                var ctrlN = w.InputBindings.OfType<System.Windows.Input.KeyBinding>()
+                    .Single(k => k.Key == System.Windows.Input.Key.N && k.Modifiers == System.Windows.Input.ModifierKeys.Control);
+                Assert.Equal("NewWindowCommand", System.Windows.Data.BindingOperations.GetBinding(ctrlN, System.Windows.Input.InputBinding.CommandProperty)?.Path.Path);
             }
             finally
             {
@@ -74,6 +95,9 @@ public class MainWindowEditUiTests
             }
         });
     }
+
+    private static string? CommandPath(Button b) =>
+        System.Windows.Data.BindingOperations.GetBinding(b, System.Windows.Controls.Primitives.ButtonBase.CommandProperty)?.Path.Path;
 
     /// <summary>
     /// 이름 바꾸기 칸은 F2·메뉴로만 열리고(그 밖의 편집 시작은 막음), 이름 칸을 고치는 중의 키(Del·F2)는 그 칸에 맡긴다,

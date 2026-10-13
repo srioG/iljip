@@ -306,6 +306,6 @@ public partial class MainViewModel
         double w = UiSettings.ClampTreeWidth(Math.Round(width));
         if (Math.Abs(Settings.Ui.TreeWidth - w) < 0.5) return;
         Settings.Ui.TreeWidth = w;
-        _services.Settings.Save(Settings);
+        SaveSettings(s => s.Ui.TreeWidth = w);   // 최신 설정에 이 칸만(W2-11 검증 지적 — 창 두 개)
     }
 }

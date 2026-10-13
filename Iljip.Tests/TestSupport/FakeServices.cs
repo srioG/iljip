@@ -99,6 +99,12 @@ public sealed class TestServices
     /// </summary>
     public TempLocations TempLocations { get; }
 
+    /// <summary>가짜 일집 띄우기(W2-11 — 새 창·관리자 권한으로 다시 시도): 부른 것만 기록한다(진짜 프로세스·UAC 를 절대 부르지 않음).</summary>
+    public FakeProcessLauncher Processes { get; } = new();
+
+    /// <summary>가짜 네트워크 드라이브 매핑(W2-11). 기본은 매핑 없음(모든 경로 그대로).</summary>
+    public FakeMappedDriveResolver MappedDrives { get; } = new();
+
     public TestServices(AppSettings? settings = null, TempLocations? tempLocations = null)
     {
         Settings = new InMemorySettingsStore(settings);
@@ -112,6 +118,8 @@ public sealed class TestServices
             Clock = Clock,
             CompressTester = CompressTester,
             TempLocations = TempLocations,
+            Processes = Processes,
+            MappedDrives = MappedDrives,
         };
     }
 
@@ -131,6 +139,61 @@ public sealed class TestServices
         var s = new AppSettings();
         change(s.Compress);
         return new TestServices(s);
+    }
+}
+
+/// <summary>
+/// 가짜 일집 띄우기(W2-11): 새 창·관리자 권한 다시 시작 호출(실행 파일, 인자)만 기록한다 — 진짜 Process.Start·runas(UAC 창)는 절대 부르지 않는다.
+/// <see cref="ThrowOnElevate"/> 로 'UAC 창에서 [아니요]'(Win32Exception 1223) 등을 흉내 낸다.
+/// </summary>
+public sealed class FakeProcessLauncher : IProcessLauncher
+{
+    private readonly object _gate = new();
+
+    /// <summary>지금 일집 실행 파일 경로(가짜 — 실제로 띄우지 않으므로 무엇이든 됨).</summary>
+    public string? ExecutablePath { get; set; } = @"C:\Program Files\일집\Iljip.exe";
+
+    /// <summary>이 일집이 이미 관리자 권한인가(기본 아님).</summary>
+    public bool IsCurrentProcessElevated { get; set; }
+
+    public List<(string Exe, IReadOnlyList<string> Args)> NewInstances { get; } = new();
+    public List<(string Exe, IReadOnlyList<string> Args)> Elevated { get; } = new();
+
+    /// <summary>관리자 권한 다시 시작에서 이 예외를 던진다(기록은 함).</summary>
+    public Exception? ThrowOnElevate { get; set; }
+
+    /// <summary>새 창에서 이 예외를 던진다(기록은 함).</summary>
+    public Exception? ThrowOnNewInstance { get; set; }
+
+    public void StartNewInstance(string exe, IReadOnlyList<string> args)
+    {
+        lock (_gate) NewInstances.Add((exe, args.ToList()));
+        if (ThrowOnNewInstance is { } ex) throw ex;
+    }
+
+    public void StartElevated(string exe, IReadOnlyList<string> args)
+    {
+        lock (_gate) Elevated.Add((exe, args.ToList()));
+        if (ThrowOnElevate is { } ex) throw ex;
+    }
+}
+
+/// <summary>
+/// 가짜 네트워크 드라이브 매핑(W2-11): <see cref="Map"/> 에 넣은 드라이브('Z:' → '\\서버\공유')만 네트워크 드라이브로 보고 UNC 로 바꾼다.
+/// <see cref="Unresolvable"/> 의 드라이브는 '네트워크 드라이브인데 UNC 를 모름'(null).
+/// </summary>
+public sealed class FakeMappedDriveResolver : IMappedDriveResolver
+{
+    public Dictionary<string, string> Map { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public HashSet<string> Unresolvable { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public string? ToUncIfMapped(string fullPath)
+    {
+        if (fullPath.Length < 2 || fullPath[1] != ':') return fullPath;
+        string drive = fullPath[..2];
+        if (Unresolvable.Contains(drive)) return null;
+        return Map.TryGetValue(drive, out var unc) ? unc.TrimEnd('\\') + fullPath[2..] : fullPath;
     }
 }
 

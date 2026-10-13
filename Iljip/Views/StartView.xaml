@@ -1,0 +1,180 @@
+<UserControl x:Class="Iljip.Views.StartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Iljip.Converters"
+             Background="Transparent">
+    <!-- W2-11(I3-15): 시작 화면 — 압축 파일도 모으는 목록도 없을 때 목록 자리에 보인다(MainViewModel.IsStartVisible).
+         큰 단추 셋([압축 파일 열기][압축하기][압축 풀기…]) · 끌어다 놓기 안내 · '최근 파일'(누르면 열기, 오른쪽 클릭 메뉴). 끌어 놓기는 창(PreviewDrop)이 받는다. -->
+    <UserControl.Resources>
+        <!-- 큰 단추(아이콘 + 두 줄 글) -->
+        <Style x:Key="StartBigButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Width" Value="168" />
+            <Setter Property="Height" Value="112" />
+            <Setter Property="Margin" Value="8,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 최근 파일 한 줄(누르면 열기) -->
+        <Style x:Key="RecentRowButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="10,6"
+                                BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel HorizontalAlignment="Center" Margin="16,26,16,16" MaxWidth="620">
+            <!-- 큰 단추 셋 -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button x:Name="OpenButton" Style="{StaticResource StartBigButton}" Command="{Binding OpenCommand}"
+                        ToolTip="압축 파일을 골라 열어요 (Ctrl+O)">
+                    <StackPanel>
+                        <Path Data="{StaticResource IconOpen}" Width="30" Height="30" Stretch="Uniform" Fill="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="압축 파일 열기" Margin="0,10,0,2" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="안에 든 것을 봐요" FontSize="12" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="CompressButton" Style="{StaticResource StartBigButton}" Command="{Binding StartCompressCommand}"
+                        ToolTip="파일을 골라 압축해요 (폴더는 창에 끌어다 놓으세요)">
+                    <StackPanel>
+                        <Path Data="{StaticResource IconArchive}" Width="30" Height="30" Stretch="Uniform" Fill="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="압축하기" Margin="0,10,0,2" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="파일을 하나로 묶어요" FontSize="12" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ExtractButton" Style="{StaticResource StartBigButton}" Command="{Binding StartExtractCommand}"
+                        ToolTip="압축 파일을 골라 풀 곳에 풀어요">
+                    <StackPanel>
+                        <Path Data="{StaticResource IconExtract}" Width="30" Height="30" Stretch="Uniform" Fill="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="압축 풀기…" Margin="0,10,0,2" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="여러 개도 한 번에 풀어요" FontSize="12" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- 끌어다 놓기 안내 -->
+            <TextBlock Margin="0,18,0,0" FontSize="13" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="압축 파일을 이 창에 끌어다 놓으면 열리고, 파일·폴더를 놓으면 압축할 목록에 담겨요." />
+
+            <!-- 최근 파일 -->
+            <DockPanel Margin="0,26,0,6">
+                <TextBlock Text="최근 파일" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- W2-11 검증 지적: 찾을 수 없는 줄(흐린 '없음')만 한꺼번에 빼기 — 그런 줄이 있을 때만 보임 -->
+                    <Button x:Name="RemoveMissingRecentButton" Style="{StaticResource ToolbarButton}" Padding="8,3" Margin="0,0,4,0"
+                            FontSize="12" Command="{Binding RemoveMissingRecentCommand}" Content="없는 파일 정리"
+                            ToolTip="찾을 수 없는 파일(흐린 '없음' 줄)만 목록에서 빼요(파일은 그대로)"
+                            Visibility="{Binding HasMissingRecentFiles, Converter={x:Static conv:BoolToVisibility.Instance}}" />
+                    <Button x:Name="ClearRecentButton" Style="{StaticResource ToolbarButton}" Padding="8,3"
+                            FontSize="12" Command="{Binding ClearRecentCommand}" Content="모두 지우기" ToolTip="최근 파일 목록을 비워요(파일은 그대로)"
+                            Visibility="{Binding HasRecentFiles, Converter={x:Static conv:BoolToVisibility.Instance}}" />
+                </StackPanel>
+            </DockPanel>
+            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Background="{DynamicResource SurfaceBrush}" Padding="4">
+                <Grid>
+                    <TextBlock Text="아직 연 압축 파일이 없어요." Margin="10,10" FontSize="13" Foreground="{DynamicResource FgMutedBrush}"
+                               Visibility="{Binding HasRecentFiles, Converter={x:Static conv:InverseBoolToVisibility.Instance}}" />
+                    <ItemsControl x:Name="RecentList" ItemsSource="{Binding RecentFiles}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.OpenRecentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        ToolTip="{Binding Path}">
+                                    <Button.ContextMenu>
+                                        <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                            <MenuItem Header="열기" Command="{Binding OpenRecentCommand}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="새 창으로 열기" Command="{Binding OpenRecentInNewWindowCommand}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="들어 있는 폴더 열기" Command="{Binding ShowRecentInFolderCommand}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Separator />
+                                            <MenuItem Header="목록에서 지우기" Command="{Binding RemoveRecentCommand}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="없는 파일 정리" Command="{Binding RemoveMissingRecentCommand}" />
+                                            <MenuItem Header="모두 지우기" Command="{Binding ClearRecentCommand}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding LastOpenedText}" Margin="12,0,0,0" FontSize="12"
+                                                   Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" />
+                                        <Path Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"
+                                              Data="{StaticResource IconArchive}" />
+                                        <StackPanel Margin="9,0,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="  없음" FontSize="12" Foreground="{DynamicResource FgMutedBrush}"
+                                                           Visibility="{Binding IsMissing, Converter={x:Static conv:BoolToVisibility.Instance}}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource FgMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource RecentRowButton}">
+                                            <Style.Triggers>
+                                                <!-- 없는 파일은 흐리게 -->
+                                                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.5" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

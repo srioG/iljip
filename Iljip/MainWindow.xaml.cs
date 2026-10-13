@@ -22,7 +22,8 @@ public partial class MainWindow : Window
         Closing += Window_Closing;
         Closed += (_, _) =>
         {
-            ViewModel?.RememberTreeWidth(_treeWidth);   // W2-09(I2-14): 막대로 바꾼 트리 너비 — 닫을 때 한 번만 저장
+            // W2-09(I2-14): 막대로 바꾼 트리 너비 + W2-11(I3-15): 이번에 연 최근 파일 — 닫을 때 바뀐 것이 있으면 한 번만 저장
+            ViewModel?.SaveOnExit(_treeWidth);
             ViewModel?.Shutdown();   // W2-06: 연 파일 감시를 멈추고 임시 작업 폴더를 지운다
         };
     }
@@ -66,6 +67,7 @@ public partial class MainWindow : Window
         {
             vm.PropertyChanged += ViewModel_PropertyChanged;
             _treeWidth = vm.TreeWidth;
+            vm.RefreshRecentFiles();   // W2-11(I3-15): 시작 화면 '최근 파일'
             UpdateColumns();
             UpdateSortArrows();
             UpdateTreeColumn();
@@ -90,7 +92,20 @@ public partial class MainWindow : Window
         {
             UpdateSortArrows();
         }
+        else if (e.PropertyName is nameof(MainViewModel.IsStartVisible) && ViewModel is { IsStartVisible: true } svm && !_recentRefreshQueued)
+        {
+            // W2-11: 시작 화면으로 돌아오면(닫기·지우기) 최근 파일을 다시 본다(그새 지운 파일은 '없음') — 한꺼번에 여러 번 알려 와도 한 번만
+            _recentRefreshQueued = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            {
+                _recentRefreshQueued = false;
+                if (svm.IsStartVisible) svm.RefreshRecentFiles();
+            });
+        }
     }
+
+    /// <summary>시작 화면 최근 파일 다시 보기를 이미 걸어 두었는가.</summary>
+    private bool _recentRefreshQueued;
 
     /// <summary>
     /// 열 머리를 누르면: DataGrid 기본 정렬(CollectionView — 폴더·파일이 섞이고, 폴더를 옮기면 풀림)을 막고 VM 이 정렬한다(I0-5).

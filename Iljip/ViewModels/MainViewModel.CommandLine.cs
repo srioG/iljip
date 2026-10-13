@@ -17,7 +17,11 @@ public partial class MainViewModel
     ///   --extract-to-folder &lt;archive…&gt; '부모\이름' 폴더에 해제. 그 이름이 이미 있으면 '이름 (2)' …(합치지 않음)
     ///   --extract-to &lt;archive&gt; &lt;dst&gt;   지정 폴더로 해제
     ///   --compress &lt;p1&gt; &lt;p2&gt; ...       인자들을 Staging에 추가 (압축 다이얼로그 자동 진행)
+    ///   --compress-to &lt;dir&gt; &lt;p…&gt;       '--compress' + 압축 창의 '만들 곳'을 그 폴더로(W2-11 — 관리자 권한으로 다시 시도)
+    ///   --extract-to-folder-in &lt;dir&gt; &lt;archive…&gt; 그 폴더 안 '이름' 폴더마다 풀기(W2-11)
+    ///   --extract-into &lt;dir&gt; &lt;archive…&gt; 그 폴더에 바로 모두 풀기(W2-11 검증 지적 — 관리자 권한으로 다시 시도)
     ///   &lt;path&gt;...                       경로만 주어지면 드롭과 동일한 동작
+    /// 맨 앞 '--new-window'·'--elevated' 표시는 해석기가 떼어 낸다(W2-11 — 단일 인스턴스 건너뛰기는 App 몫).
     /// (W1-D 전에는 '--extract-here' 가 '이름' 폴더에 풀었다 — 그 동작은 '--extract-to-folder' 로 옮김)
     /// 탐색기 우클릭 풀기(메인 창 없이 진행 창만 — I1-6)는 App 이 <see cref="ProcessShellCommandAsync"/> 로 부른다.
     /// 풀기 동사에 압축이 여러 개면 여러 개 풀기(<see cref="BatchExtractor"/> — 진행 창 하나·암호 한 번·끝에 요약, I2-6).
@@ -101,6 +105,21 @@ public partial class MainViewModel
                     // 사용자 의도가 명확하므로 압축 다이얼로그를 바로 띄움(끝날 때까지 기다림)
                     if (IsStagingMode && CompressCommand.CanExecute(null))
                         await CompressCommand.ExecuteAsync(null);
+                    break;
+
+                case CommandVerb.CompressTo:
+                    // W2-11: '--compress' 와 같되 압축 창의 '만들 곳'을 그 폴더로(관리자 권한으로 다시 시도·오른쪽 끌기 W2-12)
+                    if (IsArchiveMode) StartNewStaging(cmd.Paths);
+                    else AddToStaging(cmd.Paths);
+                    if (IsStagingMode && StagedSources() is { Count: > 0 } staged)
+                        await CompressStagedAsync(staged, cmd.Dest);
+                    break;
+
+                case CommandVerb.ExtractToFolderIn:
+                case CommandVerb.ExtractInto:
+                    // W2-11: 보통은 메인 창 없이(ProcessShellCommandAsync) 오지만, 이 길로 와도 같게 — 그 폴더 안 '이름' 폴더마다 / 그 폴더에 바로 모두
+                    if (ExistingArchives(cmd) is { Count: > 0 } inFolder)
+                        await RunExtractBatchAsync(inFolder, RuleFor(cmd), fromShell: false);
                     break;
 
                 case CommandVerb.AddTo:
@@ -218,8 +237,32 @@ public partial class MainViewModel
     {
         CommandVerb.ExtractHere => ExtractTargetRule.Here,
         CommandVerb.ExtractTo => new ExtractTargetRule(ExtractTargetKind.Into, cmd.Dest),
+        CommandVerb.ExtractToFolderIn => new ExtractTargetRule(ExtractTargetKind.NamedFolderIn, cmd.Dest),   // W2-11
+        CommandVerb.ExtractInto => new ExtractTargetRule(ExtractTargetKind.Into, cmd.Dest),                // W2-11 검증 지적
         _ => ExtractTargetRule.NamedFolder,
     };
+
+    /// <summary>
+    /// 풀 곳 규칙 → 관리자 권한으로 다시 할 같은 명령(W2-11, I3-16): 여기에 '--extract-here', '이름' 폴더 '--extract-to-folder', 고른 폴더 안 '이름' 폴더
+    /// '--extract-to-folder-in', 고른 폴더에 바로는 하나면 '--extract-to', 여럿이면 '--extract-into 폴더 압축…'(W2-11 검증 지적 — 예전엔 명령이 없어 첫 압축만 다시 열었음).
+    /// </summary>
+    internal static ParsedCommand? ElevatedRetryFor(ExtractTargetRule rule, IReadOnlyList<string> archives)
+    {
+        if (archives.Count == 0) return null;
+        var none = Array.Empty<string>();
+        return rule.Kind switch
+        {
+            ExtractTargetKind.Here => new ParsedCommand(CommandVerb.ExtractHere, archives[0], null, none) { Archives = archives },
+            ExtractTargetKind.NamedFolder => new ParsedCommand(CommandVerb.ExtractToFolder, archives[0], null, none) { Archives = archives },
+            ExtractTargetKind.NamedFolderIn when rule.Folder is not null
+                => new ParsedCommand(CommandVerb.ExtractToFolderIn, archives[0], rule.Folder, none) { Archives = archives },
+            ExtractTargetKind.Into when rule.Folder is not null && archives.Count == 1
+                => new ParsedCommand(CommandVerb.ExtractTo, archives[0], rule.Folder, none),
+            ExtractTargetKind.Into when rule.Folder is not null
+                => new ParsedCommand(CommandVerb.ExtractInto, archives[0], rule.Folder, none) { Archives = archives },
+            _ => null,
+        };
+    }
 
     // ───────────── 여러 개 풀기(I2-6) ─────────────
 
@@ -303,17 +346,37 @@ public partial class MainViewModel
         if (total == 1 && result.Outcomes.Count == 1)
         {
             var only = result.Outcomes[0];
-            // 하나만: 실패면 쉬운 한국어 창 하나(취소·암호 창 취소는 조용히 — 기존 흐름과 같음)
+            // 하나만: 실패면 쉬운 한국어 창 하나(취소·암호 창 취소는 조용히 — 기존 흐름과 같음).
+            // W2-11(I3-16): 풀 곳에 쓸 권한이 없으면 그 창에서 '관리자 권한으로 다시 시도'를 묻는다(같은 동사·같은 압축)
             if (!only.Succeeded && only.Error is not null)
-                _ui.ShowError($"‘{only.Name}’을 풀지 못했어요.\n\n{only.Reason}");
+            {
+                string failure = $"‘{only.Name}’을 풀지 못했어요.\n\n{only.Reason}";
+                if (!OfferElevatedRetry(only.Error, failure, ElevatedRetryFor(rule, new[] { only.ArchivePath }), only.ArchivePath, WriteFolderFor(rule, only.ArchivePath)))
+                    _ui.ShowError(failure);
+            }
             foreach (var n in notes) _ui.ShowWarning(n);
         }
         else if (!(opened && result.SucceededCount == total && notes.Count == 0))
         {
             _ui.ShowSummary(result.ToSummary(notes));
+            // W2-11(I3-16): 권한이 없어 못 푼 것이 있으면 요약 뒤에 한 번 묻는다(그것들만 같은 동사로).
+            // 풀 곳이 네트워크(공유 폴더 등)인 것은 관리자 권한으로도 같아서 빼고 묻는다(검증 지적)
+            var denied = result.Outcomes
+                .Where(o => !o.Succeeded && ElevationService.IsAccessDenied(o.Error) && ElevationService.CanHelpWriteTo(WriteFolderFor(rule, o.ArchivePath)))
+                .ToList();
+            if (denied.Count > 0)
+            {
+                var paths = denied.Select(o => o.ArchivePath).ToList();
+                OfferElevatedRetry(denied[0].Error!, $"압축 파일 {denied.Count}개는 풀 곳에 쓸 권한이 없어 풀지 못했어요.", ElevatedRetryFor(rule, paths), paths[0],
+                    WriteFolderFor(rule, paths[0]));
+            }
         }
         return result;
     }
+
+    /// <summary>풀 곳 규칙에서 이 압축을 풀 폴더(여기에·'이름' 폴더는 압축이 있는 폴더, 고른 폴더면 그 폴더) — 관리자 권한 질문이 네트워크 폴더인지 볼 때.</summary>
+    private static string? WriteFolderFor(ExtractTargetRule rule, string archive) =>
+        rule.Kind is ExtractTargetKind.Here or ExtractTargetKind.NamedFolder ? Path.GetDirectoryName(archive) : rule.Folder;
 
     /// <summary>
     /// 우클릭 풀기 뒤 결과 폴더 열기(I1-6). 하나를 풀었으면 그 폴더, 여럿을 풀었으면 모두 같은 곳에 생겼을 때 그 위 폴더를 한 번(창이 여러 개 뜨지 않게).

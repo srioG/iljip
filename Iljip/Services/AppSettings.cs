@@ -33,6 +33,9 @@ public sealed class AppSettings
     /// <summary>자동 풀림 exe(sfx.*) — W2-10(만들기 전 '회사 메일은 exe 를 막아요' 안내를 다시 묻지 않기).</summary>
     public SfxSettings Sfx { get; set; } = new();
 
+    /// <summary>최근 연 압축 파일(recent.*) — W2-11(시작 화면 '최근 파일', I3-15). 다루기는 <see cref="RecentFilesService"/>.</summary>
+    public RecentSettings Recent { get; set; } = new();
+
     /// <summary>읽은 JSON 에 묶음이 null 로 들어 있었을 때 기본값으로 채운다.</summary>
     internal AppSettings Normalize()
     {
@@ -42,12 +45,27 @@ public sealed class AppSettings
         Extract.RecentFolders ??= new List<string>();
         Ui ??= new UiSettings();
         Sfx ??= new SfxSettings();
+        Recent ??= new RecentSettings();
+        Recent.Files ??= new List<RecentFile>();
+        Recent.Files.RemoveAll(f => f is null || string.IsNullOrWhiteSpace(f.Path));
         return this;
     }
 
     /// <summary>깊은 복사(설정 창이 고치다 [취소]하면 버리게).</summary>
     public AppSettings Clone() =>
         JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(this, JsonSettingsStore.Options), JsonSettingsStore.Options)!.Normalize();
+
+    /// <summary>
+    /// <paramref name="other"/> 의 묶음을 모두 이 객체로 가져온다(W2-11 검증 지적 — 화면이 쥔 설정 객체를 바꾸지 않고 내용만 바꾸게: 최근 파일 다루기가 이 객체를 쥐고 있음).
+    /// 뒤 묶음이 칸을 더해도 빠지지 않게 공개 속성을 모두 옮긴다.
+    /// </summary>
+    internal void CopyFrom(AppSettings other)
+    {
+        foreach (var p in typeof(AppSettings).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0)
+                p.SetValue(this, p.GetValue(other));
+        Normalize();
+    }
 }
 
 /// <summary>extract.* — 풀기.</summary>
@@ -134,6 +152,29 @@ public sealed class SfxSettings
     /// 그 질문 창의 '다시 묻지 않기'로 켜고, ☰ ▸ 설정에서 되돌린다. 압축 창의 형식 칸 아래 안내는 이 값과 상관없이 늘 보인다.
     /// </summary>
     public bool SkipMailWarning { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>recent.* — 최근 연 압축 파일(W2-11, I3-15). 최근 것이 맨 앞, 최대 <see cref="RecentFilesService.MaxFiles"/>개. 암호는 없다.</summary>
+public sealed class RecentSettings
+{
+    /// <summary>recent.files — 경로와 마지막으로 연 시각(UTC).</summary>
+    public List<RecentFile> Files { get; set; } = new();
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>최근 연 압축 파일 하나.</summary>
+public sealed class RecentFile
+{
+    /// <summary>전체 경로(나뉜 압축은 연 조각 — 첫 조각·.zip).</summary>
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>마지막으로 연 시각(UTC).</summary>
+    public DateTime LastOpenedUtc { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -272,12 +313,21 @@ public interface ISettingsStore
 
     /// <summary>설정을 쓴다. 창을 닫을 때나 작업이 끝날 때 한 번만 부른다(DLP 연속 재기록 경합 교훈).</summary>
     void Save(AppSettings settings);
+
+    /// <summary>
+    /// 저장 직전에 최신 설정을 다시 읽어 <paramref name="change"/> 를 얹고 쓴다(W2-11 검증 지적 — 일집 창이 둘이면 각 창의 오래된 사본 전체를 쓰지 않고
+    /// 그 창이 바꾼 것만 얹어, 다른 창이 그사이 저장한 최근 파일·설정을 지우지 않게). 읽기~쓰기 사이에 다른 일집이 끼어들지 않게 한다.
+    /// 저장한 설정을 돌려준다 — 있는 설정 파일을 읽지 못했거나(잠김 등) 쓰지 못했으면 null(그때는 아무것도 덮어쓰지 않음 — 부르는 쪽이 다음에 다시).
+    /// </summary>
+    AppSettings? Update(Action<AppSettings> change);
 }
 
 /// <summary>
 /// settings.json 저장소. 쓰기는 <c>settings.json.tmp</c> 에 다 쓴 뒤 File.Replace(없으면 Move)로 한 번에 바꾼다 — 쓰다 멈춰도 반쪽 설정이 남지 않는다.
 /// 회사 PC 의 DLP·OneDrive 가 파일을 잠깐 잡으면 200ms 간격으로 3번 다시 해 본다. 읽다 깨져 있으면 <c>settings.bad-yyyyMMddHHmmss.json</c> 으로 옮기고 기본값.
 /// 경로를 주지 않으면 쓸 때마다 <see cref="AppPaths.SettingsFile"/> 를 본다(시험의 <see cref="AppPaths.OverrideRootForTests"/> 를 따르게).
+/// W2-11 검증 지적: 일집 창이 둘이면(새 창) 두 프로세스가 같은 파일을 쓴다 — 쓰기(<see cref="Save"/>·<see cref="Update"/>)는 설정 파일마다 이름 붙은 뮤텍스로
+/// 한 번에 하나씩(같은 <c>.tmp</c> 를 둘이 쓰지 않게), <see cref="Update"/> 는 그 안에서 최신 파일을 다시 읽어 바꾼 것만 얹는다.
 /// </summary>
 public sealed class JsonSettingsStore : ISettingsStore
 {
@@ -299,18 +349,42 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     public AppSettings Load()
     {
+        // 못 읽음(잠김 등 — 잠깐 기다려 다시 봐도) — 기본값으로 시작하되 파일은 건드리지 않는다
+        return Read(FilePath) ?? new AppSettings();
+    }
+
+    public void Save(AppSettings settings)
+    {
+        using var gate = WriteGate.Enter(FilePath);
+        TryWrite(FilePath, settings);
+    }
+
+    public AppSettings? Update(Action<AppSettings> change)
+    {
         string path = FilePath;
+        using var gate = WriteGate.Enter(path);
+        // 있는데 못 읽으면 덮어쓰지 않는다 — 기본값에 바꾼 것만 얹어 쓰면 다른 설정이 모두 사라짐
+        var latest = Read(path);
+        if (latest is null) return null;
+        change(latest);
+        return TryWrite(path, latest) ? latest : null;
+    }
+
+    /// <summary>
+    /// 설정 파일을 읽는다. 없으면 기본값, 깨져 있으면 옆으로 옮기고 기본값. 있는데 읽지 못하면(잠김 등 — DLP·OneDrive 면 200ms 간격으로 3번 다시 봄) null.
+    /// </summary>
+    private static AppSettings? Read(string path)
+    {
         string text;
         try
         {
             if (!File.Exists(path)) return new AppSettings();
-            text = File.ReadAllText(path);
+            text = ReadWithRetry(path);
         }
         catch (Exception ex)
         {
-            // 못 읽음(잠김 등) — 기본값으로 시작하되 파일은 건드리지 않는다
-            Logger.LogError("설정을 읽지 못함(기본값 사용): " + path, ex);
-            return new AppSettings();
+            Logger.LogError("설정을 읽지 못함: " + path, ex);
+            return null;
         }
 
         try
@@ -327,9 +401,24 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
     }
 
-    public void Save(AppSettings settings)
+    private static string ReadWithRetry(string path)
     {
-        string path = FilePath;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return File.ReadAllText(path);
+            }
+            catch (Exception ex) when (OutputFiles.IsTransientLock(ex) && attempt < OutputFiles.MoveLockRetries)
+            {
+                Thread.Sleep(OutputFiles.MoveLockDelayMs);
+            }
+        }
+    }
+
+    /// <summary>임시 파일에 다 쓴 뒤 한 번에 바꾼다. 됐으면 true(못 하면 기록만 — 임시 파일은 지움).</summary>
+    private static bool TryWrite(string path, AppSettings settings)
+    {
         string tmp = path + ".tmp";
         try
         {
@@ -340,11 +429,65 @@ public sealed class JsonSettingsStore : ISettingsStore
                 if (File.Exists(path)) File.Replace(tmp, path, null, ignoreMetadataErrors: true);
                 else File.Move(tmp, path);
             });
+            return true;
         }
         catch (Exception ex)
         {
             Logger.LogError("설정을 저장하지 못함: " + path, ex);
             try { File.Delete(tmp); } catch { /* 무시 */ }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 설정 파일 하나에 한 번에 한 일집만 쓰게 하는 이름 붙은 뮤텍스(같은 사용자 세션 — 이름은 파일 경로의 해시라 시험의 다른 경로와 섞이지 않음).
+    /// 3초 안에 못 잡으면 기록만 하고 그냥 쓴다(앞 일집이 멈췄을 때 저장을 영영 못 하지 않게).
+    /// </summary>
+    private sealed class WriteGate : IDisposable
+    {
+        private readonly Mutex? _mutex;
+        private readonly bool _owned;
+
+        private WriteGate(Mutex? mutex, bool owned)
+        {
+            _mutex = mutex;
+            _owned = owned;
+        }
+
+        public static WriteGate Enter(string path)
+        {
+            Mutex? mutex = null;
+            try
+            {
+                byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(path).ToUpperInvariant()));
+                mutex = new Mutex(false, @"Local\Iljip.Settings." + Convert.ToHexString(hash, 0, 12));
+                bool owned;
+                try
+                {
+                    owned = mutex.WaitOne(TimeSpan.FromSeconds(3));
+                }
+                catch (AbandonedMutexException)
+                {
+                    owned = true;   // 앞 일집이 놓지 않고 끝남 — 이제 우리 것
+                }
+                if (!owned) Logger.LogError("설정 쓰기 차례를 3초 안에 못 받음(그냥 씀): " + path, new TimeoutException());
+                return new WriteGate(mutex, owned);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("설정 쓰기 차례를 못 만듦(그냥 씀): " + path, ex);
+                mutex?.Dispose();
+                return new WriteGate(null, false);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_owned)
+            {
+                try { _mutex?.ReleaseMutex(); } catch { /* 무시 */ }
+            }
+            _mutex?.Dispose();
         }
     }
 
@@ -388,11 +531,17 @@ public sealed class InMemorySettingsStore : ISettingsStore
     /// <summary>마지막으로 저장된 JSON(없으면 null).</summary>
     public string? Json { get; private set; }
 
-    /// <summary>저장 횟수.</summary>
+    /// <summary>저장 횟수(<see cref="Save"/> 와 저장까지 된 <see cref="Update"/>).</summary>
     public int SaveCount { get; private set; }
 
-    /// <summary>읽은 횟수.</summary>
+    /// <summary>읽은 횟수(<see cref="Load"/> — 화면이 처음 설정을 읽는 것). 저장 직전에 다시 읽는 것은 <see cref="UpdateCount"/>.</summary>
     public int LoadCount { get; private set; }
+
+    /// <summary><see cref="Update"/>(저장 직전 다시 읽고 바꾼 것만 얹기 — W2-11 검증 지적)를 부른 횟수.</summary>
+    public int UpdateCount { get; private set; }
+
+    /// <summary>true 면 <see cref="Update"/> 가 '있는 설정 파일을 못 읽음'처럼 null 을 돌려주고 아무것도 쓰지 않는다(DLP 잠김 흉내).</summary>
+    public bool FailUpdates { get; set; }
 
     public InMemorySettingsStore(AppSettings? initial = null)
     {
@@ -402,7 +551,7 @@ public sealed class InMemorySettingsStore : ISettingsStore
     public AppSettings Load()
     {
         LoadCount++;
-        return Json is null ? new AppSettings() : (JsonSerializer.Deserialize<AppSettings>(Json, JsonSettingsStore.Options) ?? new AppSettings()).Normalize();
+        return Read();
     }
 
     public void Save(AppSettings settings)
@@ -410,4 +559,18 @@ public sealed class InMemorySettingsStore : ISettingsStore
         SaveCount++;
         Json = JsonSerializer.Serialize(settings, JsonSettingsStore.Options);
     }
+
+    public AppSettings? Update(Action<AppSettings> change)
+    {
+        UpdateCount++;
+        if (FailUpdates) return null;
+        var latest = Read();
+        change(latest);
+        SaveCount++;
+        Json = JsonSerializer.Serialize(latest, JsonSettingsStore.Options);
+        return latest;
+    }
+
+    private AppSettings Read() =>
+        Json is null ? new AppSettings() : (JsonSerializer.Deserialize<AppSettings>(Json, JsonSettingsStore.Options) ?? new AppSettings()).Normalize();
 }
