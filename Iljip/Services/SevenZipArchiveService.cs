@@ -115,7 +115,7 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
     ///   <see cref="NothingToCompressException"/>.</item>
     /// <item>파일은 <c>CompressStreamDictionary</c> + <see cref="LazySourceStream"/>: 진행률은 7z.dll 이 실제로 읽은 바이트, 취소는 읽기·쓰기마다
     ///   (큰 파일 한가운데서도 1초 남짓), 원본 핸들은 읽는 동안만. 읽는 도중 막히거나 크기가 바뀐 파일은 빼고 처음부터 다시 쓴다(건너뜀으로 안내).</item>
-    /// <item>메모리·진행·취소를 위해 사전 크기·블록 크기·스레드 수를 줄인다(<see cref="EngineParameters"/> — 이 PC 실측 보통 254MB).</item>
+    /// <item>메모리·진행·취소를 위해 사전 크기·블록 크기·스레드 수를 줄인다(<see cref="EngineParameters"/> — 보통은 블록 2MB, 취소가 1초 안팎).</item>
     /// <item>폴더(빈 폴더와 파일이 든 폴더 모두 — 7-Zip·반디집 7z 와 같은 목록)는 이름표 방식이 받지 못해(SharpSevenZip 2.0.128 — 폴더 항목이면
     ///   NullReferenceException, 실측) 폴더만 든 작은 7z 를 경로 방식으로 먼저 만들고 파일을 덧붙인다(같은 암호·파일 이름 암호화 —
     ///   옮겨 담을 옛 데이터가 없어 큰 압축을 두 번 쓰지 않음). 파일만 골랐으면 덧붙이지 않고 바로 쓴다.</item>
@@ -531,8 +531,15 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
     /// 몇 초마다 일어나 진행률이 실제를 따라가고 취소도 곧 먹힌다. 대가는 크기 조금(블록마다 사전을 새로 시작 — 이 실측에서는 차이 0.2% 안).
     /// 실측(이 PC 논리 CPU 8·RAM 7.8GB, 원본 220MB = 무작위 120 + 글자 80 + 0 20MB, 보통):
     ///   기본 91.7초·최대 작업 세트 1,153MB / mt=2;d=16m 103.9초·224MB / s=on;mt=on;c=8m 38.8초·506MB /
-    ///   <b>mt=4;d=16m;c=8m 42.0초·254MB(채택)</b> / 최대 mt=2;d=32m;c=16m 77.4초·214MB. 출력 크기는 모두 136.8~137.0MB.
+    ///   mt=4;d=16m;c=8m 42.0초·254MB(W2-02 채택) / 최대 mt=2;d=32m;c=16m 77.4초·214MB. 출력 크기는 모두 136.8~137.0MB.
+    /// <b>보통의 블록은 2MB(c=2m — Wave 2 통합 점검에서 8m 에서 줄임)</b>: 솔리드 7z 를 취소하면 7z.dll 은 원본 읽기를 바로 멈추지만 스레드마다 이미 맡은 블록은
+    /// 끝까지 압축한 뒤에야 돌아온다(진행 콜백도 그동안 안 옴) — 그래서 취소 시간 ≈ 블록 하나 압축 시간. 이 PC 가 바쁠 때(빈 메모리 0.2GB) c=8m 는
+    /// 2.4~3.3초로 계약(3초)을 자주 넘었다(W2-03 부터 기록된 '바쁠 때만 실패'의 원인). 실측(같은 PC·같은 때, 솔리드, mt=4·d=16m, 보통):
+    ///   취소 c=8m 2.3~3.0초 / c=4m 1.0~1.3초 / c=2m 0.5~0.6초 (무작위 데이터 30% 지점), 솔리드가 아니면 블록과 상관없이 0.2초 안.
+    ///   160MB(무작위 120 + 글자 40): c=8m 124.92MB·32~36초·+204MB / c=2m 125.04MB·32초·+62MB. 글자만 40MB: c=8m 4.91MB·18초 / c=2m 5.03MB·10초.
+    /// 압축 고치기(Editing.SevenZipArchiveEditor.EditEngineParameters)도 같은 이유로 이미 c=2m 이다(W2-06).
     /// 스레드는 min(4, 논리 CPU). 저장만은 추가 값 없음(복사라 원래 짧음). 솔리드는 늘 넘긴다.
+    /// 최대 수준(c=16m)은 취소가 7~15초 걸릴 수 있다(계약 시험 없음 — 크기를 위해 그대로).
     /// </summary>
     internal static IReadOnlyList<(string Name, string Value)> EngineParameters(CompressionOptions options)
     {
@@ -548,7 +555,7 @@ public sealed class SevenZipArchiveService : SevenZipEngineServiceBase
             case CompressionLevelOption.Normal:
                 list.Add(("mt", mt));
                 list.Add(("d", "16m"));
-                list.Add(("c", "8m"));
+                list.Add(("c", "2m"));
                 break;
             case CompressionLevelOption.Maximum:
                 list.Add(("mt", "2"));

@@ -178,6 +178,21 @@ internal static class SevenZipEngine
         var verdicts = files.ToDictionary(f => f.Index, f => ExtractionVerifier.Check(format, f, StagingPath(f), run.Finished.Contains(f.Index)));
         bool Ok(Item f) => verdicts[f.Index] == ExtractionVerifier.Problem.None;
 
+        // RAR4: 풀린 파일의 수정 시각을 압축에 적힌 벽시계로(목록과 같은 값 — 7z.dll 이 '지금' 시간대 편차로 바꾼 시각을 되돌린 것, DosWallClock).
+        // 옮기기 전에 임시 폴더 안에서 맞춘다(옮겨도 시각은 그대로, 같은 이름 묻는 창도 이 시각을 보임).
+        if (format == InArchiveFormat.Rar4)
+        {
+            foreach (var f in files)
+            {
+                if (f.Modified is not { } wall || !Ok(f) || !run.Finished.Contains(f.Index)) continue;
+                try { File.SetLastWriteTime(StagingPath(f), wall); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentOutOfRangeException)
+                {
+                    Logger.LogError("RAR4 풀린 파일 시각 맞추기 실패(내용은 그대로): " + f.Path, ex);
+                }
+            }
+        }
+
         if (ct.IsCancellationRequested)
         {
             // 취소: 끝났고 맞는 파일만 옮긴다(쓰다 만 파일은 임시 폴더째 지워짐)
@@ -273,7 +288,7 @@ internal static class SevenZipEngine
         return string.Join('\\', parts);
     }
 
-    private static List<Item> BuildItems(Source src, IReadOnlyList<ArchiveFileInfo> data, DateTime openedFrom, DateTime openedTo)
+    private static List<Item> BuildItems(Source src, IReadOnlyList<ArchiveFileInfo> data, DateTime openedFrom, DateTime openedTo, InArchiveFormat format)
     {
         IReadOnlyDictionary<int, string>? overrides = null;
         if (src.NameResolver is not null)
@@ -306,6 +321,8 @@ internal static class SevenZipEngine
             // 시각이 없는 항목(xz·ISO 폴더)은 SharpSevenZip 이 '지금'을 채운다 → 여는 동안의 시각이면 '모름'으로 둔다.
             DateTime t = afi.LastWriteTime;
             DateTime? modified = t >= openedFrom.AddSeconds(-2) && t <= openedTo.AddSeconds(2) ? null : t;
+            // RAR4 는 DOS 벽시계 — 7z.dll 이 '지금' 시간대 편차로 UTC 로 바꾼 것을 되돌려 적힌 그대로(<see cref="DosWallClock"/>, SharpCompress 길과 같게).
+            if (modified is { } m && format == InArchiveFormat.Rar4) modified = DosWallClock.FromSevenZip(m);
 
             string stagingRel = SanitizeLikeSharpSevenZip(noName ? $"[no name] {afi.Index}" : raw);
             bool separate = src.SingleStream || noName || EntryPaths.HasUnrepresentableComponent(stagingRel);
@@ -413,7 +430,7 @@ internal static class SevenZipEngine
                 if (data.Count == 0 && format is InArchiveFormat.Rar or InArchiveFormat.Rar4)
                     throw new CorruptArchiveException();
                 if (ArchiveProblem(src, extractor, format, hasPassword) is { } problem) throw problem;
-                return new Session(extractor, input, BuildItems(src, data, from, to), format);
+                return new Session(extractor, input, BuildItems(src, data, from, to, format), format);
             }
             catch (Exception ex)
             {

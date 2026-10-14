@@ -41,6 +41,14 @@ internal static class TestTimeZone
 {
     public const string EnvVar = "ILJIP_TEST_TZ";
 
+    private static TimeZoneInfo? s_osLocal;
+
+    /// <summary>
+    /// 이 PC(OS)의 진짜 현지 시간대. 흉내(<see cref="EnvVar"/>)를 켜도 이 테스트가 띄운 다른 프로세스(Iljip.exe·자동 풀림 스텁)와
+    /// 7z.dll 같은 네이티브 코드는 이 시간대로 벽시계(DOS 시각)를 읽고 쓴다. 흉내가 없으면 <see cref="TimeZoneInfo.Local"/> 그대로.
+    /// </summary>
+    public static TimeZoneInfo OsLocal => s_osLocal ?? TimeZoneInfo.Local;
+
     public static void ApplyFromEnvironment()
     {
         string? id = Environment.GetEnvironmentVariable(EnvVar);
@@ -48,6 +56,7 @@ internal static class TestTimeZone
 
         var tz = TimeZoneInfo.FindSystemTimeZoneById(id.Trim());
         TimeZoneInfo.ClearCachedData();
+        s_osLocal = TimeZoneInfo.Local;   // 바꾸기 전 — OS 의 시간대
         var cachedField = typeof(TimeZoneInfo).GetField("s_cachedData", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException($"{EnvVar}: TimeZoneInfo.s_cachedData 가 없음(.NET 내부 구조 변경) — 이 스위치를 고칠 것");
         object cached = cachedField.GetValue(null)

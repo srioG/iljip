@@ -362,7 +362,8 @@ public class SevenZipCreateTests
 
     /// <summary>
     /// 현재 동작 기록: 수준 → 7z.dll 압축 수준(저장만=None·빠름=Fast·보통=Normal·최대=Ultra)과 추가 설정(CustomParameters).
-    /// 솔리드(s)는 늘, 스레드 mt=min(4, 논리 CPU)(최대는 2), 사전 d·LZMA2 블록 c 는 빠름 4m/4m·보통 16m/8m·최대 32m/16m, 저장만은 s 만.
+    /// 솔리드(s)는 늘, 스레드 mt=min(4, 논리 CPU)(최대는 2), 사전 d·LZMA2 블록 c 는 빠름 4m/4m·보통 16m/2m·최대 32m/16m, 저장만은 s 만.
+    /// (보통의 블록은 Wave 2 통합 점검에서 8m → 2m — 솔리드 취소가 블록 하나 압축 시간만큼 걸려 바쁜 PC 에서 3초를 넘었음. 근거는 EngineParameters 설명.)
     /// 7-Zip 기본(블록 수백MB·스레드 전부)이면 진행률이 몇 초 만에 100%·취소가 끝까지 안 먹음·메모리 1.2~3.4GB(1차 W1-B 검증 지적) — 값을 바꾸면
     /// SevenZipCreateLargeTests(메모리 700MB·취소 3초)를 다시 돌려 볼 것.
     /// </summary>
@@ -375,9 +376,9 @@ public class SevenZipCreateTests
 
         Assert.Equal(new[] { ("s", "on") }, Params(CompressionLevelOption.Store));
         Assert.Equal(new[] { ("s", "on"), ("mt", mt), ("d", "4m"), ("c", "4m") }, Params(CompressionLevelOption.Fastest));
-        Assert.Equal(new[] { ("s", "on"), ("mt", mt), ("d", "16m"), ("c", "8m") }, Params(CompressionLevelOption.Normal));
+        Assert.Equal(new[] { ("s", "on"), ("mt", mt), ("d", "16m"), ("c", "2m") }, Params(CompressionLevelOption.Normal));
         Assert.Equal(new[] { ("s", "on"), ("mt", "2"), ("d", "32m"), ("c", "16m") }, Params(CompressionLevelOption.Maximum));
-        Assert.Equal(new[] { ("s", "off"), ("mt", mt), ("d", "16m"), ("c", "8m") }, Params(CompressionLevelOption.Normal, solid: false));
+        Assert.Equal(new[] { ("s", "off"), ("mt", mt), ("d", "16m"), ("c", "2m") }, Params(CompressionLevelOption.Normal, solid: false));
 
         Assert.Equal(CompressionLevel.None, SevenZipArchiveService.ToSevenZipLevel(CompressionLevelOption.Store));
         Assert.Equal(CompressionLevel.Fast, SevenZipArchiveService.ToSevenZipLevel(CompressionLevelOption.Fastest));

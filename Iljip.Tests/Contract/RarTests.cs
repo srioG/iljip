@@ -81,6 +81,44 @@ public class RarTests
     }
 
     /// <summary>
+    /// 계약(Wave 2 통합 점검): 7z.dll 은 RAR4 의 DOS 벽시계를 이 PC 의 '지금' 시간대 편차(Win32 LocalFileTimeToFileTime)로 UTC 로 바꿔 준다.
+    /// 일집은 그것을 되돌려 적힌 벽시계 그대로를 얻는다 — .NET 쪽 시간대(ILJIP_TEST_TZ 흉내, 서머타임 계절)와 상관없이 정확히.
+    /// 예전엔 .NET 이 그 UTC 를 그 날짜의 규칙으로 다시 바꿔, 둘이 다르면(흉내 시간대·서머타임 계절이 다른 파일) 그만큼 어긋났다
+    /// (ILJIP_TEST_TZ=UTC 전체 실행에서 RAR4 목록·풀린 시각이 9시간 어긋나 찾음 — 한국 PC 에서는 같은 값).
+    /// </summary>
+    [Theory]
+    [InlineData(2026, 1, 2, 3, 4, 6)]
+    [InlineData(2026, 7, 15, 10, 20, 30)]
+    [InlineData(1999, 12, 31, 23, 59, 58)]
+    [InlineData(2025, 3, 9, 2, 30, 0)]    // 미국 서머타임이 시작돼 없는 시각(흉내 'Pacific Standard Time' 에서도 그대로여야)
+    [InlineData(2025, 11, 2, 1, 30, 0)]   // 미국 서머타임이 끝나 두 번 있는 시각
+    public void RAR4_DOS_벽시계는_7z_dll이_쓴_시간대_편차를_되돌려_그대로(int y, int mo, int d, int h, int mi, int s)
+    {
+        var wall = new DateTime(y, mo, d, h, mi, s, DateTimeKind.Unspecified);
+        long localFt = wall.ToFileTimeUtc();   // 벽시계를 그대로 FILETIME 칸으로(7-Zip 의 DosTime_To_FileTime)
+        Assert.True(LocalFileTimeToFileTime(ref localFt, out long utcFt));   // 7-Zip RAR4 처리기가 하는 그대로
+        DateTime fromEngine = DateTime.FromFileTime(utcFt);                  // SharpSevenZip 이 주는 값(.NET 현지 시각)
+
+        DateTime got = DosWallClock.FromSevenZip(fromEngine);
+        Assert.NotEqual(DateTimeKind.Utc, got.Kind);
+        Assert.Equal(wall, DateTime.SpecifyKind(got, DateTimeKind.Unspecified));
+        // UTC 로 와도 같은 벽시계
+        Assert.Equal(wall, DateTime.SpecifyKind(DosWallClock.FromSevenZip(DateTime.FromFileTimeUtc(utcFt)), DateTimeKind.Unspecified));
+    }
+
+    /// <summary>계약: 바꿀 수 없는 시각(1601년 전 — 7z.dll 이 시각을 못 줄 때 SharpSevenZip 이 주는 최솟값)은 오류 없이 그대로.</summary>
+    [Fact]
+    public void RAR4_벽시계_되돌리기는_이상한_시각에서_멈추지_않는다()
+    {
+        Assert.Equal(DateTime.MinValue, DosWallClock.FromSevenZip(DateTime.MinValue));
+        Assert.Equal(DateTime.MaxValue, DosWallClock.FromSevenZip(DateTime.MaxValue));
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool LocalFileTimeToFileTime(ref long lpLocalFileTime, out long lpFileTime);
+
+    /// <summary>
     /// 계약: 암호 없음 → <see cref="PasswordRequiredException"/>, 틀린 암호 → <see cref="WrongPasswordException"/>, 화면이 암호 문제로 알아보고,
     /// 대상 폴더도 남지 않는다. RAR4 는 예전에 암호 없이도·틀린 암호로도 암호화된 바이트(쓰레기)를 그대로 써서 '완료'로 끝났다.
     /// 머리 암호면 7z 헤더 암호와 같은 문구('파일 이름까지 암호가 걸려 있어요…') — RAR4 머리 암호의 틀린 암호는 예전엔 'Unknown Rar Header' 영어 오류였다.

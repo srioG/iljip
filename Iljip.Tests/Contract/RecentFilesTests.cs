@@ -472,6 +472,46 @@ public class RecentFilesTests
         Assert.Equal(before, File.ReadAllText(path));
     }
 
+    /// <summary>
+    /// 통합 점검(2026-10-14): 위 시험이 Release 전체 실행에서 한 번 실패했다 — 회사 PC 보안 프로그램이 막 쓴 settings.json 을 검사하는 동안
+    /// File.Replace 가 '바꿀 파일을 제거할 수 없습니다'(1175)로 실패했는데 다시 해 보지 않고 저장이 null 로 끝남. 1175·1176·1177 도 잠깐 막힘으로 보고 다시 해 본다
+    /// (공유·잠금 위반·접근 거부는 예전부터). 디스크 가득·없는 파일 같은 다른 실패는 다시 하지 않는다.
+    /// 실제 파일로는: 다른 프로그램이 settings.json 을 잠깐(0.25초) 쓰기 공유 없이 잡고 있어도 다시 해서 저장된다(.tmp 남지 않음).
+    /// </summary>
+    [Fact]
+    public void 설정_바꾸기가_잠깐_막혀도_다시_해_본다()
+    {
+        foreach (uint hr in new uint[] { 0x80070497, 0x80070498, 0x80070499, 0x80070020, 0x80070021 })
+            Assert.True(JsonSettingsStore.IsTransientReplace(new IOException("막힘") { HResult = unchecked((int)hr) }), $"0x{hr:X8} 를 다시 해 보지 않음");
+        Assert.True(JsonSettingsStore.IsTransientReplace(new UnauthorizedAccessException()));
+        Assert.False(JsonSettingsStore.IsTransientReplace(new IOException("디스크 가득") { HResult = unchecked((int)0x80070070) }));
+        Assert.False(JsonSettingsStore.IsTransientReplace(new FileNotFoundException()));
+
+        using var t = new TempDir("rcjsonhold");
+        string path = t.P("settings.json");
+        var store = new JsonSettingsStore(path);
+        store.Save(new AppSettings());
+        var holder = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var release = Task.Run(async () =>
+        {
+            await Task.Delay(250);
+            holder.Dispose();
+        });
+        AppSettings? saved;
+        try
+        {
+            saved = store.Update(x => x.Ui.TreeWidth = 333);
+        }
+        finally
+        {
+            release.Wait();
+            holder.Dispose();
+        }
+        Assert.NotNull(saved);
+        Assert.Equal(333, store.Load().Ui.TreeWidth);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
     /// <summary>설정 창의 차이(<see cref="SettingsPatch"/>)는 바꾼 칸만 — 다른 창이 그사이 바꾼 칸·최근 파일은 그대로 두고 얹는다.</summary>
     [Fact]
     public void 설정_창_차이는_바꾼_칸만_얹는다()

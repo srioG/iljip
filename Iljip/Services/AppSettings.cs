@@ -523,7 +523,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
     }
 
-    /// <summary>IOException(잠김)이면 200ms 간격으로 3번 다시(설계 §3 DLP 대비).</summary>
+    /// <summary>IOException(잠김)이면 200ms 간격으로 3번 다시(설계 §3 DLP 대비). 다시 할 때 <paramref name="action"/> 은 원래 파일이 있는지부터 다시 본다.</summary>
     private static void Retry(Action action)
     {
         for (int attempt = 0; ; attempt++)
@@ -533,12 +533,27 @@ public sealed class JsonSettingsStore : ISettingsStore
                 action();
                 return;
             }
-            catch (Exception ex) when (OutputFiles.IsTransientLock(ex) && attempt < OutputFiles.MoveLockRetries)
+            catch (Exception ex) when (IsTransientReplace(ex) && attempt < OutputFiles.MoveLockRetries)
             {
                 Thread.Sleep(OutputFiles.MoveLockDelayMs);
             }
         }
     }
+
+    // File.Replace(ReplaceFile)가 바꿀 파일을 치우지 못했을 때의 HResult(1175·1176·1177)
+    private const int ErrorUnableToRemoveReplaced = unchecked((int)0x80070497);
+    private const int ErrorUnableToMoveReplacement = unchecked((int)0x80070498);
+    private const int ErrorUnableToMoveReplacement2 = unchecked((int)0x80070499);
+
+    /// <summary>
+    /// 다시 해 볼 실패인가: 다른 프로그램이 잠깐 잡음(<see cref="OutputFiles.IsTransientLock"/> — 공유·잠금 위반, 접근 거부)과
+    /// File.Replace 가 바꿀 파일을 치우지 못함(1175 '바꿀 파일을 제거할 수 없습니다'·1176·1177).
+    /// 통합 점검(2026-10-14): 회사 PC 보안 프로그램이 막 쓴 settings.json 을 검사하는 동안 1175 가 나 저장이 그냥 실패(null)로 끝났다.
+    /// 1175 는 두 파일이 그대로, 1176·1177(예비 이름 없음)은 원래 파일이 치워지고 임시 파일만 남으므로 다시 할 때 '있으면 바꾸기, 없으면 옮기기'로 맞다.
+    /// </summary>
+    internal static bool IsTransientReplace(Exception ex) =>
+        OutputFiles.IsTransientLock(ex)
+        || (ex is IOException io && io.HResult is ErrorUnableToRemoveReplaced or ErrorUnableToMoveReplacement or ErrorUnableToMoveReplacement2);
 }
 
 /// <summary>시험용 — 파일 없이 메모리에만(쓸 때마다 JSON 으로 한 번 돌려 실제 저장과 같은 모양을 확인할 수 있게).</summary>

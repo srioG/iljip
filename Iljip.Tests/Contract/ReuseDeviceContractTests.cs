@@ -167,6 +167,52 @@ public class ReuseDeviceContractTests
         Assert.True(File.Exists(b.Path), "창 없이 풀기가 압축 파일을 지움");
     }
 
+    /// <summary>
+    /// 계약(Wave 2 통합 점검 — W2-01 7z.dll 해제 길 × W2-05 같은 이름): 같은 폴더에 두 번 풀어도 형식과 상관없이 묻지 않고(창 없음) 종료 코드 0,
+    /// '이름 (1).ext' 로 비켜 쓰고 처음 푼 파일은 그대로다 — SharpCompress 직접 쓰기(ZIP CP949 한글 이름), 7z.dll 숨김 임시 폴더에서 옮기기(7z·RAR5·LZH),
+    /// 압축된 TAR(안쪽 tar 를 펼쳐 옮기기). 임시 폴더·'.~' 파일이 남지 않는다. 일집 설정(같은 이름 기본 동작·풀고 지우기)은 읽지 않으므로 압축 파일도 그대로.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 창없이_풀기는_7z_dll_길과_압축된_TAR도_같은_이름을_묻지_않고_이름1로_비켜쓴다()
+    {
+        using var tmp = new TempDir("rdtwice2");
+        var cases = new List<(string Name, string Path, IReadOnlyList<ExpectedEntry> Expected)>();
+        foreach (var id in new[] { "zip_cp949", "7z_default", "tgz_default", "lzh_default" })
+        {
+            var fx = FixtureCatalog.Get(id);
+            string dst = Path.Combine(tmp.Dir("in_" + id), Path.GetFileName(fx.FullPath));
+            File.Copy(fx.FullPath, dst);
+            cases.Add((id, dst, fx.Expected));
+        }
+        var rar = SyntheticArchives.Build("rar5", tmp.Dir("in_rar5"));
+        cases.Add(("rar5", rar.Path, rar.Expected));
+
+        foreach (var (name, path, expected) in cases)
+        {
+            string dest = tmp.Dir("out_" + name);
+            var (code1, err1) = await RunIljip(path, dest);
+            Assert.True(code1 == 0, $"{name} 첫 번째: 종료 코드 {code1} — {err1}");
+            TreeAssert.ExtractedTreeEquals(dest, expected, context: name + " 첫 번째");
+            var first = TreeAssert.Snapshot(dest);
+
+            var (code2, err2) = await RunIljip(path, dest);
+            Assert.True(code2 == 0, $"{name} 두 번째: 종료 코드 {code2} — {err2}");
+            var second = TreeAssert.Snapshot(dest);
+            foreach (var (p, sha) in first)
+                Assert.True(second.TryGetValue(p, out var now) && now == sha, $"{name}: 처음 푼 '{p}' 가 바뀌거나 없어짐");
+            foreach (var e in expected.Where(e => !e.IsDir))
+            {
+                string ext = Path.GetExtension(e.Path);
+                string renamed = e.Path[..^ext.Length] + " (1)" + ext;
+                Assert.True(second.TryGetValue(renamed, out var sha), $"{name}: '{renamed}' 이 없음 — 비켜 쓰지 않음");
+                Assert.Equal(e.Sha256, sha);
+            }
+            Assert.Equal(first.Count + expected.Count(e => !e.IsDir), second.Count);   // 비켜 쓴 파일 말고는 늘지 않음(빈 폴더는 합침)
+            CollisionTests.NoLeftovers(dest, name);
+            Assert.True(File.Exists(path), $"{name}: 창 없이 풀기가 압축 파일을 지움");
+        }
+    }
+
     /// <summary>Iljip.exe --extract-to 를 실행하고 (종료 코드, 표준 출력+오류 — 재사용장치처럼 UTF-8 → CP949 순으로 읽음).</summary>
     private static async Task<(int Code, string Output)> RunIljip(string archive, string dest)
     {

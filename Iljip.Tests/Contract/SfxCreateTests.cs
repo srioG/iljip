@@ -174,8 +174,12 @@ public class SfxCreateTests
         run.AssertNoWindow();
         Assert.Equal(string.Empty, run.Error);
         TreeAssert.ExtractedTreeEquals(dest, SampleTree.ExpectedOf(root), context: "자동 풀림");
-        // 시각도 원본대로(ZIP 의 DOS 시각 — 2초 단위)
-        Assert.Equal(SampleTree.Mtime, File.GetLastWriteTime(Path.Combine(dest, SampleTree.RootName, "한글 파일.txt")));
+        // 시각도 원본대로(ZIP 의 DOS 시각 = 벽시계 — 2초 단위). 스텁은 따로 도는 프로세스라 이 PC(OS)의 시간대로 벽시계를 쓴다 →
+        // 그 시간대로 읽은 벽시계가 원본 벽시계와 정확히 같아야 한다. 시간대 흉내(ILJIP_TEST_TZ)가 없으면 File.GetLastWriteTime 과 같은 비교
+        // (흉내는 이 테스트 프로세스 안만 바꿔, 예전 비교는 UTC 흉내에서 9시간 어긋나 실패했다 — Wave 2 통합 점검).
+        DateTime written = TimeZoneInfo.ConvertTimeFromUtc(
+            File.GetLastWriteTimeUtc(Path.Combine(dest, SampleTree.RootName, "한글 파일.txt")), TestTimeZone.OsLocal);
+        Assert.Equal(SampleTree.Mtime, written);
     }
 
     /// <summary>계약: 암호가 맞으면 풀린다 — AES-256·ZipCrypto, 영문·한글 암호(일집은 ZipCrypto 한글 암호를 CP949 로, AES 는 UTF-8 로 쓴다 — 스텁은 둘 다 알아봄).</summary>

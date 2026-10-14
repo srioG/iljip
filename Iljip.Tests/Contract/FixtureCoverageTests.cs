@@ -75,6 +75,21 @@ public class TimeZoneSwitchTests
         // 파일 시각 변환(File.GetLastWriteTime = UTC → 현지)도 바뀐 시간대를 따른다
         Assert.Equal(TimeZoneInfo.ConvertTimeFromUtc(FixtureCatalog.FixedMtimeUtc, TimeZoneInfo.Local), FixtureCatalog.FixedMtimeUtc.ToLocalTime());
     }
+
+    /// <summary>
+    /// 흉내를 켜도 <see cref="TestTimeZone.OsLocal"/> 은 이 PC(OS)의 진짜 시간대다 — 다른 프로세스(자동 풀림 스텁)가 쓴 벽시계를 비교할 때 기준
+    /// (Wave 2 통합 점검). 기준이 흉내 시간대로 바뀌어 버리면 그 비교가 무의미해진다.
+    /// </summary>
+    [Fact]
+    public void OS_시간대는_흉내와_상관없이_이_PC의_시간대다()
+    {
+        using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\TimeZoneInformation");
+        string? osId = key?.GetValue("TimeZoneKeyName") as string;
+        Assert.False(string.IsNullOrWhiteSpace(osId), "레지스트리에서 이 PC 의 시간대 이름을 읽지 못함");
+        Assert.Equal(osId!.Trim('\0', ' '), TestTimeZone.OsLocal.Id);
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(TestTimeZone.EnvVar)))
+            Assert.Equal(TimeZoneInfo.Local.Id, TestTimeZone.OsLocal.Id);
+    }
 }
 
 /// <summary>소스 트리의 Fixtures/src 를 찾지 못하면(출력 폴더만 있는 환경 등) 건너뛰는 Fact.</summary>
