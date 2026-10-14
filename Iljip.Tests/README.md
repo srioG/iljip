@@ -50,8 +50,8 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-14 W2-10 검증 지적 수정 2차 후): `통과!  - 실패: 0, 통과: 1937, 건너뜀: 0, 전체: 1937` — 남은 Skip 없음. 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
-  (W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
+- 결과(2026-10-14 Wave 2 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두): `통과!  - 실패: 0, 통과: 2175, 건너뜀: 0, 전체: 2175` — 남은 Skip 없음. 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
+  (W2-12 후: 통과 2105·건너뜀 0·전체 2105, W2-11 후: 통과 2041·건너뜀 0·전체 2041, W2-10 검증 지적 수정 2차 후: 통과 1937·건너뜀 0·전체 1937, W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
   → W2-01: 통과 1097·건너뜀 2·전체 1099)
@@ -69,10 +69,14 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
   메모리·시간을 재므로 `DisableParallelization` 묶음이라 다른 테스트가 다 끝난 뒤 따로 돈다. %TEMP% 에 160MB 를 잠깐 씀),
   (W2-06) 압축 고치기 `ArchiveEditTests`(110개 — 고칠 때마다 다시 읽어 검사하고 풀어 SHA 를 비교, 반디집 `bz t` 포함). `MainWindowEditUiTests` 는 WPF 앱 객체를 잠깐 만들므로 `DisableParallelization` 묶음.
   (W2-06 검증 지적) 16MB 솔리드 7z 지우기의 진행률·취소를 재는 `SevenZipEditProgressTests`(지우기 한 번 약 7초 — 시간을 재므로 `DisableParallelization` 묶음).
+  (Wave 2 통합 점검) 실제 `Iljip.exe` 를 열 번 띄우는 `ReuseDeviceContractTests.창없이_풀기는_7z_dll_길과_압축된_TAR도_…`(전체 실행 중 약 1분), `Wave2IntegrationTests` 는 시험마다 1~5초(병렬로 돌아 전체 시간에는 조금만 더해짐).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
 - **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1148개 — 통과 1147·건너뜀 1, 2026-10-13 W2-03 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
   (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC`, W1-B 후 둘 다 다시 통과).
+  2026-10-14 Wave 2 통합 점검에서 `UTC` 전체 실행이 RAR4 시각 8개·자동 풀림 시각 1개로 실패(Wave 2 동안 이 실행을 안 해 쌓였던 것) → RAR4 는 제품을 고침, 자동 풀림 시험은 기준을 바로잡음(아래 'Wave 2 통합 점검에서 더한 것').
+  ★ 흉내는 **이 테스트 프로세스의 .NET 만** 바꿉니다 — 테스트가 띄운 다른 프로세스(`Iljip.exe`·자동 풀림 스텁)와 7z.dll 같은 네이티브 코드는 이 PC 의 진짜 시간대를 씁니다.
+  그런 쪽이 쓴 벽시계를 비교할 때는 `TestTimeZone.OsLocal`(흉내 전 OS 시간대)로 읽으세요.
   ```powershell
   $env:ILJIP_TEST_TZ = "UTC"; dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj; Remove-Item Env:ILJIP_TEST_TZ
   ```
@@ -153,16 +157,17 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/QuickCompressTests.cs` | [W2-12, I1-2] 창 없이 바로 압축(`--compress-zip`·`--compress-7z`): 폴더 하나 → '폴더.zip'(압축 창·질문·안내 없음, 진행 창 '압축 중...' 하나, 설정 저장 0), 여럿 → 그 폴더 이름·같은 이름이면 묻지 않고 '(2)', 7z 는 마지막 설정(수준·솔리드·시험)대로·날짜·암호 없음, 뺀 파일이 있으면 안내 하나, 원본이 없으면 오류 하나, 해석 |
 | `Contract/CompressDialogRulesTests.cs` | [W2-07, I2-12] 한 화면 압축 창 규칙(`ViewModels/CompressionDialogViewModel` — 창 없이): 7Z 는 7z 칸·ZIP 방식 칸 숨김·이름 숨기기는 암호가 있을 때만, TAR·GZ·BZ2 는 암호·나누기 끔(GZ·BZ2 는 빼기·원본 지우기도), 날짜를 켜고 모양을 바꾸면 미리 보기와 PropertyChanged, 각각 따로(원본 둘 이상만·이름 칸 막음·'… 외 N개 (원본마다 하나씩)'), 형식을 바꾸면 제안 이름이 따라감(GZ 는 '보고서.xlsx', 고친 이름은 그대로), 처음 값은 설정(마지막 폴더·직접 입력 크기 포함), 7z.dll 이 막히면 7Z 없음·ZIP 으로 시작, [확인] 전 검사(빈 이름·못 쓰는 글자·없는 폴더·이상한 경로·GZ 에 폴더·GZ 에 여러 파일), 답에는 맞는 값만, 같은 이름(나눈 ZIP·7Z 첫 조각 포함)·비켜 만들 이름, 예전 옵션 창 어댑터, XAML 칸 순서·문구·코드가 VM 을 씀(소스). (검증 지적 1차) '만들 곳' 처음 값은 설정(원본 폴더·마지막 폴더·정해 둔 폴더 — 없으면 원본 폴더, 목록 겹치지 않게, 설정 창 칸 검사), 원본 그 자체면 [바꾸기] 없음('지금 압축하려는 원본'·답은 안 바꿈), GZ·BZ2 미리 보기의 날짜는 원래 확장자 앞, 설정 창이 folderChoice·fixedFolder·deleteOriginalsAfter 를 씀(소스) |
 | `Contract/FileLockTests.cs` | 열기 실패 후 원본 파일을 잠그지 않는지(B8 고침) + 분할 EGG 조각들도 바로 지울 수 있는지 |
-| `Contract/RarTests.cs` | (통합 점검) 합성 RAR4·RAR5 — 작성기를 반디집으로 검증, 목록·해제·풀린 수정 시각, 목록 시각은 현지 시각, 암호 없음/틀림 → 암호 예외·아무것도 안 남음(머리 암호는 '파일 이름까지…'), 이름 보이는 암호 RAR 은 암호 없이 목록, 손상 → CRC 오류(앞 파일 남김), 진행률, '/' 로 고른 선택 해제. (W2-02) 머리 암호 RAR 을 암호 없이 읽으면 `ListPasswordRequiredException` |
+| `Contract/RarTests.cs` | (통합 점검) 합성 RAR4·RAR5 — 작성기를 반디집으로 검증, 목록·해제·풀린 수정 시각, 목록 시각은 현지 시각, 암호 없음/틀림 → 암호 예외·아무것도 안 남음(머리 암호는 '파일 이름까지…'), 이름 보이는 암호 RAR 은 암호 없이 목록, 손상 → CRC 오류(앞 파일 남김), 진행률, '/' 로 고른 선택 해제. (W2-02) 머리 암호 RAR 을 암호 없이 읽으면 `ListPasswordRequiredException`. (Wave 2 통합 점검) RAR4 DOS 벽시계는 7z.dll 이 쓴 '지금' 시간대 편차를 되돌려 그대로(`DosWallClock` — 서머타임 시작·끝 시각 포함, 이상한 시각에서 멈추지 않음) |
 | `Contract/FormatFlowTests.cs` | (통합 점검) 형식이 달라도 화면 흐름이 같은가 — 가짜 창으로 ZIP·7z·EGG·RAR4·RAR5 암호 창 길(없음 → 틀림 → 맞음), ZIP(CP949·UTF-8)·7z·TAR·EGG·ALZ·RAR 한글 이름(목록·폴더 트리·풀린 이름), 모든 해제의 진행 막대 도중 보고, 목록 시각이 UTC 로 오지 않음, 암호 ZIP(AES·한글 ZipCrypto)도 읽는 도중 막힌 파일만 빼고 다시 써서 같은 암호로 풀림. (W2-02) 목록까지 잠긴 7z·RAR 은 첫 창이 `ListLocked`, 틀리면 '암호가 맞지 않아요' 경고 한 번 뒤 다시 |
-| `Contract/ReuseDeviceContractTests.cs` | (통합 점검) 재사용장치(`재사용장치_processor.py`)가 기대는 `Iljip.exe --extract-to` 약속 — 실제 exe 로 egg·alz·RAR4·RAR5·분할 egg 는 종료 0, 암호·잘린 파일은 종료 1 이고 실패 문구가 '압축 파일 아님'으로 읽히지 않음(반디집 재시도 유지), 본체 문구 검사. (W2-02) 일집·py7zr 이 만든 헤더 암호 7z·머리 암호 RAR5 를 창 없이 풀면 묻지 않고 종료 1·'파일 목록까지 암호로 잠긴…'·아무것도 안 남김. (W2-05) 같은 폴더에 두 번 풀어도 묻지 않고 종료 0·'이름 (1)'·압축 파일 그대로 |
+| `Contract/ReuseDeviceContractTests.cs` | (통합 점검) 재사용장치(`재사용장치_processor.py`)가 기대는 `Iljip.exe --extract-to` 약속 — 실제 exe 로 egg·alz·RAR4·RAR5·분할 egg 는 종료 0, 암호·잘린 파일은 종료 1 이고 실패 문구가 '압축 파일 아님'으로 읽히지 않음(반디집 재시도 유지), 본체 문구 검사. (W2-02) 일집·py7zr 이 만든 헤더 암호 7z·머리 암호 RAR5 를 창 없이 풀면 묻지 않고 종료 1·'파일 목록까지 암호로 잠긴…'·아무것도 안 남김. (W2-05) 같은 폴더에 두 번 풀어도 묻지 않고 종료 0·'이름 (1)'·압축 파일 그대로. (Wave 2 통합 점검) 그 '이름 (1)' 이 7z.dll 길(7z·RAR5·LZH)·압축된 TAR·ZIP CP949 에서도 같고 임시 파일이 남지 않음 |
+| `Contract/Wave2IntegrationTests.cs` | (Wave 2 통합 점검, 2026-10-14) 묶음 사이 상호작용: 우클릭 풀기('"이름"\ 에'·'여기에'·알아서 풀기)·풀기 창의 암호 흐름이 ZIP·7z·EGG·RAR4·RAR5(이름 보임·목록 잠김·한글 암호) 모두 같은 차례, 형식이 다른 같은 암호 압축 여럿은 한 번만 묻기, ZIP·7z(7z.dll)·EGG 를 한 폴더에 풀 때 같은 이름은 한 번만 묻고 건너뛴 압축은 지우지 않음, 나눠 만든 ZIP(AES)·7Z(한글 암호·파일 이름 암호)도 진짜 시험기로 시험하고 원본 지우기·망가진 조각은 잡음, 압축 속 파일을 연 채로 넣기·이름 바꾸기를 해도 다시 넣기가 그것을 잃지 않음, 확장자가 바뀐 ZIP(CP949)·EGG·ALZ·RAR4 첨부도 창 없이 풀기가 원래 처리기로(한글 이름 그대로) |
 | `Contract/BugEvidenceTests.cs` | 버그 '지금 이렇다' 근거(고쳐지면 실패하는 게 정상). 지금은 안 고친 버그가 없어 B3 원인 사실 기록 2개만(반디집 한글 암호 = CP949, 일집 AES = UTF-8) |
 | `Contract/FixedBugTests.cs` | 고친 버그 B1·B2(점뿐인 이름 포함)·B6·B7·B9, **B3·B4·B5(W1-C)** — 다시 생기면 안 됨(예전 근거 테스트를 올바른 기대로 뒤집은 것, 계약) |
 | `Contract/ZipPasswordProbeTests.cs` | (W1-C) ZIP 암호 판정 — 반디집 한글 암호 = CP949, 일집 AES = UTF-8, 첫 항목만 통과하는 틀린 암호 = None, 판정 못 하는 모양(잘림·분할·SFX·쓰레기) = 예외 없이 Unknown, 두 후보가 다 통과할 때 가려내기·대안, '확인됨'(근거 16비트) |
 | `Contract/ZipEncryptionTests.cs` | (W1-C) ZipCrypto·AES 만들기(영문·한글·이모지 암호) 왕복, 반디집 한글 AES 선택 해제, **맞는 암호 + 깨진 AES·ZipCrypto 데이터는 손상으로 알리고 앞 파일은 남김**, 잘린 AES ZIP, 두 후보가 다 통과하는 한글 ZipCrypto 도 풀림(`TestSupport/RawArchives.cs` 의 `RawZipCrypto` 로 결정적으로 만듦) |
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀. (W2-02) 일집 7z(AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더)를 반디집이 맞는 암호로 풂(틀린 암호로는 못 풂) |
-| `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지 |
+| `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지, (Wave 2 통합 점검) 흉내를 켜도 `TestTimeZone.OsLocal` 이 이 PC 의 진짜 시간대인지 |
 | `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`), (W2-07) 가짜 한 화면 압축 창 `FakeUserInteraction.AskCompression`(`CompressionRequestAnswer` — 비면 예전 `SavePath` + `CompressionOptions` 답으로), 가짜 시계 `FakeClock`(`TestServices.Clock`)·만든 압축 시험기 `FakeCompressTester`(`TestServices.CompressTester` — 기본은 진짜 시험기에 맡기고 기록만, `Pass()`·`Fail()`·`FailFor`), (W2-07 검증 지적 2차) 띄우지 않고 창 만들기 틀 `WpfAppScope`(앱 객체·테마 자원·묶기 오류 기록 `BindingErrorLog`), 조건으로 진행 창 [취소] `FakeUserInteraction.CancelWhen`, 가짜 휴지통의 끼워 넣기 `FakeRecycleBin.OnIsRecyclable`·`OnSend`, (W2-09) 가짜 풀기 창 `FakeUserInteraction.AskExtractTarget`(`ExtractTargetAnswer` — 비면 예전 `FolderToPick` 답으로), 옛 방식 이름 바이트 TAR `RawTar.Entry.RawName`, (W2-10) 확인란이 있는 가짜 선택 창 `FakeUserInteraction.ChooseWithCheck`(`CheckChoicePrompts`·`CheckAnswer` — 버튼은 `Choose` 와 같은 규칙으로 고르고 `ChoicePrompts` 에도 남김), (W2-11) 가짜 일집 띄우기 `FakeProcessLauncher`(`TestServices.Processes` — 새 창·관리자 다시 시작의 실행 파일·인자만 기록, `ThrowOnElevate`·`ThrowOnNewInstance`)·가짜 네트워크 드라이브 `FakeMappedDriveResolver`(`TestServices.MappedDrives` — `Map`·`Unresolvable`), (W2-12) 가짜 레지스트리 `FakeRegistryRoot`(`TestServices.Registry` — 메모리 트리·대소문자 무시·`DenyWrites`·정렬한 .reg 모양 `ExportReg` — 진짜 HKCU 는 시험용 하위 키조차 안 씀), 가짜 셸의 `DefaultAppsOpened`·`AssociationsChangedNotified`(진짜 ms-settings·SHChangeNotify 안 부름), 진행 창 제목 `FakeUserInteraction.ProgressTitles` |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
@@ -223,10 +228,38 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | **Skip 아님** — W2-09 에서 메움(`BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` Skip 해제, `NameEncodingTests`) |
 
-### 남은 Skip 0개(2026-10-14 W2-12 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
+### 남은 Skip 0개(2026-10-14 Wave 2 통합 점검 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
 `Known.I2_10` 은 W2-09 에서 지웠습니다(마지막 Skip). 환경 조건으로 건너뛰는 시험(반디집 콘솔·로컬 SFX 픽스처·IMAPI2FS·셸 확장 DLL 이 없는 PC)은 위 '실행 방법' 대로입니다.
+Wave 2 에서 검증에 걸려 되돌린 W2-04(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지 — `stash` `iljip-wave2-W2-04-failed`)·
+W2-08(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12 — `iljip-wave2-W2-08-failed`)은 Skip 으로 남기지 않았습니다(시험도 보관분 안에 있음 — 다시 할 때 같이 들임).
+
+### Wave 2 통합 점검에서 더한 것(2026-10-14) — 묶음 사이 상호작용
+
+푼 Skip 은 없습니다(0 → 0). 새 시험 70개: `Wave2IntegrationTests` 61(Theory 줄 포함)·`ReuseDeviceContractTests` +1·`RecentFilesTests` +1·`RarTests` +6·`TimeZoneSwitchTests` +1.
+전체 2105 → 2175, 실패 0(세 번).
+- **찾아서 고친 것 하나**: Release 전체 실행에서 `RecentFilesTests.설정_파일은_저장_직전에_다시_읽어_바꾼_칸만_얹는다` 가 한 번 실패 — 회사 PC 보안 프로그램(DLP)이 막 쓴 `settings.json` 을
+  검사하는 동안 `File.Replace` 가 '바꿀 파일을 제거할 수 없습니다'(1175)로 실패했는데, 설정 저장의 다시 하기가 공유 위반·잠금·접근 거부만 다시 해 보고 이 오류는 곧장 실패(null)로 끝냈다.
+  `JsonSettingsStore.IsTransientReplace` 가 1175·1176·1177 도 다시 해 보게 함(시험 `설정_바꾸기가_잠깐_막혀도_다시_해_본다` — 디스크 가득·없는 파일은 다시 하지 않음, 실제 파일을 0.25초 잡고 있어도 저장됨).
+  (압축 고치기의 바꾸기 `ArchiveSwap` 은 예전부터 이 경우 예비 이름 방식으로 넘어가므로 그대로.)
+- **찾아서 고친 것 둘 — RAR4 시각(시간대 흉내 실행에서 찾음)**: `ILJIP_TEST_TZ=UTC` 전체 실행에서 `RarTests` 의 RAR4 시각 8개(목록·풀린 파일)가 9시간 어긋나 실패.
+  W2-01 에서 RAR 이 7z.dll 로 가면서 생긴 것 — 7-Zip 의 RAR4 처리기는 DOS 벽시계를 이 PC 의 '지금' 시간대 편차(Win32 `LocalFileTimeToFileTime`)로 UTC 로 바꾸고,
+  .NET 은 그 UTC 를 그 날짜의 규칙으로 되돌린다. 둘의 시간대가 다르면(흉내, 그리고 실제로는 서머타임이 있는 나라에서 계절이 다른 파일) 그만큼 어긋난다
+  (한국은 서머타임이 없어 이 PC 의 실제 사용에서는 같은 값이었음). `DosWallClock.FromSevenZip` 이 같은 '지금' 편차를 쓰는 `FileTimeToLocalFileTime` 으로 정확히 되돌려,
+  목록 시각과 풀린 파일 시각이 적힌 벽시계 그대로(7z.dll 을 못 쓸 때의 SharpCompress 길과 같은 값). 시험 `RAR4_DOS_벽시계는_7z_dll이_쓴_시간대_편차를_되돌려_그대로`
+  (서머타임 시작·끝 시각 포함 5줄)·`RAR4_벽시계_되돌리기는_이상한_시각에서_멈추지_않는다`. 기존 `RarTests` 의 기대는 그대로이고 이제 UTC·'Pacific Standard Time' 흉내에서도 통과.
+- **찾아서 고친 것 셋 — 7z 만들기 취소가 바쁜 PC 에서 3초를 넘음**: `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…` 가 이번 전체 실행 세 번 모두 실패(3.1·6.4·3.1초 — W2-03 부터 '바쁠 때만'으로 적어 두던 것).
+  원인: 솔리드 7z 를 취소하면 7z.dll 이 스레드마다 맡은 블록을 끝까지 압축한 뒤 돌아온다(취소 시간 ≈ 블록 하나 압축 시간 — c=8m 2.3~3.3초, c=2m 0.5~0.6초, 솔리드가 아니면 0.2초 안).
+  보통 수준의 블록을 8m → 2m(압축 고치기와 같음). 크기 +0.1%(160MB 섞인 원본)·+2.4%(글자만), 시간은 같거나 빠름, 메모리 1/3. 계약 시험 한도(3초)는 그대로,
+  기록 시험 `SevenZipCreateTests.기록_수준별_7z_dll_설정` 의 보통 값만 새 설정으로(기록 시험 — 엔진 설정이 바뀌면 고치는 것).
+- 기대의 기준을 바로잡은 기존 시험 하나(단언을 지우거나 허용 범위를 넓히지 않음 — 정확히 같은 값 비교 그대로):
+
+  | 시험 | 예전 | 지금 |
+  |---|---|---|
+  | `SfxCreateTests.만든_자동풀림_exe를_무인으로_풀면_원본과_같다`(시각 줄) | 풀린 파일 시각을 이 테스트 프로세스의 현지 시각(`File.GetLastWriteTime`)으로 읽어 원본 벽시계와 같음 | 자동 풀림 스텁은 **따로 도는 프로세스**라 이 PC(OS)의 시간대로 ZIP DOS 벽시계를 쓴다 → 그 시간대(`TestTimeZone.OsLocal`)로 읽은 벽시계가 원본 벽시계와 정확히 같음. 흉내가 없으면 예전과 똑같은 비교(OsLocal = Local). 흉내는 이 테스트 프로세스 안만 바꿔 UTC 실행에서 9시간 어긋나 실패했었다. 기준이 정말 OS 시간대인지는 새 시험 `TimeZoneSwitchTests.OS_시간대는_흉내와_상관없이_이_PC의_시간대다`(레지스트리 `TimeZoneKeyName` 과 대조)가 지킨다 |
+- 상호작용 시험은 모두 처음부터 통과(어긋남 없음). 확인한 차이 하나(버그 아님 — 기록): 목록 잠긴 7z·RAR 에 틀린 암호를 넣으면 **메인 창 흐름**(열기·풀기 창)은 '암호가 맞지 않아요' 경고 창 한 번 + 다시 묻기,
+  **우클릭 풀기**(메인 창 없이)는 경고 창 없이 암호 창 문구('암호가 맞지 않아요…')로만 다시 묻는다 — 각 길 안에서는 형식과 상관없이 같다.
 
 ### W2-12 에서 더한 것(2026-10-14) — I1-1 파일 연결, I1-2 우클릭 메뉴 정비, I3-10 오른쪽 끌기 메뉴
 
@@ -489,6 +522,7 @@ I2-12 의 '해제 방식 기억'은 W2-05 의 `extract.*`(같은 이름 처리·
 | 잃어버린 갱신 | 읽은 뒤 다른 프로그램·다른 고치기가 원본을 바꿔도 덮어씀 | 읽기 시작할 때 잰 크기·수정 시각이 바꾸기 직전과 다르면 바꾸지 않고 '고치는 동안 다른 곳에서 이 압축 파일이 바뀌어서…', 같은 프로세스 안 바꾸기는 한 번에 하나 | `ArchiveEditReviewTests.고치는_사이에_원본이_바뀌면_…`(2)·`동시에_고쳐도_…` |
 
 고치지 않은 지적 1개: `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…` 가 바쁠 때 3027ms 로 실패 — W2-02 의 7z **만들기** 길(이번 고치기와 상관없음)이고, 한도를 늘리거나 Skip 하면 시험을 약하게 하는 것이라 그대로 둡니다(이미 `DisableParallelization` 묶음). 이번 전체 실행 두 번은 2770ms·1958ms 로 통과.
+(→ Wave 2 통합 점검에서 원인을 찾아 고침: 솔리드 취소는 블록 하나 압축 시간만큼 걸림 — 보통의 블록 8m → 2m, 아래 'Wave 2 통합 점검에서 더한 것'.)
 
 ### W2-05 에서 고친 것(2026-10-13) — I1-5 같은 이름·I1-6 메인 창 없는 우클릭 풀기·I2-5 풀고 나서 지우기·I2-6 여러 개 풀기
 
@@ -529,7 +563,7 @@ I2-12 의 '해제 방식 기억'은 W2-05 의 `extract.*`(같은 이름 처리·
 | 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
 |---|---|---|---|
 | I2-1 7z 만들기 | `NotSupportedException`, 저장 형식에 7Z 없음 | 7z.dll 로 만듦(수준 저장만·빠름·보통·최대, 솔리드, AES-256, 파일 이름 암호화). 저장 형식에 7Z(7z.dll 을 쓸 수 있을 때만), 옵션 창 7Z 칸. 모든 폴더가 항목(7-Zip·반디집 7z 와 같은 목록), 잠긴 원본은 ZIP 처럼 건너뜀 | `KnownGapTests.압축_7z_왕복이_원본과_같다`(Skip 해제), `SevenZipCreateTests`, `CompressionOptionsRulesTests`, `BandizipCliTests.일집_7z_…`, `CompressSkipTests` .7z 행 |
-| 1차 W1-B 지적 ① 진행 막대가 몇 초 만에 100% | 7z.dll 이 원본을 메모리로 다 읽음(7-Zip 기본 블록·스레드) | 진행률 = 7z.dll 이 실제로 읽은 바이트(`LazySourceStream`), 사전·블록·스레드를 줄임(보통 mt≤4·d=16m·c=8m). 160MB 실측: 100% 도달 17.7초/전체 19.9초(기본값이면 0.3초/29초) | `SevenZipCreateLargeTests.보통_수준_큰_원본의_진행률이_…`, `ProgressTests` 7z 행 |
+| 1차 W1-B 지적 ① 진행 막대가 몇 초 만에 100% | 7z.dll 이 원본을 메모리로 다 읽음(7-Zip 기본 블록·스레드) | 진행률 = 7z.dll 이 실제로 읽은 바이트(`LazySourceStream`), 사전·블록·스레드를 줄임(보통 mt≤4·d=16m·c=8m — Wave 2 통합 점검에서 c=2m). 160MB 실측: 100% 도달 17.7초/전체 19.9초(기본값이면 0.3초/29초) | `SevenZipCreateLargeTests.보통_수준_큰_원본의_진행률이_…`, `ProgressTests` 7z 행 |
 | ② 취소가 끝날 때만 먹음 | 원본을 다 읽은 뒤엔 취소를 볼 곳이 없음 | 원본 읽기마다·출력 쓰기마다(파일만 고른 경우) 취소 확인. 30% 지점 취소 1.1~1.7초, 처음 바이트에서 취소 13~36ms. 실패·취소면 임시 파일(`.~이름.8글자.tmp`)·임시 폴더를 지우고 덮어쓰려던 기존 파일은 그대로 | `SevenZipCreateLargeTests` 취소 3개, `SevenZipCreateTests.압축_도중_취소하면_…`, `MainViewModelPasswordTests.화면에서_7z_만들기를_취소하면_…` |
 | ③ 메모리 1.7~3.4GB | 7-Zip 기본 설정 | 보통 수준 160MB 에서 전용 메모리 증가 약 205MB(한도 700MB). 설정을 7-Zip 기본으로 되돌리면 1,167MB 로 시험이 실패하는 것을 확인 | `SevenZipCreateLargeTests.보통_수준_큰_원본의_메모리가_700MB_아래다`, `SevenZipCreateTests.기록_수준별_7z_dll_설정` |
 | I1-7 남은 몫 | 목록까지 잠긴 7z·RAR 의 '암호 없음'이 일반 `PasswordRequiredException`, 열 때 틀린 암호는 경고 없이 다시 물음 | `ListPasswordRequiredException`(PasswordRequiredException 의 하위 형식, 문구 '파일 목록까지 암호로 잠긴 압축 파일이에요. 암호를 넣어 주세요.'), 화면은 `PasswordPromptReason.ListLocked` 로 묻고 틀리면 '암호가 맞지 않아요. 다시 넣어 주세요.' 경고 뒤 다시, 취소면 아무것도 안 바뀜. 만든 7z 를 열 때는 방금 넣은 암호로(다시 안 물음) | `ListPasswordFlowTests`, `ReuseDeviceContractTests.창없이_풀기는_목록까지_잠긴_…` |

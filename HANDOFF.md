@@ -85,7 +85,17 @@
   고른 것을 한 명령줄로(길면 `--list-file`). 설치·등록은 사람이 할 일(아래 '셸 확장·파일 연결 반영(W2-12)')
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-14 W2-12 후)
+## 현재 진행 단계 (2026-10-14 Wave 2 통합 점검 후)
+
+**Wave 2 통합 점검 끝 — 커밋·푸시 완료**(W2-01·02·03·05·06·07·09·10·11·12 는 묶음마다 커밋돼 있었고, 통합 점검은 아래 변경 이력 'Wave 2 통합 점검').
+계약 테스트 실패 0(전체 2175 — 통과 2175·건너뜀 0, **Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두**). Release 빌드 경고 0·오류 0(출력은 `D:\Python\일집-build\dotnet\Iljip\bin\Release`).
+통합 점검에서 고친 것은 셋 — 설정 저장이 보안 프로그램 검사 중 1175 로 그냥 실패하던 것, RAR4 시각이 7z.dll 과 .NET 의 시간대 편차가 다르면 어긋나던 것(`ILJIP_TEST_TZ=UTC` 실행에서 찾음 — 한국 PC 실사용에서는 같은 값),
+7z 만들기(보통) 취소가 바쁜 PC 에서 3초를 넘던 것(솔리드 취소 = 블록 하나 압축 시간 → 블록 8m → 2m, 취소 0.3~0.7초).
+새 시험 70개 — 묶음 사이 상호작용 61 + 실제 exe 1 + 설정 저장 1 + 시각 7(전체 2105 → 2175, 모두 통과). 자동 풀림 시각 시험 하나는 기준만 바로잡음(스텁은 따로 도는 프로세스라 OS 시간대 — 정확히 같은 값 비교 그대로).
+**되돌린 묶음 둘은 stash 에 그대로**(drop 안 함 — 다시 할지는 사람이 정함): `stash@{0}` `iljip-wave2-W2-08-failed`(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12),
+`stash@{1}` `iljip-wave2-W2-04-failed`(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지 — 열기·다시 넣기 바탕은 W2-06 이 먼저 들임), `stash@{2}` `iljip-wave1-W1-B-failed`(W2-01 이 다시 함 — 이제 쓸 일 없음).
+**설치·등록·재배포는 하지 않았다**: `D:\Python\일집-dist`(재사용장치 배포본)는 아직 2026-06-23 판, 셸 확장(MSIX 0.4.0)·파일 연결은 이 PC 에 반영 안 함, `Iljip\bin` 에 exe 없음.
+그 전(W2-12) 기록:
 
 **W2-12(파일 연결 I1-1·우클릭 메뉴 정비 I1-2·오른쪽 끌기 메뉴 I3-10) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함, stash 셋은 손대지 않음).
 **설치·등록은 하지 않았다** — 반영은 아래 '셸 확장·파일 연결 반영(W2-12)' 절차(사람이 할 일). 새 파일(아직 git 에 없음 — 커밋할 때 같이):
@@ -133,11 +143,13 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 계약 테스트 실패 0(통과 834·건너뜀 6·전체 840 — Debug·Release·`ILJIP_TEST_TZ=UTC` 모두). **`D:\Python\일집-dist`(재사용장치가 매일 egg 를 푸는 배포본)는 아직 예전 판**
 (2026-06-23, SharpCompress 0.38.0·EggDotNet 0.3.0)이다 — 바꾸기 전에 아래 '일집-dist 재배포' 절과 `Iljip.Tests/MANUAL_CHECKLIST.md` 를 사람이 확인할 것.
 
-**다음 단계**:
-1. 사용자 실제 PC 확인(MANUAL_CHECKLIST 1~8절 — 특히 6절 진짜 알집·WinRAR 파일, 8절 재사용장치 경로)
-2. 확인되면 일집-dist 재배포(아래 절차) → 재사용장치 다음 날 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지 확인
-3. ~~W1-B(7z.dll) 다시 시도~~ → W2-01 에서 해제 쪽 끝(숫자 분할 풀기·tar.gz 등 한 번에 펼치기 I2-9 포함), W2-02 에서 7z 만들기(I2-1) 끝, W2-03 에서 분할 만들기(I2-2) 끝
-   — 재배포 전에 MANUAL_CHECKLIST 9절(7z.dll·새 형식 실물 확인)·10절(7z 만들기·목록까지 잠긴 압축)·11절(나눠 만들기)·12절(같은 이름·우클릭 풀기 — W2-05)·13절(압축 고치기·다시 넣기 — W2-06)·14절(한 화면 압축 창·원본 지우기 — W2-07)·15절(맥·일본어·중국어 이름, 풀기 창, 찾기 — W2-09)·16절(자동 풀림 EXE — W2-10: 화면 모드·다른 PC 의 SmartScreen·백신·회사 메일)·17절(시작 화면·최근 파일·다른 이름으로 저장·지우기·새 창, 진짜 UAC 와 관리자 일집 — W2-11)·18절(우클릭 '일집 ▶'·오른쪽 끌기·파일 연결 — W2-12, 셸 확장을 설치한 뒤)도 볼 것
+**다음 단계**(Wave 2 통합 점검 후 — 모두 사람이 할 일):
+1. **재배포 전 실제 PC 확인**: MANUAL_CHECKLIST **19절**(재배포 전 마지막 확인 — Wave 2 통합, 30분) + 0·2·6·8·9절(진짜 알집·WinRAR 파일, 재사용장치 egg 해제, 7z.dll 이 막힌 PC).
+   시간이 되면 10~17절(새 기능 화면 — 7z 만들기·나눠 만들기·같은 이름 창·압축 고치기·한 화면 압축 창·풀기 창·자동 풀림 EXE·시작 화면)
+2. 확인되면 **일집-dist 재배포**(아래 '일집-dist 재배포' 절 — 재사용장치가 돌지 않는 시간에) → 다음 날 재사용장치 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지
+3. **셸 확장·파일 연결 반영**(아래 '셸 확장·파일 연결 반영(W2-12)' 절 — 인증서·`Rebuild.ps1`·`--register-associations`) → MANUAL_CHECKLIST 18절. 일집-dist 와는 따로(셸 확장은 `일집-build\package\Iljip.exe` 를 부름)
+4. 결정할 것: W2-04·W2-08(stash) 다시 할지, 7-Zip `License.txt` 원문 대조(내려받기 허락), 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(아래 '향후 작업')
+(예전 다음 단계 — 1~8절 확인·W1-B 다시 시도 — 는 위에 합침. W1-B 는 W2-01 에서, 7z 만들기 W2-02, 분할 만들기 W2-03 에서 끝)
 
 ### MSIX 셸 확장
 
@@ -148,10 +160,12 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 
 ## 일집-dist 재배포 (재사용장치 영향) — 사람이 할 일, 자동으로 하지 않음
 
-- 재사용장치(`D:\Python\재사용장치\System_code\재사용장치_processor.py` `_find_iljip`)는 `config.json` 의 `iljip_path` 가 비어 있으면
-  `D:\Python\일집\Iljip\bin\Release\…\Iljip.exe` → `…\bin\Debug\…` → **`D:\Python\일집-dist\Iljip.exe`** 순으로 찾는다. 빌드 산출물은
-  `Directory.Build.props` 때문에 `D:\Python\일집-build\dotnet\…` 로 가서 앞의 둘은 비어 있다 → 지금은 일집-dist 를 쓴다(2026-10-12 확인).
-  ★ 그래서 `Iljip\bin\Release` 에 exe 를 만들면(빌드 설정을 바꾸는 등) 재배포 없이도 재사용장치가 그 판으로 바뀐다 — 조심.
+- 재사용장치(`D:\Python\재사용장치\System_code\재사용장치_processor.py` `_find_iljip`)는 `config.json` 의 `iljip_path` 가 비어 있으면 이 차례로 찾는다(2026-10-14 Wave 2 통합 점검에서 다시 읽음):
+  ① `D:\Python\일집\Iljip\bin\Release\net8.0-windows\win-x64\publish\Iljip.exe` ② `…\bin\Release\net8.0-windows\Iljip.exe` ③ `…\bin\Debug\net8.0-windows\Iljip.exe`
+  ④ **`D:\Python\일집-dist\Iljip.exe`**(지금 쓰는 것) ⑤ `D:\Python\일집-build\package\Iljip.exe`(셸 확장 패키지 — 일집-dist 가 없을 때만) ⑥ `C:\Program Files\Iljip\Iljip.exe`.
+  빌드 산출물은 `Directory.Build.props` 때문에 `D:\Python\일집-build\dotnet\…` 로 가서 ①~③ 은 비어 있다(`BuildOutputTests` 가 `Iljip\bin\Release·Debug` 아래를 통째로 봄).
+  ★ 그래서 `Iljip\bin\Release` 에 exe 를 만들면(빌드 설정을 바꾸거나 `-o` 없이 RID 발행) 재배포 없이도 재사용장치가 그 판으로 바뀐다 — 조심.
+  ★ 일집-dist 를 이름만 바꿔 두고(되돌릴 곳) 새 폴더를 아직 안 넣은 사이에는 ⑤(셸 확장 패키지 판)가 쓰일 수 있다 — 바꾸기는 재사용장치가 돌지 않는 시간에 한 번에.
 - 재사용장치는 egg·alz(그리고 파이썬 py7zr·rarfile 이 없으면 7z·rar)를 `Iljip.exe --extract-to <첨부> <임시폴더>` 로 푼다. 종료 코드 0 이면 가져가고,
   0 이 아니면 출력에 '압축 파일이 아닌'·'not archive'·'unsupported archive' 가 있으면 '압축 아님'으로 끝, 아니면 반디집으로 다시 푼다.
   이 약속은 `Iljip.Tests/Contract/ReuseDeviceContractTests.cs` 가 실제 exe 로 지킨다.
@@ -167,16 +181,39 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
   실패 문구는 표준 오류에 CP949 로 나가서(재사용장치는 UTF-8 → CP949 순으로 읽음) '—'(긴 줄표)가 '?' 로 보일 수 있다(동작 영향 없음).
 - 위험: 새 판은 egg/alz 를 풀면서 크기·CRC 를 직접 확인한다(예전엔 확인 안 함). 진짜 알집 파일에서 이 확인이 어긋나면 멀쩡한 egg 가 종료 1 → 반디집으로 풀린다
   (반디집이 있으면 결과는 같고 로그만 늘어남. **반디집을 지운 PC 라면 해제 실패**). 그래서 재배포 전에 MANUAL_CHECKLIST 8절로 진짜 egg 몇 개를 새 판으로 풀어 볼 것.
-- 절차(예시 — 재사용장치가 돌지 않는 시간에):
+- **Wave 2 판에서 재사용장치에 더 바뀌는 점**(2026-10-14 통합 점검 — 위 표에 더해, 픽스처로 예전 일집-dist 와 새 Release 빌드를 나란히 `--extract-to` 실행해 비교):
+  | 첨부(반디집 픽스처) | 예전 일집-dist | 새 판(Wave 2) |
+  |---|---|---|
+  | 7z(빈 파일 든 반디집 7z) | **종료 1**('File does not have a stream.') — 결과 폴더에 9개 중 8개만 남김 → 반디집으로 | 종료 0, 9개 다(내용·이름 그대로) |
+  | 암호 7z(이름 보임)·목록까지 잠긴 7z | 종료 1(영어 'Encrypted 7Zip archive has no password specified.') | 종료 1(쉬운 문구 '암호가 걸린…'·'파일 목록까지 암호로 잠긴…') → 반디집으로 |
+  | 끝이 잘린 7z | 종료 1(영어 'nextHeaderOffset is invalid') | 종료 1('압축 파일이 손상됐어요. 다시 받아 보세요.'), 아무것도 안 남김 |
+  | ZIP(CP949 한글 이름) | 종료 0, 9개 | 종료 0, 9개(같음) |
+  | iso·lzh·tgz·tar.xz·zipx | 종료 2('Unsupported archive type' — 재사용장치는 '압축 아님'으로 봄) | 종료 0, 9개 다. 끝이 잘린 tgz 는 종료 1('끝부분이 잘려 있어요…') — 재사용장치는 이 확장자를 일집에 넘기지 않아 지금은 해당 없음 |
+  (egg·alz·rar 의 예전/새 판 차이는 위 2026-10-12 표 그대로 — Wave 2 에서 egg·alz 처리기는 바뀌지 않았고 rar 는 7z.dll 로 바뀜. 새 판의 egg·alz·rar·7z·tgz·lzh 는
+  `ReuseDeviceContractTests` 가 실제 exe 로 시험. 비교는 일집-dist 를 **실행만** 했고 전후 파일 목록·시각이 같음을 확인.)
+  - 7z·rar 는 재사용장치가 파이썬 py7zr·rarfile 이 없을 때만 일집에 넘긴다 — 넘기면 이제 **7z.dll(7-Zip 26.03, `x64\7z.dll`)** 로 푼다. 7z.dll 을 보안 프로그램이 막거나 지웠으면 7z·rar 는 예전처럼 SharpCompress 로 대신 풀고,
+    zipx·iso·cab·lzh·wim·xz 는 종료 1 + '이 형식을 여는 부품(7z.dll)을 불러오지 못했어요…'(→ 반디집으로). egg·alz 는 7z.dll 과 상관없이 EggDotNet 그대로.
+  - 창 없이 풀기는 **일집 설정(settings.json)을 읽지 않는다** — '같은 이름이 있을 때'·'다 푼 뒤 압축 파일을 휴지통으로'·'폴더 열기'·풀기 창 기억이 재사용장치에 새지 않음(같은 이름은 늘 '이름 (1)', 첨부는 그대로).
+    `ReuseDeviceContractTests`(실제 exe)·`RecycleAfterExtractTests.창_없이_풀기는_설정과_휴지통을_쓰지_않는다`(소스)가 지킴.
+  - 7z.dll·압축된 TAR 는 결과 폴더(재사용장치의 `mkdtemp`) 안 숨김 `.일집-임시-…` 폴더에 먼저 풀고 다 맞을 때만 옮긴다 — 실패면 아무것도 안 남김(재사용장치는 실패면 그 폴더를 통째로 버리므로 영향 없음).
+  - 확장자를 모르는 파일은 내용(서명)으로 알아본다(이름이 바뀐 압축·자동 풀림 exe). 재사용장치는 확장자(egg·alz·7z·rar)로 골라 넘기므로 지금은 해당 없음. 속이 ZIP 인 문서(.xlsx 등)는 그대로 종료 2.
+- 발행 파일(2026-10-14 Release 발행으로 확인 — 임시 폴더에 발행해 세고 지움, 발행한 exe 로 7z·ZIP 창 없이 풀기 종료 0): 맨 위 11개 — Iljip.exe·Iljip.dll·Iljip.pdb·Iljip.deps.json·Iljip.runtimeconfig.json, SharpCompress·SharpSevenZip·EggDotNet·ICSharpCode.SharpZipLib·CommunityToolkit.Mvvm(.dll), THIRD-PARTY-NOTICES.txt,
+  하위 폴더 `x64\7z.dll`(**없으면 7z·rar 는 대신 길, 나머지 새 형식은 못 풂** — 꼭 같이), `licenses\`(라이선스 전문 10개 — LGPL 상 같이 둘 것), `icons\`(형식 아이콘 22개 — 파일 연결용), `sfx\Iljip.SfxStub.exe`(자동 풀림 만들기 부품 —
+  재사용장치 풀기와는 상관없고, 없으면 압축 창 형식 목록에서 '자동 풀림 EXE' 만 빠진다. 회사 백신이 지울 수 있음 — MANUAL_CHECKLIST 16절). 예전 판의 `ZstdSharp.dll` 은 필요 없다.
+- 절차(재사용장치가 돌지 않는 시간에 — 바꾸는 동안 일집-dist 가 비면 셸 확장 패키지 판이 쓰일 수 있으니 한 번에):
   ```powershell
+  # 1) 새 판 발행(저장소 bin 이 아니라 일집-build 아래로 — -o 를 꼭 줄 것)
   dotnet publish "D:\Python\일집\Iljip\Iljip.csproj" -c Release -o "D:\Python\일집-build\publish-새판"
-  Rename-Item "D:\Python\일집-dist" "일집-dist-20260623-예전판"     # 되돌릴 곳
+  Get-ChildItem "D:\Python\일집-build\publish-새판" -Recurse -File | Measure-Object    # 파일 45개(맨 위 11 + x64\7z.dll 1·sfx 1·licenses 10·icons 22)
+  # 2) 새 판으로 진짜 egg 하나 미리 풀어 보기(MANUAL_CHECKLIST 8절) — 종료 코드 0
+  # 3) 바꾸기
+  Rename-Item "D:\Python\일집-dist" "일집-dist-20260623-예전판"     # 되돌릴 곳(지우지 말 것)
   Copy-Item "D:\Python\일집-build\publish-새판" "D:\Python\일집-dist" -Recurse
+  # 4) 확인: 파일·폴더가 다 왔는지, 새 판이 재사용장치 자리에서 egg 를 푸는지
+  Test-Path "D:\Python\일집-dist\x64\7z.dll"                          # True
   ```
-  새 판 파일은 9개(Iljip.exe·dll·pdb·deps.json·runtimeconfig.json, SharpCompress·EggDotNet·SharpZipLib·CommunityToolkit.Mvvm). 예전 판의 `ZstdSharp.dll` 은 이제 필요 없다.
-  (W2-10 뒤) 발행 폴더에 `sfx\Iljip.SfxStub.exe`(자동 풀림 만들기 부품 — 단일 파일 발행에서도 따로 남음, 2026-10-14 임시 폴더 발행으로 확인)가 더해진다. 재사용장치 풀기와는 상관없고,
-  없으면 압축 창 형식 목록에서 '자동 풀림 EXE' 만 빠진다. 회사 백신이 이 파일을 지울 수 있다(MANUAL_CHECKLIST 16절).
-  되돌리기: 새 폴더를 지우고 예전 판 이름을 `일집-dist` 로 되돌린다.
+  다음 날 재사용장치 로그: '(Iljip으로 .egg 해제)' 뒤 '(Iljip 해제 실패: … → Bandizip 폴백)' 이 예전보다 늘지 않았는지, 7z·rar 줄도 같은지.
+  되돌리기: 재사용장치가 돌지 않을 때 `D:\Python\일집-dist` 를 지우고(또는 `일집-dist-새판-문제` 로 이름 바꾸고) `일집-dist-20260623-예전판` 을 `일집-dist` 로 되돌린다.
 
 ## 빌드 / 실행 명령어
 
@@ -451,7 +488,7 @@ dotnet run --project Iljip
   '압축하는 동안 파일이 바뀌었어요'로 그 파일만 빼고 처음부터 다시 씀). 쓰기는 대상 옆 숨김 임시 파일 `.~이름.8글자.tmp` → 다 맞을 때만 `File.Move`(덮어쓰기는 시작할 때
   대상이 있었을 때만), 실패·취소면 임시 파일·임시 폴더를 지워 반쪽 파일이 없고 덮어쓰려던 기존 파일은 바이트 그대로. 7z.dll 이 콜백 예외를 결과 코드(0x8013153B)로만
   돌려주므로 토큰·원본 실패 기록·출력 쓰기 실패 기록으로 원인을 가름(`Classify`). 수준 저장만=None·빠름=Fast·보통=Normal·최대=Ultra, 추가 설정 `s`(솔리드, 기본 켬)·
-  빠름 `mt;d=4m;c=4m`·보통 `mt;d=16m;c=8m`·최대 `mt=2;d=32m;c=16m`(mt=min(4, 논리 CPU)), 파일 이름 암호화(`he`)는 암호가 있을 때만. **실측(이 PC 논리 CPU 8·RAM 7.8GB,
+  빠름 `mt;d=4m;c=4m`·보통 `mt;d=16m;c=8m`(**Wave 2 통합 점검에서 `c=2m` 으로 — 아래 변경 이력**)·최대 `mt=2;d=32m;c=16m`(mt=min(4, 논리 CPU)), 파일 이름 암호화(`he`)는 암호가 있을 때만. **실측(이 PC 논리 CPU 8·RAM 7.8GB,
   원본 160MB = 무작위 4×30MB + 글자 2×20MB, 보통)**: 19.9~25.0초(4회), 결과 124.9MB, 프로세스 전용 메모리 증가 204~205MB(최대 248~284MB, 한도 700MB), 진행률 100% 도달
   17.7/19.9초·22.2/25.0초, 30% 지점 취소 1.1~1.7초, 처음 바이트에서 취소 13~36ms(화면 명령 전체 41~90ms). **설정을 7-Zip 기본(`s` 만)으로 잠깐 되돌려 확인**: 메모리 증가
   1,167~1,169MB·100% 도달 0.2~0.3초/26~29초로 메모리·진행률 시험이 실패하고, '시작 3초·30% 뒤 취소' 시험도 '3초 뒤 이미 100%'로 실패(그 뒤 압축이 끝날 때까지 취소가 안 먹음)
@@ -904,6 +941,37 @@ dotnet run --project Iljip
   계약 테스트: 전체 2105 — 통과 2105·건너뜀 0·**실패 0**(빌드한 DLL 시험 넷 포함).
   위험·못 본 것: **진짜 탐색기·MSIX 설치·HKCU 등록·기본 앱 화면은 한 번도 안 띄움**(DLL 은 시험 프로세스에 직접 불러 글만 봄 — Invoke·InvokeCommand·Drop 은 안 부름). 패키지 셸 확장은 Windows 11 옛 메뉴('더 많은 옵션 표시')에는 안 나옴(Windows 동작).
   파일 연결은 넣은 일집 exe 경로로 들어감(셸 확장 package 폴더의 exe 로 넣을 것). 드롭 처리기를 넣은 채 `Rebuild.ps1` 이면 탐색기가 DLL 을 잡아 package 폴더 지우기가 실패할 수 있음. '시험하기' 하위 메뉴는 `--test`(W2-08 — stash)가 없어 뺌. 반영·되돌리기 절차는 '셸 확장·파일 연결 반영(W2-12)', 손 확인은 MANUAL_CHECKLIST 18절.
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-14 Wave 2 통합 점검(W2-01·02·03·05·06·07·09·10·11·12 를 합친 뒤 — 커밋·푸시, 설치·등록·배포 안 함)**:
+  Release 빌드(`dotnet build Iljip\Iljip.csproj -c Release` — 출력 `D:\Python\일집-build\dotnet\Iljip\bin\Release`) 경고 0·오류 0, 계약 테스트 Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번.
+  ① **찾아서 고친 것 하나 — 설정 저장이 보안 프로그램 검사 중에 그냥 실패**: 첫 Release 전체 실행에서 `RecentFilesTests.설정_파일은_저장_직전에_다시_읽어_바꾼_칸만_얹는다` 가 실패(2104/2105).
+  로그(`%LOCALAPPDATA%\Iljip\logs`)에 `File.Replace` 의 'IOException: 바꿀 파일을 제거할 수 없습니다'(1175 ERROR_UNABLE_TO_REMOVE_REPLACED) — 회사 PC DLP 가 막 쓴 settings.json 을 검사하는 동안 Windows 가 바꿀 파일을 못 치움.
+  설정 저장의 다시 하기(`JsonSettingsStore.Retry`)는 공유·잠금 위반·접근 거부만 다시 해 보고 1175 는 곧장 실패(Update → null — 다음 저장 때 다시 하므로 잃지는 않지만 최근 파일·설정 저장이 한 번 밀림)였다.
+  → `JsonSettingsStore.IsTransientReplace`(새, internal): 1175·1176·1177 도 200ms 간격 3번 다시(다시 할 때 '원래 파일이 있으면 바꾸기, 없으면 옮기기'라 1176·1177 처럼 원래 파일이 치워진 경우도 맞음). 디스크 가득 등은 그대로 실패.
+  시험 `RecentFilesTests.설정_바꾸기가_잠깐_막혀도_다시_해_본다`(판정 표 + 실제 파일을 0.25초 잡고 있어도 저장). 압축 고치기의 바꾸기(`ArchiveSwap`)는 예전부터 이 경우 예비 이름 방식으로 넘어가 그대로.
+  ② **상호작용 시험 `Contract/Wave2IntegrationTests.cs`(61개) — 모두 처음부터 통과(어긋남 없음)**: 우클릭 풀기('"이름"\ 에'·'여기에'·알아서 풀기)·풀기 창(`--extract`)의 암호 흐름이 ZIP(ZipCrypto·AES·한글 암호)·7z(이름 보임·목록 잠김)·EGG·RAR4·RAR5(파일 암호·머리 암호) 모두 같은 차례,
+  형식이 다른 같은 암호 압축 다섯(목록 잠긴 7z 가 맨 앞)을 한꺼번에 풀면 한 번만 묻기, ZIP(SharpCompress)·7z(7z.dll 임시 폴더)·EGG 를 한 폴더에 바로 풀 때 같은 이름은 묶음 전체에 한 번만 묻고 [건너뛰기]면 건너뛴 압축은 휴지통으로 안 보냄([덮어쓰기]면 셋 다),
+  나눠 만든 ZIP(AES)·7Z(한글 암호 + 파일 이름 암호)도 '다 만들고 시험하기'·'원본을 휴지통으로'가 진짜 시험기로 조각을 이어 시험(망가진 가운데 조각은 오류), 압축 속 파일을 연 채로 넣기·이름 바꾸기를 해도 다시 넣기가 그 고치기를 잃지 않음(ZIP·7Z),
+  확장자가 바뀐 ZIP(CP949)·EGG·ALZ·RAR4 첨부도 창 없이 풀기의 처리기 고르기가 7z.dll 이 아니라 원래 처리기(한글 이름 그대로). `ReuseDeviceContractTests` +1: 실제 exe 로 ZIP CP949·7z·tgz·LZH·RAR5 를 같은 폴더에 두 번 풀어도 묻지 않고 '이름 (1)', 임시 파일 없음.
+  설정 기억(같은 이름 기본 동작·풀고 지우기·폴더 열기·풀기 창 기억)이 창 없이 풀기(재사용장치)에 새지 않는 것: 창 없이 풀기는 설정·같은 이름 범위(`ExtractionScope`)·휴지통을 아예 안 씀(`RecycleAfterExtractTests.창_없이_풀기는_설정과_휴지통을_쓰지_않는다` 소스 확인) — 서비스 쪽에 설정을 읽는 전역 값 없음도 이번에 훑어 확인.
+  확인한 차이(버그 아님 — 기록): 목록 잠긴 7z·RAR 에 틀린 암호면 메인 창 흐름은 '암호가 맞지 않아요' 경고 창 한 번 + 다시 묻기, 우클릭 풀기(메인 창 없이)는 경고 창 없이 암호 창 문구로만 다시 묻는다(각 길 안에서는 형식과 상관없이 같음).
+  ③ 재사용장치 `_find_iljip` 의 찾는 차례를 다시 읽어 '일집-dist 재배포' 절을 고침(맨 앞에 `Iljip\bin\Release\net8.0-windows\win-x64\publish\Iljip.exe` 가 있고, 일집-dist 뒤에 `일집-build\package\Iljip.exe`(셸 확장 패키지)·`C:\Program Files\Iljip\Iljip.exe`).
+  `BuildOutputTests` 는 `Iljip\bin\Release·Debug` 아래를 통째로 보므로 publish 폴더도 막는다. 발행 파일 목록·Wave 2 판이 재사용장치에 주는 영향도 그 절에.
+  ④ **찾아서 고친 것 둘 — RAR4 시각(시간대 흉내 실행에서)**: `ILJIP_TEST_TZ=UTC` 전체 실행에서 `RarTests` RAR4 시각 8개(목록·풀린 파일)가 9시간 어긋나 실패 — Wave 2 동안 UTC 실행을 안 해 W2-01(RAR → 7z.dll)부터 숨어 있던 것.
+  7-Zip 의 RAR4 처리기는 DOS 벽시계를 Win32 `LocalFileTimeToFileTime`(이 PC 의 '지금' 편차)으로 UTC 로 바꾸고 .NET 은 그 날짜의 규칙으로 되돌려, 둘이 다르면 그만큼 어긋난다
+  (흉내, 실제로는 서머타임이 있는 나라에서 계절이 다른 파일 — 한국 PC 실사용에서는 같은 값). → `Services/DosWallClock.cs`(새): 같은 '지금' 편차의 `FileTimeToLocalFileTime` 으로 정확히 되돌림.
+  `SevenZipEngine.BuildItems` 가 RAR4(`InArchiveFormat.Rar4` — RAR 파일·자동 풀림 exe 속 RAR4)의 목록 시각에, `Finish` 가 옮기기 전 임시 폴더의 풀린 파일 시각에 쓴다(SharpCompress 대신 길과 같은 값).
+  시험 `RarTests.RAR4_DOS_벽시계는_7z_dll이_쓴_시간대_편차를_되돌려_그대로`(5줄 — 서머타임 시작·끝 시각)·`RAR4_벽시계_되돌리기는_이상한_시각에서_멈추지_않는다`. 기존 `RarTests` 기대는 그대로, 이제 UTC·'Pacific Standard Time' 흉내에서도 통과.
+  ⑤ 기준을 바로잡은 시험 하나: `SfxCreateTests.만든_자동풀림_exe를_무인으로_풀면_원본과_같다` 의 시각 줄이 UTC 흉내에서 9시간 어긋나 실패 — 자동 풀림 스텁은 **따로 도는 프로세스**라 흉내가 닿지 않고 OS 시간대로 ZIP DOS 벽시계를 쓴다.
+  풀린 시각을 `TestTimeZone.OsLocal`(흉내 전 OS 시간대 — 새)로 읽어 원본 벽시계와 정확히 같은지 본다(흉내가 없으면 예전과 똑같은 비교 — 단언·허용 범위 그대로). 기준이 정말 OS 시간대인지는 새 시험 `TimeZoneSwitchTests.OS_시간대는_흉내와_상관없이_이_PC의_시간대다`.
+  ⑥ **찾아서 고친 것 셋 — 7z 만들기 취소가 바쁜 PC 에서 3초를 넘음(W2-03 부터 '바쁠 때만 실패'로 적어 두던 것)**: 이번 전체 실행 세 번 모두(Debug 3.1초·Release 6.4초·UTC 3.1초)
+  `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…` 실패(빈 메모리 0.2GB). 따로 재 보니(시험용 작은 프로그램 — 저장소 밖) 취소하면 원본 읽기는 바로 멈추는데 7z.dll 이 **솔리드일 때만**
+  스레드마다 이미 맡은 블록을 끝까지 압축한 뒤에 돌아왔다(그동안 진행 콜백도 없어 Compressing 에서 던지는 것도 소용없음 — 실측). 취소 시간 ≈ 블록 하나 압축 시간: c=8m 2.3~3.3초 / c=4m 1.0~1.3초 /
+  c=2m 0.5~0.6초, 솔리드가 아니면 0.2초 안. → `SevenZipArchiveService.EngineParameters` 보통의 블록 `c=8m` → `c=2m`(압축 고치기는 W2-06 에서 같은 이유로 이미 2m).
+  같은 PC·같은 때 실측: 160MB(무작위 120 + 글자 40) 124.92MB → 125.04MB(+0.1%)·32~36초 → 32초·메모리 +204MB → +62MB, 글자만 40MB 4.91MB → 5.03MB(+2.4%)·18초 → 10초,
+  일집 서비스로 30% 지점 취소 2.4~3.3초 → 0.3~0.7초. 계약 시험의 3초 한도는 그대로, 기록 시험 `SevenZipCreateTests.기록_수준별_7z_dll_설정` 의 보통 값만 2m 으로.
+  고친 뒤 전체 실행 기록(`기록_7z_…`): 30% 지점 취소 498·263·581ms, 처음 바이트 취소 17~27ms, 보통 160MB 32.4초·125.0MB·메모리 증가 61MB·100% 도달 31.5초(Release).
+  계약 테스트: 전체 2175 — 통과 2175·건너뜀 0·**실패 0**(Debug·Release·UTC 세 번, 빌드한 DLL 시험 넷 포함). W2-04·W2-08 은 stash 그대로(되돌린 묶음 — 다시 할지는 사람이 정함), 세 stash 모두 drop 안 함.
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
