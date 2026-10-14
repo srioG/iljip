@@ -41,6 +41,9 @@
   `Contract/SevenZipCreateTests.cs`·`MainViewModelPasswordTests` 로 되살렸습니다(아래 'W2-02 에서 고친 것').
   **W2-03(2026-10-13)** 에서 I2-2 의 남은 몫 '나눠 만들기'(분할 압축 — ZIP 은 PKZIP 나눔 `이름.z01 … 이름.zip`, 7Z 는 `이름.7z.001 …`, 옵션 창 '나누기' 칸)를
   새 계약 `Contract/SplitCreateTests.cs` 로 지키고, 쓰는 곳이 없어진 `Known.I2_2` 를 지웠습니다(아래 'W2-03 에서 고친 것').
+  **W2-04(2026-10-13)** 에서 압축 속 파일 바로 열기(I1-3)·끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)를 더하고, 셸·클립보드·그림 읽기·시계·설정을 가짜로 바꿔 끼우는
+  `AppServices` 로 화면 흐름을 창 없이 시험합니다(`EntryWorkspaceTests`·`EntryOpenTests`·`DragOutTests`·`ClipboardCopyTests`·`ImagePreviewTests` — 아래 'W2-04 에서 더한 것').
+  진짜 탐색기와의 끌어 놓기·붙여넣기·미리 보기 화면은 `MANUAL_CHECKLIST.md` 12절(실기기 확인 필요).
 
 ## 실행 방법
 
@@ -50,8 +53,8 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-14 Wave 2 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두): `통과!  - 실패: 0, 통과: 2175, 건너뜀: 0, 전체: 2175` — 남은 Skip 없음. 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
-  (W2-12 후: 통과 2105·건너뜀 0·전체 2105, W2-11 후: 통과 2041·건너뜀 0·전체 2041, W2-10 검증 지적 수정 2차 후: 통과 1937·건너뜀 0·전체 1937, W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
+- 결과(2026-10-14 IJ3-01 — W2-04 다시 — 후): `통과!  - 실패: 0, 통과: 2345, 건너뜀: 0, 전체: 2345` — 남은 Skip 없음. 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
+  (Wave 2 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두: 통과 2175·건너뜀 0·전체 2175, W2-12 후: 통과 2105·건너뜀 0·전체 2105, W2-11 후: 통과 2041·건너뜀 0·전체 2041, W2-10 검증 지적 수정 2차 후: 통과 1937·건너뜀 0·전체 1937, W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
   → W2-01: 통과 1097·건너뜀 2·전체 1099)
@@ -71,7 +74,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
   (W2-06 검증 지적) 16MB 솔리드 7z 지우기의 진행률·취소를 재는 `SevenZipEditProgressTests`(지우기 한 번 약 7초 — 시간을 재므로 `DisableParallelization` 묶음).
   (Wave 2 통합 점검) 실제 `Iljip.exe` 를 열 번 띄우는 `ReuseDeviceContractTests.창없이_풀기는_7z_dll_길과_압축된_TAR도_…`(전체 실행 중 약 1분), `Wave2IntegrationTests` 는 시험마다 1~5초(병렬로 돌아 전체 시간에는 조금만 더해짐).
 - 특정 묶음만: `dotnet test ... --filter "FullyQualifiedName~PasswordTests"`
-- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1148개 — 통과 1147·건너뜀 1, 2026-10-13 W2-03 후) — 아래 '계약 테스트와 기록 테스트'.
+- **계약만**(엔진과 무관하게 지켜야 할 것): `dotnet test ... --filter "Kind!=Record"` (1303개 — 통과 1302·건너뜀 1, 2026-10-13 W2-04 2차 검증 수정 후) — 아래 '계약 테스트와 기록 테스트'.
 - **시간대 독립 확인**: 환경 변수 `ILJIP_TEST_TZ` 에 Windows 시간대 ID 를 주면 테스트 프로세스 안에서만 현지 시간대를 바꿉니다
   (시스템 설정은 안 건드림). 2026-10-12 `UTC`·`Pacific Standard Time` 둘 다 전체 통과 확인(W1-A 후 `UTC`, W1-B 후 둘 다 다시 통과).
   2026-10-14 Wave 2 통합 점검에서 `UTC` 전체 실행이 RAR4 시각 8개·자동 풀림 시각 1개로 실패(Wave 2 동안 이 실행을 안 해 쌓였던 것) → RAR4 는 제품을 고침, 자동 풀림 시험은 기준을 바로잡음(아래 'Wave 2 통합 점검에서 더한 것').
@@ -168,7 +171,12 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀. (W2-02) 일집 7z(AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더)를 반디집이 맞는 암호로 풂(틀린 암호로는 못 풂) |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지, (Wave 2 통합 점검) 흉내를 켜도 `TestTimeZone.OsLocal` 이 이 PC 의 진짜 시간대인지 |
-| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`), (W2-07) 가짜 한 화면 압축 창 `FakeUserInteraction.AskCompression`(`CompressionRequestAnswer` — 비면 예전 `SavePath` + `CompressionOptions` 답으로), 가짜 시계 `FakeClock`(`TestServices.Clock`)·만든 압축 시험기 `FakeCompressTester`(`TestServices.CompressTester` — 기본은 진짜 시험기에 맡기고 기록만, `Pass()`·`Fail()`·`FailFor`), (W2-07 검증 지적 2차) 띄우지 않고 창 만들기 틀 `WpfAppScope`(앱 객체·테마 자원·묶기 오류 기록 `BindingErrorLog`), 조건으로 진행 창 [취소] `FakeUserInteraction.CancelWhen`, 가짜 휴지통의 끼워 넣기 `FakeRecycleBin.OnIsRecyclable`·`OnSend`, (W2-09) 가짜 풀기 창 `FakeUserInteraction.AskExtractTarget`(`ExtractTargetAnswer` — 비면 예전 `FolderToPick` 답으로), 옛 방식 이름 바이트 TAR `RawTar.Entry.RawName`, (W2-10) 확인란이 있는 가짜 선택 창 `FakeUserInteraction.ChooseWithCheck`(`CheckChoicePrompts`·`CheckAnswer` — 버튼은 `Choose` 와 같은 규칙으로 고르고 `ChoicePrompts` 에도 남김), (W2-11) 가짜 일집 띄우기 `FakeProcessLauncher`(`TestServices.Processes` — 새 창·관리자 다시 시작의 실행 파일·인자만 기록, `ThrowOnElevate`·`ThrowOnNewInstance`)·가짜 네트워크 드라이브 `FakeMappedDriveResolver`(`TestServices.MappedDrives` — `Map`·`Unresolvable`), (W2-12) 가짜 레지스트리 `FakeRegistryRoot`(`TestServices.Registry` — 메모리 트리·대소문자 무시·`DenyWrites`·정렬한 .reg 모양 `ExportReg` — 진짜 HKCU 는 시험용 하위 키조차 안 씀), 가짜 셸의 `DefaultAppsOpened`·`AssociationsChangedNotified`(진짜 ms-settings·SHChangeNotify 안 부름), 진행 창 제목 `FakeUserInteraction.ProgressTitles` |
+| `Contract/EntryWorkspaceTests.cs` | [IJ3-01 — W2-04 보관본에서] 바탕 서비스(창 없이): 작업 폴더 `ArchiveWorkspace`(key16, `temp\open\key16\순번`, owner.lock, 닫으면 지우되 잡힌 파일만 남김, 다른 일집이 쓰는 중이면 `key16-2`, 고친 파일 판정), 청소 `TempJanitor`(주인이 꺼진 open·drag 는 지우고 살아 있는 것은 남김, 잠금이 없는 preview 는 1시간·list·convert·args 는 24시간 지난 것만(IJ3-01 — 다른 일집이 쓰는 중인 것을 지우지 않게), clip 은 24시간(가짜 시계), 청소 시작 뒤 생긴 폴더는 안 건드림, 창 없이 풀기에서는 안 부름 — 소스), 인터넷 표식 `ZoneIdentifier`, 실행 파일 판정, 설정 `settings.json` |
+| `Contract/EntryOpenTests.cs` | [IJ3-01, I1-3] 가짜 셸로 압축 속 파일 열기: 그 파일만 `temp\open\key16\순번\파일 이름`에 꺼내 한 번 열기(깊은 폴더도), 다시 열면 새 순번, 실행 파일은 먼저 묻고(기본 [취소]) 취소면 꺼내지도 않음·설정 `open.warnExecutables` 로 끔, 암호 ZIP 은 한 번 묻고 틀리면 다시·취소면 아무것도 안 남김, 머리 암호 7z, 인터넷 표식, 폴더 행, 열 프로그램 없음 안내, 닫을 때 고친 파일은 W2-06 의 다시 넣기 질문(`ConfirmExitAsync`), 압축을 바꿔도 연 파일은 앱을 닫을 때까지, 열기·풀기·복사·정리가 설정을 쓰지 않음, 미리 보기 칸 설정 적용·`SaveOnExit` 로 저장, 창 껍데기 연결(소스) |
+| `Contract/DragOutTests.cs` | [IJ3-01, I1-4] 끌어 꺼내기: 서술자(`DragPayloadBuilder` — 폴더 재귀·한글 이름·이름 겹침 '(2)'·'..'·금지 글자·259글자, 폴더 2만 개도 한 번만 훑음), 지연 꺼내기(`LazyEntryExtractor` — 부르기 전엔 안 만듦·첫 요청에 한 번에(솔리드 7z 40개도 서비스 호출 1번)·경로 공격 항목이 섞이면 안전한 파일만 한 번에·손상 항목 하나로 실패하면 항목마다·취소하면 남은 요청도 E_ABORT·암호), COM 직접 호출(`VirtualFileDataObject`), 화면(놓기 전엔 안 꺼냄·끌기 전에만 암호·진행 창 하나와 취소·오류 창 한 번·긴 경로 안내·닫으면 정리) |
+| `Contract/ClipboardCopyTests.cs` | [IJ3-01, I1-4] Ctrl+C(가짜 클립보드): 고른 파일·폴더를 `temp\clip\guid` 에 꺼내 최상위 경로를 '복사'로, 취소면 클립보드·사본 없음, 암호 한 번, 표식, 사본 2개·닫을 때 1개, 디스크 이름이 바뀌는 항목(`: ? * \| " < >`·장치 이름·점만·폴더)을 빠짐없이 + '바꿔서 복사했어요' 알림(폴더 안 것도), 수천 개 — 정리는 화면 스레드 밖·같은 진행 창 단계 알림·정리 중 취소·겹쳐 누르기, 엔진 열쇠 고르기 빠르기·같은 결과, 진짜 클립보드 데이터 모양 |
+| `Contract/ImagePreviewTests.cs` | [IJ3-01, I3-7] 그림 미리 보기(가짜 그림 읽기): 고른 그림만 꺼내 보이고 임시 파일 바로 지움, 이전/다음, 그림 아니면 꺼짐, 50MB 초과·화소가 너무 많은 그림은 자리표시, 최근 3장·200MB, 확대, 암호 단추, 못 읽는 그림, 다른 압축을 열면 비움, 압축 세대 — 읽는 도중·압축을 바꾸는 바로 그 순간 시작한 읽기·고친 뒤 같은 경로의 다른 그림·세대만 바뀐 경우에도 옛 그림을 안 보임, 진짜 WIC 작은 PNG·그림 폭탄 PNG 거절·줄여 읽기 계산 |
+| `TestSupport/` | 임시 폴더, 매니페스트 읽기, 비교 도우미, 최소 ZIP/TAR/GZIP/EGG(분할·**ZipCrypto 암호** 포함)/ALZ 작성기, ZipCrypto 검사 계산기·암호화기, 반디집 콘솔 실행기(`BandizipCli`), (W1-D) 가짜 창 `FakeUserInteraction`·VM 시간 제한 실행 `VmRunner`·STA 스레드 `Sta`·저장소 소스 읽기 `RepoFiles`, (통합 점검) 최소 RAR 작성기 `RawRar.cs`(`RawRar5`·`RawRar4` — W2-01 에 끝 머리 빼기 `withEndArc`, 머리 경계를 주는 `RawRar`)·같은 내용의 합성 RAR4/RAR5/EGG/ALZ 만들기 `SyntheticArchives`, (W2-01) 시험용 7z·xz 만들기 `SevenZipTestArchives`(7z.dll 직접 — 풀기 시험 재료), (W2-02) py7zr 이 만든 헤더 암호 7z 표본 `Py7zrSamples`(base64, 426바이트 두 개), 최소 CAB 작성기 `RawCab`, 시험용 ISO 만들기 `DiscImages`(Windows IMAPI2FS, 없으면 `DiscImageFact` 로 건너뜀), (W2-05) 가짜 셸·휴지통·설정 `FakeServices`(`TestServices`), `ModuleInit` 이 일집 자료 폴더를 시험 전용 빈 폴더로, (W2-06) ZIP 원본 바이트 읽기·데이터 서술자 ZIP 만들기 `ZipInspect`, 가짜 파일 감시 `FakeFileChangeSource`(`TestServices.FileChanges`), 가짜 창 글 묻기 `FakeUserInteraction.AskText`(`TextAnswers`), (W2-07) 가짜 한 화면 압축 창 `FakeUserInteraction.AskCompression`(`CompressionRequestAnswer` — 비면 예전 `SavePath` + `CompressionOptions` 답으로), 가짜 시계 `FakeClock`(`TestServices.Clock`)·만든 압축 시험기 `FakeCompressTester`(`TestServices.CompressTester` — 기본은 진짜 시험기에 맡기고 기록만, `Pass()`·`Fail()`·`FailFor`), (W2-07 검증 지적 2차) 띄우지 않고 창 만들기 틀 `WpfAppScope`(앱 객체·테마 자원·묶기 오류 기록 `BindingErrorLog`), 조건으로 진행 창 [취소] `FakeUserInteraction.CancelWhen`, 가짜 휴지통의 끼워 넣기 `FakeRecycleBin.OnIsRecyclable`·`OnSend`, (W2-09) 가짜 풀기 창 `FakeUserInteraction.AskExtractTarget`(`ExtractTargetAnswer` — 비면 예전 `FolderToPick` 답으로), 옛 방식 이름 바이트 TAR `RawTar.Entry.RawName`, (W2-10) 확인란이 있는 가짜 선택 창 `FakeUserInteraction.ChooseWithCheck`(`CheckChoicePrompts`·`CheckAnswer` — 버튼은 `Choose` 와 같은 규칙으로 고르고 `ChoicePrompts` 에도 남김), (W2-11) 가짜 일집 띄우기 `FakeProcessLauncher`(`TestServices.Processes` — 새 창·관리자 다시 시작의 실행 파일·인자만 기록, `ThrowOnElevate`·`ThrowOnNewInstance`)·가짜 네트워크 드라이브 `FakeMappedDriveResolver`(`TestServices.MappedDrives` — `Map`·`Unresolvable`), (W2-12) 가짜 레지스트리 `FakeRegistryRoot`(`TestServices.Registry` — 메모리 트리·대소문자 무시·`DenyWrites`·정렬한 .reg 모양 `ExportReg` — 진짜 HKCU 는 시험용 하위 키조차 안 씀), 가짜 셸의 `DefaultAppsOpened`·`AssociationsChangedNotified`(진짜 ms-settings·SHChangeNotify 안 부름), 진행 창 제목 `FakeUserInteraction.ProgressTitles`, (IJ3-01) 가짜 클립보드 `FakeClipboard`(`TestServices.Clipboard` — 넣은 목록·스레드만, 진짜 클립보드 안 씀)·가짜 그림 읽기 `FakeImageDecoder`(`TestServices.Images` — `Gate`·`FailName`·`TooLargeName`), 일집 자료 폴더를 시험 폴더로 `TestServices.UseAppRoot`, 작은 ZIP 만들기 `TestZip`, 화면 스레드 흉내 `DispatcherThread`(창 없는 WPF 디스패처 STA 스레드) |
 | `Fixtures/` | 픽스처(아래) |
 | `MANUAL_CHECKLIST.md` | 버전 바꿀 때 사람이 10분 안팎에 확인하는 점검표 |
 
@@ -228,12 +236,36 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | **Skip 아님** — W2-09 에서 메움(`BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` Skip 해제, `NameEncodingTests`) |
 
-### 남은 Skip 0개(2026-10-14 Wave 2 통합 점검 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
+### 남은 Skip 0개(2026-10-14 IJ3-01 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
 `Known.I2_10` 은 W2-09 에서 지웠습니다(마지막 Skip). 환경 조건으로 건너뛰는 시험(반디집 콘솔·로컬 SFX 픽스처·IMAPI2FS·셸 확장 DLL 이 없는 PC)은 위 '실행 방법' 대로입니다.
-Wave 2 에서 검증에 걸려 되돌린 W2-04(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지 — `stash` `iljip-wave2-W2-04-failed`)·
-W2-08(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12 — `iljip-wave2-W2-08-failed`)은 Skip 으로 남기지 않았습니다(시험도 보관분 안에 있음 — 다시 할 때 같이 들임).
+Wave 2 에서 검증에 걸려 되돌린 W2-04(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지)는 IJ3-01 이 보관분(`stash` `iljip-wave2-W2-04-failed` — drop 안 함)을
+`git stash apply` 로 얹어 다시 들였습니다(아래 'IJ3-01 에서 더한 것'). W2-08(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12 — `iljip-wave2-W2-08-failed`)은
+Skip 으로 남기지 않았습니다(시험도 보관분 안에 있음 — 다시 할 때 같이 들임).
+
+### IJ3-01 에서 더한 것(2026-10-14) — W2-04 다시: I1-3 바로 열기 나머지·I1-4 끌어 꺼내기·Ctrl+C·I3-7 그림 미리 보기
+
+W2-04 보관분의 시험 5파일(`EntryWorkspaceTests`·`EntryOpenTests`·`DragOutTests`·`ClipboardCopyTests`·`ImagePreviewTests`)과 도우미(`DispatcherThread`·`TestZip`·`FakeClipboard`·`FakeImageDecoder`)를
+지금 main(W2-06 의 열기·다시 넣기, W2-05 의 설정·`AppServices`) 위에 들이고, 검증에서 지적된 네 가지를 고쳤습니다(아래 표 — 보관분 기록은 그 아래 'W2-04 보관본에서 더한 것').
+전체 2175 → 2345(+170 — 보관분 시험 5파일과 이번에 더한 시험, Theory 줄 포함). 푼 Skip·더한 Skip 없음.
+
+| 무엇 | 보관분(W2-04) 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| (a) 미리 보기 — 압축을 바꾸는 순간 시작한 읽기 | 미리 보기 쪽에서만 세대를 세고, 그 세대를 화면의 '지금 압축' 을 바꾸기 **전에** 올림 — 그 틈(옛 목록을 비울 때 선택이 바뀌어 미리 보기가 불림)에 시작한 읽기가 옛 압축에서 꺼낸 그림을 새 세대로 기억해, 새 압축의 같은 경로 그림 대신 보임. 고친 뒤 목록을 다시 읽어도(같은 압축) 옛 그림을 기억에서 꺼냄 | 압축 세대는 화면(`MainViewModel.BumpArchiveGeneration`)이 지금 압축(경로·암호)을 바꾼 **뒤** 올림 — 열기(같은 압축 다시 열기 포함)·고친 뒤 다시 읽기·닫기. 꺼내기는 넘겨받은 세대가 지났으면 하지 않고, 기억은 (세대, 경로)로, 끝났을 때 세대가 다르면 기억도 표시도 안 함(멈춘 '불러오는 중'은 비움) | `ImagePreviewTests.압축을_바꾸는_순간에_시작한_읽기도_…`·`세대가_바뀌면_…`·`꺼내는_도중_세대가_바뀌면_…`·`고친_뒤_같은_경로에_다른_그림이_오면_…`·`읽는_도중_다른_압축을_열면_…`(보관분) |
+| (b) Ctrl+C — 디스크에서 이름이 바뀌는 항목 | 자리는 찾았지만(`LocateExtracted`) 이름이 바뀌었다는 말이 없음 | `: ? * \| " < >`·장치 이름·점만 있는 이름·이름이 바뀌는 폴더 모두 빠짐없이 안전한 이름으로 넣고, 넣은 뒤 '바꿔서 복사했어요: - 원래 → 바뀐'(5개 + 외 N개, 고른 폴더 안의 것도 처음 바뀐 조각 하나씩 — `ClipboardCopyPlan`), 상태줄에 바꾼 개수 | `ClipboardCopyTests.이름이_바뀌는_항목은_빠짐없이_…`·`폴더를_고르면_그_안에서_…`·`폴더_안에서_바뀌는_이름은_…` |
+| (c) 끌어 꺼내기 — 큰 폴더·솔리드 압축 | 묶음 만들기가 고른 폴더마다 압축 전체를 다시 훑음(폴더 수 × 항목 수), 경로 공격 항목이 하나라도 섞이면 한 번에 꺼내기가 통째로 실패해 모든 파일을 하나씩(솔리드면 제곱), 진행 창 [취소] 뒤에도 탐색기가 달라는 남은 파일을 하나씩 다시 꺼냄(진행 창도 다시) | 묶음 만들기·열쇠 고르기·끌기 전 암호 확인은 압축을 한 번만 훑음, 공격 항목이 섞이면 안전한 파일 열쇠만 넘겨 한 번에(공격 항목만 따로 실패), [취소]하면 그 끌기의 남은 요청은 꺼내지 않고 E_ABORT. 손상 항목 하나로 한 번에 꺼내기가 실패한 경우만 예전처럼 항목마다 | `DragOutTests.폴더_수천_개를_끌어도_…`·`경로_공격_항목이_섞인_폴더는_…`·`한번에_꺼내기가_실패하면_…`(진짜 손상 항목으로 새로)·`큰_항목은_…(취소)`·`솔리드_7z_폴더를_끌면_…`·`한번에_꺼낼_때는_…` |
+| (d) Ctrl+C — 수천 개 | 꺼낸 뒤 자리 찾기를 화면 스레드에서 고른 것마다 폴더 전체를 다시 읽어(제곱) 진행 창도 [취소]도 없이 굳음. 엔진의 열쇠 고르기도 항목 수 × 열쇠 수 | 꺼내기와 정리(자리 찾기·표식)를 한 진행 창으로 — 정리는 뒤 스레드에서 단계 알림 '복사할 파일을 정리하는 중...'·[취소] 됨(폴더 목록은 한 번만 읽음), 사본 지우기도 뒤에서, 도는 중에 또 누르면 겹치지 않고 알림. 엔진 열쇠 고르기(SharpCompress·7z.dll·EGG 공용)는 해시로 | `ClipboardCopyTests.수천_개를_골라도_…`(창 없는 디스패처 스레드)·`정리하는_도중_취소하면_…`·`복사하는_도중_또_누르면_…`·`고른_열쇠가_수천_개여도_…` |
+| 그림 폭탄 | 화소 수와 상관없이 줄여 읽기(PNG 는 WIC 가 원래 크기를 다 풀 수 있음) | 2억 5천만 화소 넘는 그림(JPEG 는 10억)은 읽지 않고 '미리 보기에는 너무 커요' | `ImagePreviewTests.화소가_너무_많은_그림은_WIC가_…`·`…_자리표시를_보인다` |
+| 임시 폴더 청소 | 잠금 파일이 없는 preview·list 도 '주인 없음'으로 보고 지움(다른 일집 창이 쓰는 중인 것까지) | open·drag 만 잠금으로, preview 1시간·list·convert·args 24시간·clip 24시간은 나이로 | `EntryWorkspaceTests.청소는_주인이_꺼진_open_drag와_…` |
+| 닫을 때 고친 파일 | 보관분은 따로 '닫지 않기/그냥 닫기' 창 | W2-06 의 다시 넣기 질문(`ConfirmExitAsync` — [넣기][넣지 않기(닫기)][취소]) 하나로 | `EntryOpenTests.닫을_때_고친_파일이_있으면_묻고_취소하면_…`·`다른_압축으로_바꿔도_…` |
+
+**기대가 바뀐 보관분 테스트(약화 아님 — 이유)**: `DragOutTests.한번에_꺼내기가_실패하면_…` 은 경로 공격 항목으로 '실패'를 만들었는데 (c) 로 그 경우는 이제 한 번에 꺼내므로
+`경로_공격_항목이_섞인_폴더는_안전한_파일만_한번에_…`(호출 1+3, 넘긴 열쇠까지 단언)로 바꾸고, 같은 이름의 시험은 진짜 손상(확인값이 틀린 항목)으로 다시 만듦.
+`큰_항목은_…(취소)` 의 '취소 뒤 작은 항목은 따로 꺼냄' → '취소 뒤엔 E_ABORT·더 꺼내지 않음'(더 엄격). `EntryOpenTests` 의 보관분 `ConfirmClose` 시험 둘은 W2-06 의 `ConfirmExitAsync` 로,
+`시험이_만든_VM은_설정을_읽지_않고_…` 는 main 의 풀기 설정 계약(W2-05 — 처음 한 번 읽음)과 맞지 않아 `열고_풀고_복사하고_닫아도_설정은_쓰지_않는다`(쓰기 0·읽기 1번 이하)로,
+`창이_뜰_때_미리보기_…` 는 저장 시점이 `SaveOnExit`(창이 닫힐 때 한 번)이라 그것을 부르고 다시 불러도 또 쓰지 않음까지, `창_껍데기가_…` 는 XAML 의 Closing·Closed 대신 코드 연결(W2-06)을 봄.
+`MainWindowEditUiTests` 의 목록 우클릭 메뉴 기대에 '복사 (Ctrl+C)' 한 줄을 더함.
 
 ### Wave 2 통합 점검에서 더한 것(2026-10-14) — 묶음 사이 상호작용
 
@@ -542,6 +574,59 @@ I2-12 의 '해제 방식 기억'은 W2-05 의 `extract.*`(같은 이름 처리·
 
 기대가 바뀐 기존 테스트: 없음(덧붙이기만). `CollisionTests.NoLeftovers` 를 다른 시험에서도 쓰게 `internal` 로 바꿈.
 알아 둘 것: `SevenZipCreateLargeTests.도중에_취소하면_3초_안에_…`(W2-02 — 압축 쪽, 이번에 안 건드림)는 PC 가 바쁘면(빈 메모리 0.4GB·PFDlpMon 등) 전체 실행에서 취소가 3.2~5.0초로 늦어 실패합니다(따로 돌리면 2.0~2.7초로 통과). W2-05 전 HEAD 를 따로 빌드해 같은 PC 에서 돌려도 같은 시험만 실패해 이번 변경 탓이 아님을 확인 — 한도는 그대로, PC 가 한가할 때 다시 돌려 볼 것.
+
+### W2-04 보관본에서 더한 것(2026-10-13 — 검증에서 되돌렸다가 IJ3-01 이 다시 들임, 바뀐 것은 위 'IJ3-01 에서 더한 것') — I1-3·I1-4·I3-7
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 목록에서 파일 두 번 누르기·Enter | 아무 일 없음(폴더만 들어감) | 앱 전용 `%LOCALAPPDATA%\Iljip\temp\open\key16\순번\` 에 그 파일만 꺼내 기본 프로그램으로 엶. 실행 파일(.exe·.bat·.js·.ps1·.msi·.lnk …)은 먼저 '그래도 열까요?'(기본 [취소]). 암호는 열 때·앞서 맞은 것, 모르면 묻고 틀리면 다시. 인터넷 표식(Zone.Identifier)을 꺼낸 파일에 옮김 | `EntryOpenTests` 전체 |
+| 임시 파일 정리 | — | 압축을 닫거나 바꿔도 작업 폴더는 앱을 닫을 때까지 둠(1차 검증 뒤 — 같은 압축을 다시 열면 다시 씀), 앱을 닫으면 지움(다른 프로그램이 잡은 파일만 남김), 다음 시작 때 주인 없는 것 청소(clip 은 24시간) | `EntryWorkspaceTests`(작업 폴더·청소)·`EntryOpenTests.다른_압축으로_바꿔도_…` |
+| 닫을 때 고친 파일 | — | 압축 안에서 연 파일을 고쳐 저장했으면 '고친 내용은 … 지워져요' + [닫지 않기](기본)/[그냥 닫기] — W2-06 의 고친 파일 감시 전까지의 안전망 | `EntryOpenTests.닫을_때_고친_파일이_…` |
+| 끌어 꺼내기 | 없음 | 탐색기·바탕화면으로 끌면 놓는 순간 꺼냄(2차 검증 뒤 — 파일이 여럿이면 첫 요청에 한 번에, 가상 파일 `FileGroupDescriptorW` + `FileContents` IStream, 비동기 모드, CF_HDROP 안 씀), 큰 항목은 진행 창·취소, 암호는 끌기 전에만 | `DragOutTests` 전체 |
+| Ctrl+C | 없음(목록 글자 복사) | `temp\clip\guid\` 에 꺼내 클립보드에 파일 목록(복사) — 탐색기에서 붙여넣기 | `ClipboardCopyTests` 전체 |
+| 그림 미리 보기 | 없음 | 툴바 그림 단추로 오른쪽 칸 켜기(설정 `ui.previewVisible` 기억), ←→ 넘기기, 확대, 50MB 초과 자리표시, 큰 그림 줄여 읽기(40MP), 최근 3장·200MB, 암호 단추 | `ImagePreviewTests` 전체 |
+| 설정 파일 | 없음 | `%LOCALAPPDATA%\Iljip\settings.json`(이번에 처음 — `ui.previewVisible`·`open.warnExecutables`, 모르는 필드 보존, 깨지면 옆으로 옮김, 창을 닫을 때 한 번 저장, 창 없이 풀기는 읽지 않음) | `EntryWorkspaceTests.설정…`·`EntryOpenTests.시험이_만든_VM은_…`·`창이_뜰_때_…` |
+| 목록 항목의 암호 표시 | — | `ArchiveEntry.IsEncrypted`(ZIP·7z·RAR·EGG — 엔진이 알려 줄 때) — 끌기·미리 보기 전에 물을지 정함 | `DragOutTests.암호_압축은_…`(목록이 암호 항목을 알려 줌) |
+
+기존 테스트의 기대는 바꾸지 않았습니다(약화·Skip 추가 없음). 진짜 탐색기와의 끌어 놓기·붙여넣기·미리 보기 화면은 `MANUAL_CHECKLIST.md` 12절(실기기 확인 필요).
+
+#### W2-04 1차 검증 뒤 고친 것(2026-10-13)
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 미리 보기 — 읽는 도중 다른 압축 열기 | 끝난 옛 읽기가 비운 기억에 다시 들어가, 새 압축의 같은 경로 그림(IMG_0001.JPG 등) 대신 옛 그림을 보임 | 압축이 바뀌기 전에 시작한 읽기의 결과는 기억하지 않음 | `ImagePreviewTests.읽는_도중_다른_압축을_열면_…` |
+| 미리 보기 — ←→ 를 누르고 있기 | 시작한 그림 읽기는 멈추지 않아 여러 장이 겹침(80ms 간격 12장 → 동시 7장, 한 장 최대 약 160MB) | 그림 읽기는 한 번에 하나, 기다리다 건너뛴 것은 읽지 않음 | `ImagePreviewTests.빠르게_넘겨도_…` |
+| 미리 보기 — [암호 넣기] 뒤 실패 | 손상 등 암호와 상관없는 실패도 오류 창 뒤 다시 '암호를 넣으면 볼 수 있어요' | 암호 창을 닫은 때만 단추, 그 밖의 실패는 '이 그림은 미리 볼 수 없어요' | `ImagePreviewTests.암호_단추_뒤_실패는_…`·`암호_단추를_눌렀는데_압축을_읽을_수_없으면_…` |
+| Ctrl+C — 디스크 이름이 바뀌는 항목 | '회의록 10:00.txt'·'왜?.txt'·'CON.txt'·'자료:모음' 은 꺼내 놓고도 '찾지 못했어요', 여럿을 고르면 그것만 말없이 빠짐 | 풀기 엔진이 실제로 쓴 자리를 찾음(`LazyEntryExtractor.LocateExtracted` — 바뀐 이름·'(1)' 비켜 쓰기·대소문자), 하나라도 못 찾으면 알리고 아무것도 안 넣음 | `ClipboardCopyTests.디스크에서_이름이_바뀌는_…`·`이름이_바뀌는_항목을_한꺼번에_…`·`꺼낸_자리를_못_찾은_…` |
+| 대소문자만 다른 두 파일 | Ctrl+C 는 하나만 넣음, 열기·끌기는 하나만 골라도 엔진이 둘 다 꺼내 앞엣것 내용을 줄 수 있음 | 둘 다·제 내용으로(뒤엣것은 엔진처럼 '이름 (1)', 끌기 서술자는 예전처럼 '(2)') | `ClipboardCopyTests.대소문자만_다른_…`·`EntryOpenTests.대소문자만_다른_…`·`DragOutTests.대소문자만_다른_…` |
+| 연 파일의 처음 SHA-256 | 화면 스레드에서 재 큰 파일(400MB)이면 창이 2초쯤 굳음 | 열기 전에 뒤 스레드에서 잼 | `EntryOpenTests.연_파일의_처음_내용은_…`(창 없는 WPF 디스패처 스레드 `TestSupport/DispatcherThread`) |
+| 끌기의 인터넷 표식 | 임시 파일에만 붙어 탐색기가 놓은 곳에 만든 파일엔 없음 | 원본에 표식이 있으면 끌기 데이터에 셸 형식 'ZoneIdentifier'(영역 번호) — 탐색기가 실제로 붙이는지는 손 점검 12절 | `DragOutTests.인터넷_표식이_있는_압축이면_…`·`EntryWorkspaceTests.표식에서_영역_번호를_읽는다` |
+| 압축을 바꿀 때 연 파일 | 안 고친 파일의 작업 폴더를 바로 지움(메모장에서 고치는 중이면 저장 실패) | 앱을 닫을 때까지 둠(요구: '앱 종료·다음 시작 때'), 같은 압축을 다시 열면 그 폴더를 다시 씀 | `EntryOpenTests.다른_압축으로_바꿔도_연_파일은_…` |
+| 실행 파일 경고 | .chm .msc .scf .xll .wsc .sct .inf .library-ms .search-ms .settingcontent-ms .ps1xml .psd1 .vb .ws .iso .img .vhd .vhdx 등은 경고 없이 엶 | 경고 목록에 더함 | `EntryWorkspaceTests.실행_파일_판정` |
+| Ctrl+C 사본 | 복사할 때마다 쌓이고 앱을 닫아도 남음(24시간 뒤 청소만) | 켜 둔 동안 최근 2개, 닫을 때 마지막 1개만 | `ClipboardCopyTests.사본은_켜_둔_동안_…` |
+
+**기대가 바뀐 기존 테스트(약화 아님 — 요구에 맞춘 계약 변경)**: `EntryOpenTests.다른_압축으로_바꿔도_고친_파일은_앱을_닫을_때까지_남는다` 의
+"안 고친 작업 폴더는 압축을 바꿀 때 지워야 함"(`Assert.False(File.Exists(untouched))`)은 요구('앱 종료·다음 시작 때 정리')와 달라
+`다른_압축으로_바꿔도_연_파일은_앱을_닫을_때까지_남는다` 로 바꿈 — 압축을 바꿔도(같은 압축을 다시 열어도) 남고, 같은 압축으로 돌아오면 같은 작업 폴더의 새 순번,
+닫을 때 고친 것만 알리며, 앱을 닫으면 둘 다 지워짐을 단언. Skip 은 더하지도 풀지도 않음.
+
+#### W2-04 2차 검증 뒤 고친 것(2026-10-13)
+
+| 무엇 | 예전 동작 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 끌어 꺼내기 — 솔리드 압축의 폴더 | 탐색기가 파일마다 내용을 달라고 할 때마다 그 하나만 꺼내, 솔리드 7z(일집 7z 기본값)는 매번 묶음 처음부터 다시 풀어 파일 수의 제곱으로 느려짐(100KB × 300개: 95초) | 첫 요청에 끌어낸 파일을 한 번에 꺼내고(고른 것의 열쇠만 넘김 — 진행 창 하나) 나머지는 꺼내 둔 것을 줌(같은 예: 3초). 한 번에 꺼내기가 실패·취소되면 그 뒤는 예전처럼 항목마다 — 멀쩡한 파일은 받음 | `DragOutTests.솔리드_7z_폴더를_끌면_…`·`한번에_꺼내기가_실패하면_…`·`한번에_꺼낼_때는_…`·`작은_파일이_여럿이라도_합쳐_크면_…`·`파일_하나만_끌면_…` |
+| 끌기 중 여러 항목 실패 | 실패한 항목마다 '끌어 꺼내지 못했어요' 창이 하나씩 | 끌기 한 번에 오류 창 한 번, 알림줄에 '끌어 꺼내지 못한 파일 N개' | `DragOutTests.끌기_중_여러_항목이_실패해도_…` |
+| 미리 보기 — 대소문자만 다른 두 그림 | 'A.png' 를 본 뒤 'a.png' 를 고르면 기억한 'A.png' 를 보이고, → 로 넘기면 'a.png' 에서 멈춤 | 기억 열쇠·자리 찾기가 대소문자를 가림(자리는 같은 객체 먼저) | `ImagePreviewTests.대소문자만_다른_두_그림은_…` |
+| 실행 파일 경고 | .rdp .py .pyw .website .jnlp 등은 경고 없이 엶 | 경고 목록에 더함(.rdp .py .pyw .pyz .pyzw .pyc .website .jnlp .msu) | `EntryWorkspaceTests.실행_파일_판정` |
+| 안의 파일 열기 — 깊은 폴더 | 압축 안 폴더 구조째 꺼내(`…\open\key16\1\폴더\…\파일`) 깊은 폴더 파일은 엑셀(전체 218자)이 못 열 수 있음, 그때도 '열 프로그램을 찾지 못했어요' | 옆 폴더(`1.part`)에 꺼낸 뒤 파일만 `…\1\파일 이름` 으로 옮김(7-Zip·반디집처럼). '열 프로그램을 찾지 못했어요'는 연결된 프로그램이 없을 때만, 그 밖엔 '열지 못했어요' | `EntryOpenTests.깊은_폴더의_파일도_…`·`연결된_프로그램이_없을_때만_…`·`파일을_열면_…`(경로 단언을 새 구조로) |
+| 꺼낸 자리 찾기(`LocateExtracted`) | 대상 경로에 '~' 가 있으면 .NET 이 짧은 이름을 풀며 디스크의 실제 대소문자로 바꿔, 대소문자만 다른 두 파일의 뒤엣것('Report (1).txt')을 못 찾고 앞엣것을 줌(이번 수정 중 옆 폴더를 '1~' 로 했다가 실제로 걸림) | 찾을 이름은 열쇠에서, 비켜 쓴 '(n)' 이름은 대소문자 무시로도 | `DragOutTests.엔진이_뒤엣것을_앞엣것_대소문자로_…` |
+
+**기대가 바뀐 기존 테스트(약화 아님 — 끌기 계약 변경)**: 끌기는 '부른 항목만 하나씩'에서 '첫 요청에 끌어낸 파일을 한 번에'로 바뀜(솔리드 압축 지적).
+`DragOutTests.부르기_전에는_꺼내지_않고_부른_항목만_한번_꺼낸다` → `…_처음_부를_때_끌어낸_파일을_한번에_꺼낸다`(서비스 호출 1번·넘긴 열쇠·세 파일 내용을 단언),
+`내용은_GetData를_받은_순간에_그_항목만_…` → `내용은_GetData를_받은_순간에_꺼내_IStream으로_준다`, `화면은_끌기_데이터만_…`·`암호가_필요하면_…`·`큰_항목은_…`(취소 안 함)의
+'꺼낸 파일이 하나'를 '끌어낸 파일 전부(이름·내용까지)'로. 파일 하나만 끌 때 그것만 꺼내는 계약은 새 `파일_하나만_끌면_그것만_꺼낸다` 로 그대로 지킴.
+미리 보기 기억 열쇠 단언 4곳은 대문자('사진/D.WEBP')에서 원래 이름('사진/d.webp')으로(같은 강도). `EntryOpenTests.파일을_열면_…` 의 '그 파일만 꺼냄' 단언은 작업 폴더 전체로 넓혀
+(파일 하나·옆 폴더 없음까지) 더 엄격하게. Skip 은 더하지도 풀지도 않음.
 
 ### W2-03 에서 고친 것(2026-10-13) — I2-2 나눠 만들기(분할 압축)
 

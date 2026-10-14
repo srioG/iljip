@@ -4,7 +4,8 @@ namespace Iljip.Services;
 
 /// <summary>
 /// 일집이 자기 것을 두는 곳(설계 §3): <c>%LOCALAPPDATA%\Iljip\</c> — 로그(logs\)와 같은 곳이고 OneDrive·로밍과 무관하다.
-/// W2-01 에서는 압축된 tar 목록 캐시(<c>temp\list\&lt;guid&gt;\inner.tar</c>)만 쓴다. 나머지 temp 하위 폴더·설정 파일은 뒤 묶음이 더한다.
+/// W2-01 에서는 압축된 tar 목록 캐시(<c>temp\list\&lt;guid&gt;\inner.tar</c>)만 쓴다. 나머지 temp 하위 폴더·설정 파일은 뒤 묶음이 더한다
+/// (W2-04: open·drag·clip·preview 와 settings.json).
 /// 계약 테스트는 <see cref="OverrideRootForTests"/> 로 임시 폴더를 쓴다(실제 사용자 폴더를 건드리지 않게).
 /// </summary>
 public static class AppPaths
@@ -38,10 +39,22 @@ public static class AppPaths
     /// <summary>압축된 tar 목록 캐시를 두는 곳(<c>Root\temp\list</c> — W2-01).</summary>
     public static string ListCacheRoot => Path.Combine(TempRoot, "list");
 
-    // ───── W2-06(I3-3 고친 파일 다시 넣기)에서 더한 것 — W2-04 보관본과 같은 이름·자리 ─────
+    // ───── W2-06(I3-3 고친 파일 다시 넣기)·IJ3-01(W2-04 다시 — 끌어내기·Ctrl+C·미리 보기)에서 더한 것 ─────
 
     /// <summary>압축 안 파일을 열 때 꺼내 두는 곳(<c>temp\open\&lt;key16&gt;\&lt;순번&gt;\</c> — <see cref="ArchiveWorkspace"/>).</summary>
     public static string OpenRoot => Path.Combine(TempRoot, "open");
+
+    /// <summary>목록에서 끌어낼 때 놓은 순간에 꺼내는 곳(<c>temp\drag\&lt;guid&gt;\</c> — <see cref="LazyEntryExtractor"/>).</summary>
+    public static string DragRoot => Path.Combine(TempRoot, "drag");
+
+    /// <summary>
+    /// Ctrl+C 로 복사할 때 꺼내 두는 곳(<c>temp\clip\&lt;guid&gt;\</c>). 앱을 켜 둔 동안은 최근 2개, 닫을 때 마지막 1개만 남기고(클립보드에서 밀려난 것은 지움),
+    /// 남긴 것은 붙여넣기가 늦을 수 있어 24시간 둔다(<see cref="TempJanitor"/>).
+    /// </summary>
+    public static string ClipRoot => Path.Combine(TempRoot, "clip");
+
+    /// <summary>그림 미리 보기용으로 잠깐 꺼내는 곳(<c>temp\preview\&lt;guid&gt;\</c>). 읽은 뒤 바로 지운다.</summary>
+    public static string PreviewRoot => Path.Combine(TempRoot, "preview");
 
     /// <summary>설정 파일(<c>Root\settings.json</c> — 설계 §4, W2-05 에서 처음 씀). 로그와 같은 곳이라 OneDrive·로밍과 무관하다.</summary>
     public static string SettingsFile => Path.Combine(Root, "settings.json");

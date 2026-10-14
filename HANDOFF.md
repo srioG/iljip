@@ -83,9 +83,20 @@
   기본 앱은 빼앗지 않음, [기본 앱 설정 열기]), 우클릭 **'일집 ▶' 하나**(압축 하나: 일집으로 열기·여기에 풀기·"이름"\ 에 풀기·**알아서 풀기**·다른 곳에 풀기... / 압축 여럿: 압축 풀기...·각각 알아서 풀기·각각 이름 폴더에 풀기 /
   파일·폴더: 압축하기...·**"이름.zip"으로 압축**·**"이름.7z"로 압축** — 창 없이 바로), 폴더 안 빈 곳 '일집 열기', **오른쪽 끌기** '일집: 여기에 풀기'·'일집: 여기에 압축', zip·7z 아이콘 위에 **끌어 놓아 넣기**(선택),
   고른 것을 한 명령줄로(길면 `--list-file`). 설치·등록은 사람이 할 일(아래 '셸 확장·파일 연결 반영(W2-12)')
+- **IJ3-01(2026-10-14 — W2-04 다시)**: 목록에서 파일 두 번 누르기·Enter → 그 파일만 꺼내 기본 프로그램으로 열기(W2-06 이 먼저 들인 것 + 실행 파일 경고를 설정으로 끄기),
+  탐색기·바탕 화면으로 **끌어 꺼내기**(놓는 순간 꺼냄 — 여럿이면 한 번에, 큰 것은 진행 창), **Ctrl+C → 탐색기 붙여넣기**(우클릭 '복사 (Ctrl+C)' — 수천 개도 화면이 굳지 않고 진행·취소,
+  Windows 가 못 쓰는 이름은 바꿔 복사하고 알림), 오른쪽 **그림 미리 보기** 칸(툴바 그림 단추 — ←→·확대, 큰 그림은 줄여 읽고 아주 큰 그림은 안 읽음), 다음 시작 때 임시 폴더 청소
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-14 Wave 2 통합 점검 후)
+## 현재 진행 단계 (2026-10-14 IJ3-01 후)
+
+**IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·바로 열기 나머지 I1-3) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
+보관분 `stash@{1}` `iljip-wave2-W2-04-failed` 를 `git stash apply` 로 얹고 충돌은 main 의 뜻대로 손으로 풀었다 — **stash 셋은 drop 하지 않았다**(그대로). 충돌 표시를 지운 뒤
+색인만 `git reset -q` 로 비웠다(작업 폴더 그대로 — 바뀐 파일은 모두 '스테이징 안 됨', 새 파일은 untracked). 새 파일(아직 git 에 없음 — 커밋할 때 같이):
+`Iljip/Services/`(`ClipboardCopyPlan.cs`·`DragPayloadBuilder.cs`·`IClipboardService.cs`·`IImageDecoder.cs`·`LazyEntryExtractor.cs`·`TempJanitor.cs`·`VirtualFileDataObject.cs`)·`Iljip/ViewModels/`(`ImagePreviewViewModel.cs`·`MainViewModel.EntryCopy.cs`),
+시험 `Iljip.Tests/Contract/`(`ClipboardCopyTests.cs`·`DragOutTests.cs`·`EntryOpenTests.cs`·`EntryWorkspaceTests.cs`·`ImagePreviewTests.cs`)·`Iljip.Tests/TestSupport/`(`DispatcherThread.cs`·`TestZip.cs`).
+계약 테스트 실패 0(전체 2345 — 통과 2345·건너뜀 0, Debug. 그 전 2175). 아래 변경 이력 'IJ3-01'. **진짜 탐색기 끌어 놓기·붙여넣기·미리 보기 화면은 MANUAL_CHECKLIST 20절(실기기 확인 필요)**.
+**설치·등록·재배포는 하지 않았다**(`D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음). 그 전(Wave 2 통합 점검) 기록:
 
 **Wave 2 통합 점검 끝 — 커밋·푸시 완료**(W2-01·02·03·05·06·07·09·10·11·12 는 묶음마다 커밋돼 있었고, 통합 점검은 아래 변경 이력 'Wave 2 통합 점검').
 계약 테스트 실패 0(전체 2175 — 통과 2175·건너뜀 0, **Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두**). Release 빌드 경고 0·오류 0(출력은 `D:\Python\일집-build\dotnet\Iljip\bin\Release`).
@@ -343,8 +354,9 @@ dotnet run --project Iljip
 - [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
 - [ ] W2-05 남은 확인: MANUAL_CHECKLIST 12절(같은 이름 창·설정 창 모양, 메인 창이 정말 안 뜨는지·창이 뒤에 숨지 않는지, 진짜 휴지통·네트워크 드라이브, 여러 개 골라 우클릭이 하나로 묶이는지)
 - [x] 셸 확장이 고른 파일들을 한 번에 넘기기 — W2-12 '일집 ▶' 하위 메뉴는 고른 것을 한 명령줄로(30,000자 넘으면 `--list-file`). 예전 5개 메뉴(DLL 에만 남음)는 그대로 파일마다
-- [ ] W2-04 다시 할 때: 설정(`Services/AppSettings.cs`)·`AppServices`·`IShellLauncher` 는 W2-05 가 같은 모양으로 먼저 들였음 — 덧붙이기만.
-      W2-06 이 압축 속 파일 열기(작업 폴더 `ArchiveWorkspace`·`OpenedEntry`·`RiskyFileTypes`·`ZoneIdentifier`, 더블클릭·우클릭 '열기')를 최소한으로 먼저 들였음 — 그 위에 덧붙이기(임시 폴더 청소기 `TempJanitor` 등은 아직 없음)
+- [x] W2-04 다시 → **IJ3-01 끝**: 끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)·바로 열기 나머지(I1-3 — 실행 파일 경고 설정·임시 폴더 청소)(아래 변경 이력 'IJ3-01')
+- [ ] IJ3-01 남은 확인: MANUAL_CHECKLIST 20절(진짜 탐색기로 끌어 놓기 — 한글·폴더·큰 파일·비동기 모드·솔리드 7z 사진 폴더, 붙여넣기 — 이름이 바뀌는 항목 알림·수천 개 진행 창·취소,
+  미리 보기 화면·WebP 코덱·아주 큰 PNG, 오피스 '제한된 보기', 끌어 놓은 파일의 인터넷 표식, 다음 시작 때 청소)
 - [x] **W2-06**: 압축 고치기(I2-3 — ZIP·7Z 넣기·지우기·이름 바꾸기·새 폴더, `--add-to`)·고친 파일 다시 넣기(I3-3)
 - [ ] W2-06 남은 확인: MANUAL_CHECKLIST 13절(도구 막대·☰·우클릭 메뉴·F2·Del 창 모양, 오피스로 고쳐 저장했을 때 한 번만 묻는지, 닫을 때 묻기, 회사 PC DLP·OneDrive 폴더에서 바꿔 넣기, 큰 압축 시간)
 - [ ] 탐색기 우클릭 'zip에 추가 (일집)': C++ 셸 확장에 메뉴를 더해 `Iljip.exe --add-to <압축> <고른 파일…>` 을 부르게(명령줄 쪽은 W2-06 에서 끝, 재배포 범위).
@@ -370,10 +382,12 @@ dotnet run --project Iljip
 - [ ] (W2-11 검증 지적 1차에서 남김) 압축 파일 **자체에** 쓸 권한이 없을 때 고치기 문구가 '다른 프로그램이 쓰고 있어서…'(`ArchiveSwap.EnsureWritable` 이 접근 거부를 잠김으로 봄) — 권한 문구·관리자 권한으로 다시 시도로 가르기
 - [ ] W2-08 다시 할 때: '관리자 권한으로 다시 시도'는 지금 `MainViewModel.OfferElevatedRetry`(기존 `Choose`)가 물음 — 문제 창(ShowProblem·ErrorCatalog)이 들어오면 '권한 없음' 분류의 Actions 로(`ElevationService.ActionsFor`·`RetryActionId` 를 그대로 쓰면 됨)
 - [ ] (선택) 압축 고치기(넣기·지우기·이름 바꾸기)의 권한 오류에도 '관리자 권한으로 다시 시도' — 지금은 `ArchiveSwap.EnsureWritable` 이 권한 오류를 '다른 프로그램이 압축 파일을 쓰고 있어…'(LockedMessage)로 바꿔 대부분 권하지 않음(기존 시험이 그 문구에 기댐). `--add-to` 만 인자(`--elevated --add-to`)를 넘기게 해 둠
-- [ ] 임시 폴더 청소기(`TempJanitor`): 바꿔 저장하는 도중 일집이 강제로 끝나면 `temp\convert\guid` 가 남음(정상 끝·실패·취소는 지움)
+- [x] 임시 폴더 청소기(`TempJanitor`): 바꿔 저장하는 도중 일집이 강제로 끝나면 `temp\convert\guid` 가 남던 것 — IJ3-01 청소기가 24시간 지난 것을 지움(`temp\args` 도)
 - [x] 탐색기 오른쪽 끌기 메뉴('일집: 여기에 압축'·'일집: 여기에 풀기') — W2-12(desktop9 고전 끌어 놓기 처리기, `--compress-to`·`--extract-to-folder-in`)
+- [ ] (IJ3-01 남김) 끌기에서 한 번에 꺼내기가 **실패**하면(손상 항목 하나) 그 뒤는 항목마다 따로 꺼냄 — 솔리드 압축이면 이 실패 경우만 아직 느림(취소·경로 공격 항목 섞임은 한 번에로 고침)
+- [ ] (IJ3-01 남김) Ctrl+C 의 '이름을 바꿔 복사했어요' 알림은 폴더 안의 대소문자만 다른 두 항목('report (1).txt')은 세지 않음(고른 것 자신은 셈)
 - [ ] 다크 모드
-- [ ] 미리보기 (압축 내부 텍스트/이미지)
+- [ ] 미리보기 (압축 내부 텍스트) — 그림은 IJ3-01(W2-04 다시)에서 됨
 - [ ] 압축 파일 내부 폴더 트리 탐색 (현재 flat list)
 
 ## 변경 이력
@@ -973,6 +987,123 @@ dotnet run --project Iljip
   고친 뒤 전체 실행 기록(`기록_7z_…`): 30% 지점 취소 498·263·581ms, 처음 바이트 취소 17~27ms, 보통 160MB 32.4초·125.0MB·메모리 증가 61MB·100% 도달 31.5초(Release).
   계약 테스트: 전체 2175 — 통과 2175·건너뜀 0·**실패 0**(Debug·Release·UTC 세 번, 빌드한 DLL 시험 넷 포함). W2-04·W2-08 은 stash 그대로(되돌린 묶음 — 다시 할지는 사람이 정함), 세 stash 모두 drop 안 함.
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-13 W2-04 — 압축 속 파일 바로 열기(I1-3)·끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)(보관본 기록 — 검증에서 되돌려 `iljip-wave2-W2-04-failed` 에 두었던 것.
+  2026-10-14 IJ3-01 이 W2-06·Wave 2 위에 다시 들이며 아래와 다르게 바꾼 것은 그 문단에. 전체 시험 수는 그때 기준)**: 화면 쪽은 `ViewModels/MainViewModel.EntryOpen.cs`(partial)·
+  `ViewModels/ImagePreviewViewModel.cs`, 바탕은 새 서비스들. **열기**: 목록에서 파일 두 번 누르기·Enter(우클릭 '열기') → `Services/ArchiveWorkspace.cs` 가 압축마다
+  `%LOCALAPPDATA%\Iljip\temp\open\<key16>\<순번>\`(key16 = SHA-256(전체 경로|길이|수정 시각) 앞 16글자, `owner.lock` 을 혼자 열어 '살아 있음', 같은 항목을 다시 열면 새 순번 —
+  앞 파일을 워드가 잠가도 안 겹침)에 그 파일만 꺼내(`ExtractEntriesAsync`, 진행 창·암호는 열 때·앞서 맞은 것 → 모르면 묻고 틀리면 다시) `IShellLauncher.OpenFile`(ShellExecute).
+  실행 파일(`Services/RiskyFileTypes.cs` — .exe .com .bat .cmd .ps1 .psm1 .vbs .vbe .js .jse .wsf .wsh .msi .msp .scr .pif .lnk .url .hta .cpl .jar .reg .application .appref-ms .msix .appx,
+  1차 검증 뒤 .chm .msc .scf .xll .wsc .sct .inf .library-ms .search-ms .searchconnector-ms .settingcontent-ms .ps1xml .psd1 .psc1 .vb .ws .msh* .iso .img .vhd .vhdx 등 보강)은
+  먼저 "'x.exe'는 실행 파일이에요. 보낸 사람을 확실히 알 때만 여세요. 그래도 열까요?"([열기]/[취소], 기본 [취소] — 설정 `open.warnExecutables` 로 끌 수 있음).
+  원본 압축의 `:Zone.Identifier`(인터넷 표식)를 꺼낸 파일마다 그대로 붙여 오피스 '제한된 보기' 유지(`Services/ZoneIdentifier.cs` — 열기·미리 보기·복사는 꺼낸 파일에,
+  끌기는 탐색기가 내용 스트림으로 새 파일을 만들어 임시 파일의 표식이 안 옮겨지므로 끌기 데이터에 셸 형식 'ZoneIdentifier'(영역 번호)를 실음 — 1차 검증 뒤, 실제 반영은 손 점검;
+  NTFS 아니면 조용히 넘어감; 보통 '압축 풀기'에는 아직 안 옮김 — 보고 안건 그대로). 연 파일은 처음 크기·시각·SHA-256 을 기록(`OpenedEntry` — W2-06 의 고친 파일 감시가 씀,
+  열기 전에 뒤 스레드에서 잼), 일집을 닫을 때 고친 파일이 있으면
+  "압축 안에서 열어 고친 파일이 있어요 … 일집을 닫으면 고친 내용은 … 지워져요"([닫지 않기] 기본/[그냥 닫기]). 압축을 닫거나 바꿔도 작업 폴더는 앱을 닫을 때까지 둠
+  (1차 검증 뒤 — 고쳤든 안 고쳤든, 같은 압축을 다시 열면 그 폴더를 다시 씀).
+  앱을 닫으면 지우고(다른 프로그램이 잡은 파일만 남김), 다음 시작 때 `Services/TempJanitor.cs` 가 뒤에서 청소(temp\open·drag·preview·list 중 owner.lock 이 안 잡힌 것, temp\clip 은 24시간 지난 것,
+  청소 시작 뒤 생긴 폴더는 안 건드림 — 창 없이 풀기·두 번째 실행에서는 안 부름). **끌어 꺼내기**: `Services/VirtualFileDataObject.cs` 가 COM IDataObject 를 직접 구현 —
+  `FileGroupDescriptorW`(상대 경로·폴더 속성·크기·수정 시각·FD_PROGRESSUI, 한글 UTF-16), `FileContents`(GetData 를 받은 순간에만 `Services/LazyEntryExtractor.cs` 가 그 항목만
+  `temp\drag\<guid>\i\` 에 꺼내 FileStream 을 감싼 IStream — 같은 항목은 한 번만, 압축 서비스는 끌기 전용 인스턴스, 큰 항목(8MB 이상)은 진행 창·[취소]면 탐색기에 E_ABORT·반쪽 없음),
+  'Preferred DropEffect' = 복사, `IDataObjectAsyncCapability` 처음부터 켬(탐색기가 놓은 뒤 자기 스레드에서 당겨 감 — EndOperation 에서 정리). 서술자는 `Services/DragPayloadBuilder.cs`
+  (폴더 재귀, 폴더 항목 없는 압축도, 이름 겹침 '(2)', '..'·금지 글자 다듬기, 259글자 넘으면 빼고 '경로가 너무 긴 항목 N개는 끌어낼 수 없어요'). CF_HDROP 지연 렌더링은 안 씀.
+  암호는 끌기 전에만(`ArchiveEntry.IsEncrypted` 를 새로 — ZIP·7z·RAR·EGG 목록이 채움): 모르면 가장 작은 암호 파일로 확인하며 묻고 "암호를 확인했어요. 다시 끌어 주세요."(암호 창 때문에 마우스를 놓았으므로).
+  UI 스레드로 들어온 GetData 는 꺼내는 동안 디스패처를 돌려(DispatcherFrame) 진행 창이 그려지고 취소가 먹게. **Ctrl+C**: 고른 것을 `temp\clip\<guid>\` 에 꺼내(진행 창·취소) 표식 붙이고
+  `IClipboardService.SetFileDrop`(FileDrop + 'Preferred DropEffect' 01 00 00 00, OleFlushClipboard 라 일집을 꺼도 붙여넣기 됨) — 사본은 켜 둔 동안 최근 2개, 닫을 때 마지막 1개만 남김
+  (24시간 뒤 청소 — 1차 검증 뒤). 클립보드 경로는 풀기 엔진이 실제로 쓴 자리(`LazyEntryExtractor.LocateExtracted` — 바뀐 이름·'(1)' 비켜 쓰기까지), 못 찾으면 알리고 안 넣음.
+  **미리 보기**: 툴바 그림 단추로 오른쪽 칸(320px — 짜임 최소 변경) 켜기·끄기(설정 `ui.previewVisible`), 고른 그림(.jpg .jpeg .png .bmp .gif .tif .tiff .ico .webp)만 `temp\preview\<guid>\` 에
+  꺼내 `IImageDecoder`(진짜 `WicImageDecoder` — 프레임 크기를 먼저 읽고 4,000만 화소를 넘으면 가로 4,096·4,000만 화소 이하로 줄여, OnLoad + Freeze) 로 읽고 바로 지움.
+  ←→·◀▶ 는 지금 폴더 그림만 목록 차례로 돌고(끝 → 처음) 목록 선택도 따라감, 확대 맞춤/100%/±25%(10~800%), 압축 크기나 원래 크기가 50MB 넘으면 '미리 보기에는 너무 커요',
+  최근 3장·합계 200MB 기억, 암호를 모르면 묻지 않고 '암호를 넣으면 볼 수 있어요' + [암호 넣기], 못 읽으면(WebP 코덱 없음 등) '이 그림은 미리 볼 수 없어요'.
+  (1차 검증 뒤: 그림 읽기는 한 번에 하나·기다리다 건너뛴 것은 안 읽음, 다른 압축을 열기 전에 시작한 읽기는 기억 안 함, [암호 넣기] 뒤 암호와 상관없는 실패는 '미리 볼 수 없어요')
+  **설정 파일 처음 들임**(설계 §4): `Services/AppSettings.cs` — `AppSettings`(schemaVersion 1·ui·open + 모르는 필드 [JsonExtensionData] 보존)·`ISettingsStore`·`JsonSettingsStore`
+  (`settings.json.tmp` 에 쓰고 File.Replace, 잠김 200ms×3, 깨지면 `settings.bad-yyyyMMddHHmmss.json` 으로 옮기고 기본값, 한글 그대로)·`InMemorySettingsStore`. VM 은 처음 쓸 때 읽고
+  (시험 VM 은 진짜 settings.json 을 안 건드림) 창을 닫을 때 한 번 저장. 주입: `Services/AppServices.cs`(Shell·Clipboard·ImageDecoder·Clock·Settings) — `MainViewModel(ui, locator, services = null)`
+  (null 이면 진짜, 기존 생성자 호출은 그대로 컴파일). `AppPaths` 에 OpenRoot·DragRoot·ClipRoot·PreviewRoot·SettingsFile 덧붙임, `IClock`/`SystemClock` 새로. 창: `MainWindow.xaml(.cs)` 에
+  두 번 누르기(파일)·Enter·Ctrl+C·←→·우클릭 '열기'/'복사 (Ctrl+C)'·끌기 시작(끌기 임계값, 여러 개 고른 채 잡아도 선택 유지)·닫기 확인·미리 보기 칸. `App.OnStartup` 에 청소(뒤에서).
+  **설계와 다르게 한 것**: 끌기는 설계의 `DragDrop.DoDragDrop(list, new DataObject(virtualObj), Copy)` 대신 ole32 `DoDragDrop` 을 직접 부름(우리 IDropSource) — WPF DataObject 로 감싸면
+  탐색기가 QueryInterface 로 비동기 모드(IDataObjectAsyncCapability)를 찾지 못한다(WPF 래퍼가 그 인터페이스를 안 가짐). 끌기 전 암호 확인은 '첫 끌기 때 묻고 다시 끌게'로(암호 창 때문에
+  마우스를 놓아 그 끌기는 이어 갈 수 없음). 시험: 새 계약 `Contract/EntryWorkspaceTests.cs`·`EntryOpenTests.cs`·`DragOutTests.cs`·`ClipboardCopyTests.cs`·`ImagePreviewTests.cs`(93개 —
+  가짜 `TestSupport/FakeServices.cs` 의 FakeShellLauncher·FakeClipboard·FakeImageDecoder·FakeClock·`TestServices`, 작은 ZIP `TestZip`; 창·실제 실행·진짜 클립보드 없음, 진짜 WIC 는 STA 로 작은 PNG 1개).
+  기존 테스트 기대는 안 바꿈. 창 XAML 이 실제로 읽히는지는 scratchpad 의 별도 프로그램으로 창을 '만들기만' 해 확인(보이지 않음). 위험·실기기 확인 필요(MANUAL_CHECKLIST 12절):
+  COM 직접 구현은 진짜 탐색기와 주고받기를 자동 시험 못 함(FORMATETC·STGMEDIUM 해제·lindex·비동기 모드에서 탐색기가 어느 스레드로 부르는지), PCFILTER·백신이 꺼낸 임시 파일을 잠깐 잠가
+  열기가 늦거나 청소가 다음으로 밀릴 수 있음, Zone.Identifier 로 오피스가 '제한된 보기'로 엶(의도 — 안내 필요할 수 있음), 큰 WebP·TIFF 디코딩 메모리, WebP 코덱 없는 PC,
+  임시 폴더 파일을 고쳐 저장하고 '그냥 닫기'면 고친 내용이 사라짐(W2-06 감시 전까지). 계약 테스트 실패 0(전체 1398 — 통과 1397·건너뜀 1: I2-10, 계약만 1241 — 통과 1240·건너뜀 1, 기록 157.
+  W2-03 후 1305 — 통과 1304·건너뜀 1 에서). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음(`BuildOutputTests`).
+- **2026-10-13 W2-04 1차 검증 수정(커밋 전, 배포 안 함)** — 지적 10건(major 2·minor 8) 모두 직접 확인해 맞아서 고침:
+  ① (major) 미리 보기: 그림을 읽는 도중 다른 압축을 열면 끝난 옛 읽기가 비운 기억에 다시 들어가 새 압축의 같은 경로 그림 대신 옛 그림을 보임 →
+  `ImagePreviewViewModel` 에 압축 세대(`_generation`, `Reset` 마다 +1) — 그 전에 시작한 읽기 결과는 기억하지 않음. ② (major) Ctrl+C: 클립보드 경로를 '꺼낸 곳\원래 이름' 으로
+  다시 만들어 디스크 이름이 바뀌는 항목(':' '?' '*' 장치 이름 — `EntryPaths.ToSafeRelative`)은 꺼내 놓고도 실패, 여럿이면 말없이 빠짐 → 새 `LazyEntryExtractor.LocateExtracted`
+  (ToSafeRelative + GetFullPath 로 예상 자리 → 같은 폴더에서 ①대소문자까지 같은 이름 ②엔진이 비켜 쓴 '이름 (n).ext' ③대소문자 무시, 한 파일 자리는 한 항목에만), 하나라도 못 찾으면
+  '꺼낸 파일을 찾지 못했어요:\n- 이름'으로 알리고 아무것도 안 넣음(사본도 지움). `FindExtracted`(열기·미리 보기·끌기)도 이것을 먼저 씀 — 대소문자만 다른 두 파일은 고른 열쇠가
+  대소문자를 무시해 하나만 골라도 둘 다 꺼내져 열기·끌기가 앞엣것 내용을 줄 수 있던 같은 뿌리의 버그도 고쳐짐. ③ Ctrl+C 열쇠를 대소문자 무시로 합치던 것 → 그대로(Ordinal) — 둘 다
+  넣음(뒤엣것은 엔진처럼 'report (1).txt' — 끌기 서술자는 예전대로 '(2)'). 폴더는 엔진이 합치므로 같은 자리면 한 번만. ④ 미리 보기 읽기는 한 번에 하나(`SemaphoreSlim`),
+  기다리다 건너뛴 것은 읽지 않음(시작한 WIC 읽기는 못 멈춤 — 80ms 간격 12장에 동시 7장이던 것). ⑤ 연 파일의 처음 SHA-256 은 열기 전에 `Task.Run` 으로(화면이 굳지 않게);
+  압축을 바꿀 때 고쳤는지 재던 해시도 없어짐(⑦). ⑥ 끌기 인터넷 표식: 탐색기는 FileContents 스트림으로 새 파일을 만들어 임시 파일의 ADS 가 안 옮겨짐 → 원본에 표식이 있으면
+  끌기 데이터에 셸 형식 `ZoneIdentifier`(CFSTR_ZONEIDENTIFIER — 영역 번호 DWORD, `ZoneIdentifier.ParseZoneId`)를 실음. 이 PC 의 shell32·windows.storage 에 그 형식 이름이 있음은 확인했으나
+  **탐색기가 실제로 붙이는지는 손 점검(MANUAL_CHECKLIST 12절 새 줄)**. ⑦ 압축을 바꾸거나 같은 압축을 다시 열면 안 고친 파일의 작업 폴더를 바로 지우던 것(메모장에서 저장 전이면
+  저장 실패) → 요구('앱 종료·다음 시작 때')대로 모든 작업 폴더를 앱을 닫을 때까지 두고, 같은 압축을 다시 열면 그 폴더를 다시 씀(`EnsureWorkspace`). ⑧ 실행 파일 경고 목록 보강
+  (.chm .msc .scf .xll .wsc .sct .inf .library-ms .search-ms .searchconnector-ms .settingcontent-ms .ps1xml .psd1 .psc1 .vb .ws .msh* .diagcab .appinstaller .gadget .xbap .iso .img .vhd .vhdx 등).
+  ⑨ Ctrl+C 사본: 켜 둔 동안 최근 2개(지금 것 + 붙여넣기가 아직 돌 수 있는 바로 앞 것), 닫을 때 마지막 1개만(그 뒤 24시간 청소). ⑩ 미리 보기 [암호 넣기] 뒤 암호와 상관없는 실패(손상 등 —
+  오류 창은 이미 보임)는 '이 그림은 미리 볼 수 없어요'(예전엔 암호 단추를 또 보임) — `IPreviewHost.ExtractWithPromptAsync` 가 `UseOutcome`(Done·Cancelled·Failed)을 돌려줌.
+  **기대가 바뀐 기존 테스트 1개(계약 변경 — 약화 아님)**: `EntryOpenTests.다른_압축으로_바꿔도_고친_파일은_…` 의 '안 고친 작업 폴더는 압축을 바꿀 때 지워야 함' →
+  `다른_압축으로_바꿔도_연_파일은_앱을_닫을_때까지_남는다`(같은 압축 다시 열기·돌아오면 같은 작업 폴더 새 순번·닫을 때 고친 것만 알림·앱을 닫으면 모두 지움까지 단언).
+  새 시험 42개(미리 보기 5·Ctrl+C 9·열기 2·끌기 2·표식 번호 6·실행 파일 판정 18행), 시험 도우미 `TestSupport/DispatcherThread.cs`(창 없는 WPF 디스패처 스레드 — 화면 스레드 흉내),
+  `FakeImageDecoder` 에 막아 두기(Gate)·동시 읽기 수. 덤으로 본 것(안 고침): 화면의 암호 오류 판정(`MainViewModel.IsPasswordRelated`)이 예외 문구 속 '암호'를 보기 때문에
+  경로에 '암호'가 든 압축(예: `암호사진.zip`)이 사라지거나 못 읽히면 오류 대신 암호 창이 뜸. 계약 테스트 실패 0(전체 1440 — 통과 1439·건너뜀 1: I2-10, 계약만 1283 — 통과 1282·건너뜀 1, 기록 157.
+  W2-04 후 1398 — 통과 1397·건너뜀 1 에서). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-13 W2-04 2차 검증 수정(커밋 전, 배포 안 함)** — 지적 5건(major 1·minor 4) 모두 직접 확인(검증 하네스 A12·A17·A19 재현)해 맞아서 고침:
+  ① (major) 끌어 꺼내기: 탐색기가 FileContents(i) 를 달라고 할 때마다 그 항목만 꺼내, 솔리드 7z(일집 7z 기본값·반디집/7-Zip 도 기본 솔리드)의 폴더를 끌면
+  파일마다 묶음 처음부터 다시 풀어 파일 수의 제곱으로 느려짐(재현: 100KB 솔리드 7z 100개 21.5초·200개 47초) → `LazyEntryExtractor` 가 파일이 둘 이상이면 첫 요청 때
+  끌어낸 파일을 `temp\drag\<guid>\all\` 에 `ExtractEntriesAsync` 한 번으로 꺼내고(넘기는 열쇠는 고른 것만 — `BatchSelectors`, 파일마다 넘기면 엔진 고르기가 느려짐),
+  자리는 `LocateExtracted`(+ 이미 준 자리 건너뛰기)로 짝지은 뒤 나머지 요청은 디스크에서 바로 줌('놓은 순간에 꺼내기'는 그대로). 진행 창은 이번에 꺼낼 파일의 합이 8MB 이상이면
+  하나("끌어낸 파일 N개를 꺼내는 중..."), 진행 창 [취소]면 그 요청은 E_ABORT·반쪽 없음. 한 번에 꺼내기가 실패(폴더 안 손상·경로 공격 항목 하나)·취소되면 그 뒤 요청은 예전처럼
+  항목마다 따로(멀쩡한 파일은 받음). 고친 뒤 같은 하네스: 100개 1.1초·200개 2.3초·300개 3.3초(폴더째 한 번에 풀기 3.2초와 같음 — 전엔 95초), ZIP 300개 3.8초 → 1.7초.
+  파일 하나만 끌면 예전처럼 그것만.
+  ② 미리 보기: 기억 열쇠·자리 찾기가 대소문자를 무시해 'A.png' 를 본 뒤 'a.png' 를 고르면 'A.png' 를 보이고 → 로 'a.png' 에서 멈춤 → 열쇠는 경로 그대로(Ordinal), 자리는 같은 객체 먼저.
+  ③ 끌기 중 실패가 여럿이면 항목마다 오류 창 → 끌기 한 번에 오류 창 한 번, 알림줄 "오류 발생 — 끌어 꺼내지 못한 파일 N개".
+  ④ 실행 파일 경고에 .rdp .py .pyw .pyz .pyzw .pyc .website .jnlp .msu 더함.
+  ⑤ 안의 파일 열기가 압축 안 폴더 구조째 꺼내(`…\open\key16\1\폴더\…\파일`) 깊은 폴더 파일은 엑셀(전체 218자)이 못 열 수 있었음 → 옆 폴더 `…\1.part\` 에 꺼낸 뒤
+  파일만 `…\1\파일 이름`(고른 항목 이름 — 엔진이 'report (1).txt' 로 비켜 써도 'report.txt')으로 옮김(`OutputFiles.MoveNew` — 잠김 재시도, 못 옮기면 꺼낸 자리에서 엶),
+  '열 프로그램을 찾지 못했어요'는 ERROR_NO_ASSOCIATION(1155)일 때만·그 밖엔 "'이름'을(를) 열지 못했어요." `OpenedEntry.EntryKey` 는 압축 안 경로 그대로.
+  **고치다 찾은 것**: 경로에 '~' 가 있으면 .NET `Path.GetFullPath` 가 짧은 이름을 풀며 이미 있는 파일의 실제 대소문자를 돌려줘, 엔진이 대소문자만 다른 두 파일의 뒤엣것을
+  'Report (1).txt' 로 쓰고 `LocateExtracted` 도 찾을 이름을 'Report.txt' 로 바꿔 앞엣것을 줌(옆 폴더를 처음에 '1~' 로 했다가 시험이 잡음) → 옆 폴더는 '.part',
+  `LocateExtracted` 는 찾을 이름을 열쇠에서 만들고 비켜 쓴 '(n)' 이름은 대소문자 무시로도 찾음(사용자 폴더 경로에 '~' 가 있는 PC 대비).
+  **기대가 바뀐 기존 테스트(끌기 계약 변경 — 약화 아님)**: '부른 항목만 하나씩' → '첫 요청에 한 번에' — `DragOutTests` 5개의 '꺼낸 파일이 하나' 단언을 '끌어낸 파일 전부(이름·내용)'로,
+  미리 보기 기억 열쇠 4곳 대문자 → 원래 이름, `EntryOpenTests.파일을_열면_…` 의 경로 단언을 새 구조로(작업 폴더 전체 — 더 엄격). 자세히는 `Iljip.Tests/README.md` 'W2-04 2차 검증 뒤 고친 것'.
+  새 시험 9개(끌기 7 — 솔리드 7z 한 번에·실패 뒤 항목마다·열쇠 고르기·파일 하나·합쳐 큰 진행 창·오류 창 한 번·'~' 자리 찾기, 열기 2 — 깊은 폴더·열기 실패 문구, 미리 보기 1)와 실행 파일 판정 10행.
+  `LocateExtracted` 에 폴더 목록 함께 쓰기(`listings` — 한 번에 꺼낸 파일 수천 개를 짝지을 때 폴더를 파일마다 다시 읽지 않게)도 더함.
+  손 점검 12절에 2줄(솔리드 7z 사진 폴더 끌기·깊은 폴더 엑셀 열기). 덤으로 본 것(안 고침): Ctrl+C 사본도 `temp\clip\<guid>\압축 안 폴더\…` 구조라 아주 깊은 항목은
+  탐색기 붙여넣기가 경로 길이에 걸릴 수 있음(실기기 확인 못 함); 끌기 서술자는 맨 위에서 대소문자만 다른 두 파일을 함께 고르면 뒤엣것을 뺌(`DragPayloadBuilder` 의 seenKeys 가 대소문자 무시).
+  계약 테스트 실패 0(전체 1460 — 통과 1459·건너뜀 1: I2-10, 계약만 1303 — 통과 1302·건너뜀 1, 기록 157. 1차 검증 수정 후 1440 — 통과 1439·건너뜀 1 에서).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-14 IJ3-01 — W2-04 다시: 끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)·바로 열기 나머지(I1-3)(커밋 전, 설치·배포 안 함)**:
+  보관분 `iljip-wave2-W2-04-failed`(W2-03 4a4b093 위에서 만든 것)를 `git stash apply` 로 지금 main 위에 얹고(충돌 7파일 + 이미 있던 새 파일 9개는 손으로 — main 의 뜻이 이김, stash 셋은 drop 안 함),
+  겹치는 바탕은 main 것을 썼다: 설정·`AppServices`(W2-05 — `Open.WarnExecutables`·`Ui.PreviewVisible`·Clipboard·ImageDecoder 만 덧붙임), 작업 폴더·열기·다시 넣기(W2-06 — 열기 길은 그대로,
+  `ExtractForUseAsync` 를 여러 열쇠·진행 창 없음·'꺼낸 뒤 이어서 할 일'로 넓혀 열기·Ctrl+C·끌기 전 암호 확인·미리 보기 [암호 넣기]가 같이 씀, 꺼낸 자리는 `LazyEntryExtractor.FindExtracted`),
+  닫기는 W2-06 의 `ConfirmExitAsync` 하나(보관분의 '닫지 않기/그냥 닫기' 창 `ConfirmClose`·XAML `Closing`/`Closed` 연결은 버림), 설정 저장은 `SaveOnExit`(미리 보기 칸 켜 둠을 트리 너비·최근 파일과 함께 한 번 —
+  보관분처럼 Shutdown 이 저장하지 않음). 화면 쪽 새 partial `ViewModels/MainViewModel.EntryCopy.cs`(미리 보기·Ctrl+C·끌기), 창은 미리 보기 칸(4번째 열 320px)·툴바 그림 단추·우클릭 '복사 (Ctrl+C)'·끌기 시작·Ctrl+C·←→.
+  **검증 지적 네 가지**: (a) 미리 보기 옛 그림 — 보관분은 세대를 미리 보기 안에서만 세고 목록을 읽은 직후(지금 압축 경로를 바꾸기 **전에**) 올려, 그 틈(옛 목록을 비울 때 선택이 바뀌어 미리 보기가 불림)에
+  시작한 읽기가 옛 압축에서 꺼낸 그림을 새 세대로 기억했다(새 압축의 같은 경로 그림 대신 보임 — 시험으로 재현). 고친 뒤 목록 다시 읽기(같은 압축)는 아예 비우지 않았다.
+  → 세대는 화면 한 곳(`MainViewModel._archiveGeneration`·`BumpArchiveGeneration` — `OpenArchiveAsync` 가 경로·암호를 바꾼 **뒤**, 고친 뒤 `ReloadArchiveListAsync`, `CloseView`)에서 올리고,
+  `IPreviewHost.ArchiveGeneration`·`ExtractQuietAsync(generation, …)`(지났으면 꺼내지 않음)·`ExtractWithPromptAsync(generation, …)`, 기억은 (세대, 경로) 열쇠, 끝났을 때 세대가 다르면 기억·표시 안 하고 '불러오는 중'이면 비움.
+  (b) Ctrl+C 이름 바뀜 — 새 `Services/ClipboardCopyPlan.cs`(순수 논리): 자리 찾기(`LocateExtracted` + 폴더 목록 한 번), 바뀐 이름 모으기(고른 것은 원래 NFC 이름 vs 디스크 이름 — '(1)' 비켜 쓰기 포함,
+  고른 폴더 안은 `EntryPaths.SafeComponent` + 끝 점·공백 떼기로 처음 바뀐 조각 하나씩), 넣은 뒤 `ShowInfo` '복사했어요. 다만 아래 이름은 Windows 에서 그대로 쓸 수 없어서(…) 바꿔서 복사했어요: - 원래 → 바뀐'(5개 + 외 N개),
+  상태줄 'N개 항목을 복사했어요(이름 M개는 바꿈) — …'. `: ? * | " < >`·CON·'...'·이름이 바뀌는 폴더를 한꺼번에 골라도 빠짐없이(시험). 못 찾은 것이 있으면 예전처럼 알리고 아무것도 안 넣음.
+  (c) 솔리드 7z 폴더 끌기 — 보관분의 '첫 요청에 한 번에'는 두고 남은 제곱을 없앰: `DragPayloadBuilder.Build`(고른 폴더마다 압축 전체를 다시 훑음 → 한 번 훑으며 조상 경로로 나눠 담기, 결과 같음),
+  `LazyEntryExtractor.BatchSelectors`(폴더마다 StartsWith → 해시 조상 찾기, **경로 공격 항목이 섞이면 안전한 파일 열쇠만** — 보관분은 그때 한 번에 꺼내기가 통째로 거부돼 모든 파일을 하나씩),
+  진행 창 [취소] 뒤 남은 요청은 꺼내지 않고 E_ABORT(`IsCancelled` — 보관분은 탐색기가 계속 달라는 파일을 하나씩, 큰 것은 진행 창도 또), 끌기 전 암호 확인 `ExpandFiles` 한 번 훑기,
+  엔진 열쇠 고르기 `SharpCompressArchiveServiceBase.EntrySelector`(SharpCompress·7z.dll·EGG 공용, `EggAlzArchiveService` 도 — 열쇠마다 비교 → 해시 + 조상 찾기, 대소문자·'\'·NFD 무시 그대로).
+  (d) Ctrl+C 수천 개 — 꺼낸 뒤의 정리를 같은 진행 창을 띄운 채 `Task.Run` 에서(단계 알림 '복사할 파일을 정리하는 중...'·[취소] — `ExtractForUseAsync(…, afterExtract)`), `ZoneIdentifier.Apply(…, ct)` 파일마다 취소 확인,
+  사본 지우기도 뒤에서, 도는 중 또 누르면 겹치지 않고 '앞의 복사가 아직 끝나지 않았어요…'. 클립보드에는 화면 스레드에서 넣음(시험: 창 없는 디스패처 스레드로 3,000개).
+  **덤**: 그림 폭탄 — `WicImageDecoder` 가 2억 5천만 화소(JPEG 10억) 넘으면 풀기 전에 `ImageTooLargeException` → '미리 보기에는 너무 커요'(PNG 는 줄여 읽어도 WIC 가 원래 크기를 다 풀 수 있어서 — 실제 메모리는 재지 않음, 보수적 상한).
+  청소기 `TempJanitor` — 보관분은 잠금 없는 preview·list 도 '주인 없음'으로 지워 다른 일집 창이 쓰는 것까지 지울 수 있었음 → open·drag 만 잠금으로, preview 1시간·list·convert·args·clip 24시간 나이로
+  ('향후 작업'의 convert 찌꺼기도 이것으로). 실행 파일 경고는 설정 `open.warnExecutables`(설정 창 칸은 없음 — settings.json 만).
+  **시험**: 전체 2175 → 2345(+170 — 보관분 5파일 + 새 시험: 미리 보기 세대 4·그림 폭탄 2, Ctrl+C 이름 3·수천 개 3·열쇠 고르기 1, 끌기 묶음 빠르기·공격 항목 섞임·진짜 손상 실패 3 등).
+  기대가 바뀐 보관분 시험과 이유는 `Iljip.Tests/README.md` 'IJ3-01 에서 더한 것'(약화 없음 — 공격 항목 실패 시험은 새 동작으로 바꾸고 진짜 손상으로 같은 이름 시험을 다시 만듦, 취소 시험은 더 엄격).
+  main 기존 시험은 `MainWindowEditUiTests` 의 목록 우클릭 메뉴 기대에 '복사 (Ctrl+C)' 한 줄만 더함. 손 점검은 MANUAL_CHECKLIST 20절(보관분 12절을 옮기고 IJ3-01 줄 9개 더함 — 12절 번호는 W2-05 가 씀).
+  위험·못 본 것: 진짜 탐색기와의 끌어 놓기·붙여넣기·미리 보기 화면(손 점검), 손상 항목 하나로 한 번에 꺼내기가 **실패**한 끌기만 아직 항목마다(솔리드면 느림 — 향후 작업), 이름 바뀜 알림은 폴더 안의 대소문자 겹침 '(1)' 은 세지 않음,
+  알림 창은 바뀐 이름이 있을 때만 뜸(작은 창 하나). 계약 테스트 실패 0(전체 2345 — 통과 2345·건너뜀 0, Debug). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

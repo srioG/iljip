@@ -47,7 +47,8 @@ public sealed class EggAlzArchiveService : IArchiveService
                         Size = e.UncompressedLength,
                         CompressedSize = SafeLen(e, n.IsDirectory, () => e.CompressedLength),   // B9: 크기 0 항목은 NRE → 0
                         IsDirectory = n.IsDirectory,
-                        LastModified = e.LastWriteTime
+                        LastModified = e.LastWriteTime,
+                        IsEncrypted = !n.IsDirectory && IsEntryEncrypted(e),   // W2-04: 끌어내기·미리 보기 전 암호 확인
                     });
                 }
                 return entries;
@@ -76,20 +77,13 @@ public sealed class EggAlzArchiveService : IArchiveService
         CancellationToken cancellationToken = default)
     {
         // W2-09: 고른 이름·항목 이름 모두 NFC 로 맞춰 비교(맥 ZIP 의 NFD 이름을 화면 이름으로 골라도, 원래 이름으로 골라도 찾음)
-        var selectors = entryPaths
-            .Select(EntryNames.SelectorKey)
-            .Where(p => p.Length > 0)
-            .ToList();
+        // IJ3-01: 고른 것이 수천 개여도 (항목 수 × 깊이)로 — 예전 (항목 수 × 고른 수) 비교와 결과는 같음(SharpCompressArchiveServiceBase.MatchesSelector)
+        var selectors = SharpCompressArchiveServiceBase.SelectorSet(entryPaths);
 
         bool ShouldExtract(string decodedPath)
         {
             string d = EntryNames.Nfc(decodedPath.Replace('\\', '/').TrimEnd('/'));
-            foreach (var s in selectors)
-            {
-                if (d.Equals(s, StringComparison.OrdinalIgnoreCase)) return true;
-                if (d.StartsWith(s + "/", StringComparison.OrdinalIgnoreCase)) return true;
-            }
-            return false;
+            return SharpCompressArchiveServiceBase.MatchesSelector(d, selectors);
         }
 
         return ExtractCore(archivePath, destinationFolder, ShouldExtract, password, progress, cancellationToken);
@@ -257,6 +251,13 @@ public sealed class EggAlzArchiveService : IArchiveService
                 throw translated;
             }
         }, cancellationToken);
+    }
+
+    /// <summary>항목이 암호화됐는지(EggDotNet 이 못 알려 주면 false).</summary>
+    private static bool IsEntryEncrypted(EggArchiveEntry e)
+    {
+        try { return e.IsEncrypted; }
+        catch { return false; }
     }
 
     /// <summary>EggDotNet 예외 → 일집 암호 예외(아니면 null). DecryptFailedException 은 암호가 없으면 '필요', 있으면 '틀림'.</summary>

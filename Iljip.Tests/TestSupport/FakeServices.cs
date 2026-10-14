@@ -1,6 +1,101 @@
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Iljip.Services;
 
 namespace Iljip.Tests.TestSupport;
+
+/// <summary>가짜 클립보드(IJ3-01 — W2-04 보관본에서): 넣은 파일 목록과 'Preferred DropEffect' 만 기록한다.</summary>
+public sealed class FakeClipboard : IClipboardService
+{
+    private readonly object _gate = new();
+    private readonly List<(IReadOnlyList<string> Paths, DragDropEffects Effect)> _calls = new();
+
+    /// <summary>넣은 것(차례대로).</summary>
+    public List<(IReadOnlyList<string> Paths, DragDropEffects Effect)> Calls
+    {
+        get { lock (_gate) return _calls.ToList(); }
+    }
+
+    /// <summary>넣은 스레드(화면 스레드에서 넣는지 보는 시험용).</summary>
+    public List<int> Threads { get; } = new();
+
+    /// <summary>있으면 넣을 때 이 예외(다른 프로그램이 클립보드를 잡음 흉내).</summary>
+    public Exception? ThrowOnSet { get; set; }
+
+    public void SetFileDrop(IReadOnlyList<string> paths, DragDropEffects effect)
+    {
+        lock (_gate)
+        {
+            Threads.Add(Environment.CurrentManagedThreadId);
+            if (ThrowOnSet is { } ex) throw ex;
+            _calls.Add((paths.ToList(), effect));
+        }
+    }
+}
+
+/// <summary>
+/// 가짜 그림 읽기(IJ3-01 — W2-04 보관본에서): 파일을 실제로 그림으로 풀지 않고 이름·내용 바이트만 기록한다. 돌려주는 그림은 1×1 얼린 비트맵(화면 칸에 쓰지 않음),
+/// 크기(<see cref="BytesPerImage"/>)는 미리 보기 캐시 상한 시험용.
+/// </summary>
+public sealed class FakeImageDecoder : IImageDecoder
+{
+    private readonly object _gate = new();
+
+    public List<(string Name, byte[] Bytes)> Decoded { get; } = new();
+
+    /// <summary>한 장이 메모리에서 차지한다고 볼 바이트.</summary>
+    public long BytesPerImage { get; set; } = 4_000;
+
+    /// <summary>이 이름이면 못 읽음(코덱 없음 흉내).</summary>
+    public string? FailName { get; set; }
+
+    /// <summary>이 이름이면 화소가 너무 많은 그림(<see cref="ImageTooLargeException"/> — 진짜 WIC 의 거절 흉내, IJ3-01).</summary>
+    public string? TooLargeName { get; set; }
+
+    /// <summary>있으면 읽기마다 이것이 열릴 때까지 기다린다(큰 그림을 읽는 도중 흉내 — 시작한 읽기는 멈추지 않음).</summary>
+    public ManualResetEventSlim? Gate { get; set; }
+
+    private int _started, _active, _maxActive;
+
+    /// <summary>시작한 읽기 수.</summary>
+    public int Started => Volatile.Read(ref _started);
+
+    /// <summary>동시에 돈 읽기의 최댓값.</summary>
+    public int MaxActive => Volatile.Read(ref _maxActive);
+
+    /// <summary>읽기가 <paramref name="count"/> 번 시작될 때까지 기다린다(못 하면 false).</summary>
+    public bool WaitStarted(int count, TimeSpan timeout) => SpinWait.SpinUntil(() => Started >= count, timeout);
+
+    public int DecodeCount(string name)
+    {
+        lock (_gate) return Decoded.Count(d => d.Name == name);
+    }
+
+    public DecodedImage Decode(string path)
+    {
+        Interlocked.Increment(ref _started);
+        int now = Interlocked.Increment(ref _active);
+        for (int max = Volatile.Read(ref _maxActive); now > max; max = Volatile.Read(ref _maxActive))
+            if (Interlocked.CompareExchange(ref _maxActive, now, max) == max) break;
+        try
+        {
+            var bytes = File.ReadAllBytes(path);
+            string name = Path.GetFileName(path);
+            lock (_gate) Decoded.Add((name, bytes));
+            Gate?.Wait(TimeSpan.FromSeconds(30));
+            if (FailName == name) throw new NotSupportedException("이 PC 에 코덱이 없음(가짜)");
+            if (TooLargeName == name) throw new ImageTooLargeException(30000, 30000);
+            var bmp = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
+            bmp.Freeze();
+            return new DecodedImage(bmp, 10, 10, BytesPerImage);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _active);
+        }
+    }
+}
 
 /// <summary>
 /// 가짜 셸(W2-05 — 모양은 W2-04 보관본과 같게): '열기'·'폴더 열기' 호출만 기록한다 — 시험은 진짜 ShellExecute·탐색기를 절대 부르지 않는다(창이 뜸).
@@ -124,6 +219,12 @@ public sealed class TestServices
     /// <summary>가짜 레지스트리(W2-12 — 파일 연결). Software\Classes 만 있는 빈 HKCU 흉내 — 진짜 HKCU 는 절대 쓰지 않는다.</summary>
     public FakeRegistryRoot Registry { get; } = FakeRegistryRoot.WithDefaults();
 
+    /// <summary>가짜 클립보드(IJ3-01 — Ctrl+C): 넣은 파일 목록만 기록한다(진짜 클립보드를 절대 쓰지 않음).</summary>
+    public FakeClipboard Clipboard { get; } = new();
+
+    /// <summary>가짜 그림 읽기(IJ3-01 — 미리 보기): 그림으로 풀지 않고 이름·바이트만 기록한다.</summary>
+    public FakeImageDecoder Images { get; } = new();
+
     public TestServices(AppSettings? settings = null, TempLocations? tempLocations = null)
     {
         Settings = new InMemorySettingsStore(settings);
@@ -140,10 +241,15 @@ public sealed class TestServices
             Processes = Processes,
             MappedDrives = MappedDrives,
             Registry = Registry,
+            Clipboard = Clipboard,
+            ImageDecoder = Images,
         };
     }
 
     public AppServices Services { get; }
+
+    /// <summary>이 시험 흐름의 일집 자료 폴더(%LOCALAPPDATA%\Iljip 대신)를 <paramref name="tmp"/> 아래로 — Dispose 로 되돌림(IJ3-01 — 임시 폴더 open·drag·clip·preview 를 시험마다 따로).</summary>
+    public static IDisposable UseAppRoot(TempDir tmp) => AppPaths.OverrideRootForTests(tmp.Dir("appdata"));
 
     /// <summary>설정 하나를 바꾼 묶음을 만드는 도우미.</summary>
     public static TestServices With(Action<ExtractSettings> change)

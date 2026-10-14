@@ -53,7 +53,8 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                     Size = e.Size,
                     CompressedSize = e.CompressedSize,
                     IsDirectory = e.IsDirectory,
-                    LastModified = AsLocalTime(e.LastModifiedTime)
+                    LastModified = AsLocalTime(e.LastModifiedTime),
+                    IsEncrypted = !e.IsDirectory && IsEncrypted(e),   // W2-04: 끌어내기·미리 보기 전 암호 확인
                 });
             }
             return entries;
@@ -90,21 +91,34 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     /// </summary>
     internal static Func<string, bool> EntrySelector(IReadOnlyCollection<string> entryPaths)
     {
-        var selectors = entryPaths
-            .Select(EntryNames.SelectorKey)
-            .Where(p => p.Length > 0)
-            .ToList();
+        var selectors = SelectorSet(entryPaths);
+        return decodedPath => MatchesSelector(EntryNames.SelectorKey(decodedPath), selectors);
+    }
 
-        return decodedPath =>
+    /// <summary>고른 열쇠 모음(<see cref="EntryNames.SelectorKey"/> 로 맞춘 것, 대소문자 무시 — 빈 열쇠는 뺌).</summary>
+    internal static HashSet<string> SelectorSet(IEnumerable<string> entryPaths)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in entryPaths)
         {
-            string d = EntryNames.SelectorKey(decodedPath);
-            foreach (var s in selectors)
-            {
-                if (d.Equals(s, StringComparison.OrdinalIgnoreCase)) return true;
-                if (d.StartsWith(s + "/", StringComparison.OrdinalIgnoreCase)) return true;
-            }
-            return false;
-        };
+            string k = EntryNames.SelectorKey(p);
+            if (k.Length > 0) set.Add(k);
+        }
+        return set;
+    }
+
+    /// <summary>
+    /// 맞춘 항목 이름 <paramref name="d"/> 가 고른 것 자체이거나 고른 폴더 아래인가(그 조상 — '/' 앞까지 — 가 고른 것). 결과는 예전의
+    /// '고른 열쇠마다 같음·「열쇠/」로 시작함을 비교'와 같고, 걸리는 시간은 (항목 수 × 고른 수)가 아니라 (항목 수 × 깊이)다 —
+    /// Ctrl+C·끌기로 수천 개를 고르면 예전 비교가 수천만 번 돌아 꺼내기 전에 오래 멈췄다(IJ3-01).
+    /// </summary>
+    internal static bool MatchesSelector(string d, IReadOnlySet<string> selectors)
+    {
+        if (selectors.Count == 0 || d.Length == 0) return false;
+        if (selectors.Contains(d)) return true;
+        for (int i = d.IndexOf('/'); i >= 0; i = d.IndexOf('/', i + 1))
+            if (i > 0 && selectors.Contains(d[..i])) return true;
+        return false;
     }
 
     /// <summary>

@@ -9,8 +9,7 @@ using Iljip.Services.Editing;
 namespace Iljip.ViewModels;
 
 // 압축 속 파일 열기(I1-3 — W2-04 보관본의 모양을 줄여 들임)와 고친 파일 다시 넣기(I3-3 — W2-06).
-// W2-04(끌어내기·Ctrl+C·미리 보기·임시 폴더 청소)를 다시 할 때는 이 파일을 그 보관본의 MainViewModel.EntryOpen.cs 로 넓힌다
-// (작업 폴더 ArchiveWorkspace·OpenedEntry·RiskyFileTypes·ZoneIdentifier 는 보관본 그대로 — OpenedEntry 에 ArchivePath·Rebase·Postponed 만 더함).
+// IJ3-01(W2-04 다시): 끌어내기·Ctrl+C·그림 미리 보기는 MainViewModel.EntryCopy.cs 에 — 고른 항목만 꺼내기(ExtractForUseAsync)는 여기서 같이 쓴다.
 // 묶음마다 partial 로 나눠 충돌을 줄인다(공통 설계 §0).
 public partial class MainViewModel
 {
@@ -55,7 +54,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// 압축 안 파일 하나를 앱 전용 임시 폴더(<c>temp\open\key16\순번\파일 이름</c>)에 그 파일만 꺼내 Windows 기본 프로그램으로 연다(I1-3).
-    /// 실행 파일(.exe·.bat·.js …)은 먼저 '그래도 열까요?'(기본 [취소]). 암호는 열 때 맞은 암호를 쓰고, 모르면 묻는다(틀리면 다시).
+    /// 실행 파일(.exe·.bat·.js …)은 먼저 '그래도 열까요?'(기본 [취소] — 설정 open.warnExecutables 를 끄면 묻지 않음, IJ3-01). 암호는 열 때 맞은 암호를 쓰고, 모르면 묻는다(틀리면 다시).
     /// 원본 압축에 인터넷 표식이 있으면 꺼낸 파일에도 붙인다(오피스 '제한된 보기' 유지). 연 파일은 고쳐 저장하는지 지켜본다(I3-3). 열었으면 true.
     /// </summary>
     public async Task<bool> OpenEntryAsync(ArchiveEntry entry)
@@ -69,7 +68,7 @@ public partial class MainViewModel
         if (!IsArchiveMode || CurrentArchivePath is not { } archive) return false;
 
         string name = entry.Name;
-        if (RiskyFileTypes.IsExecutable(name))
+        if (Settings.Open.WarnExecutables && RiskyFileTypes.IsExecutable(name))
         {
             int pick = _ui.Choose(ExecutableWarning(name), new[] { "열기", "취소" }, defaultIndex: 1);
             if (pick != 0)
@@ -96,7 +95,7 @@ public partial class MainViewModel
 
         // 꺼내기는 옆 폴더(…\1.part\압축 안 폴더\파일)에 하고, 파일만 순번 폴더 바로 아래(…\1\파일)로 옮긴다(깊은 경로를 짧게 — W2-04 와 같음)
         string staging = slot + StagingSuffix;
-        var outcome = await ExtractForUseAsync(archive, key, staging, "여는 중...", "파일을 열 수 없어요");
+        var outcome = await ExtractForUseAsync(archive, new[] { key }, staging, "여는 중...", "파일을 열 수 없어요");
         if (outcome != UseOutcome.Done)
         {
             TempFolders.DeleteBestEffort(staging);
@@ -106,7 +105,7 @@ public partial class MainViewModel
         }
         if (!string.IsNullOrEmpty(_archivePassword)) _workspacePasswords[ws] = _archivePassword;
 
-        string? found = FindExtracted(staging, key);
+        string? found = LazyEntryExtractor.FindExtracted(staging, key);
         if (found is null)
         {
             TempFolders.DeleteBestEffort(staging);
@@ -146,15 +145,14 @@ public partial class MainViewModel
     internal static string ExecutableWarning(string name) =>
         $"'{name}'는 실행 파일이에요. 보낸 사람을 확실히 알 때만 여세요. 그래도 열까요?";
 
-    private enum UseOutcome
-    {
-        Done,
-        Cancelled,
-        Failed,
-    }
-
-    /// <summary>항목 하나를 <paramref name="dest"/> 에 꺼낸다(진행 창·취소·암호 묻기 — 틀리면 다시). 맞은 암호는 기억한다.</summary>
-    private async Task<UseOutcome> ExtractForUseAsync(string archive, string key, string dest, string title, string errorHead)
+    /// <summary>
+    /// 고른 항목만 <paramref name="dest"/> 에 꺼낸다(진행 창·취소·암호 묻기 — 틀리면 다시) — 열기·Ctrl+C·끌기 전 암호 확인·미리 보기 [암호 넣기] 단추가 같이 쓴다.
+    /// 지금 보는 압축이면 아는 암호로 먼저 해 보고, 맞은 암호는 기억한다. <paramref name="title"/> 이 null 이면 진행 창 없이(미리 보기).
+    /// <paramref name="afterExtract"/> 가 있으면 꺼낸 뒤 같은 진행 창을 띄운 채 뒤 스레드에서 이어서 한다(IJ3-01 — Ctrl+C 의 꺼낸 자리 찾기·표식 붙이기:
+    /// 수천 개를 골라도 화면이 굳지 않고 진행·[취소]가 그대로). 그 일이 취소되면 Cancelled, 예외면 오류 창 뒤 Failed.
+    /// </summary>
+    private async Task<UseOutcome> ExtractForUseAsync(string archive, IReadOnlyCollection<string> keys, string dest, string? title, string errorHead,
+        Action<IProgressSession>? afterExtract = null)
     {
         var service = _locator.ResolveByContent(archive);
         if (service is null)
@@ -166,31 +164,58 @@ public partial class MainViewModel
         string? password = sameArchive ? _archivePassword : null;
         while (true)
         {
-            var session = _ui.ShowProgress(title);
+            var session = title is null ? new QuietSession() : _ui.ShowProgress(title);
             try
             {
-                await service.ExtractEntriesAsync(archive, dest, new[] { key }, password, session.Progress, session.CancellationToken);
+                try
+                {
+                    await service.ExtractEntriesAsync(archive, dest, keys, password, session.Progress, session.CancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return UseOutcome.Cancelled;
+                }
+                catch (Exception ex) when (IsPasswordRelated(ex))
+                {
+                    session.Close();
+                    var (reason, message) = PasswordPrompt(ex, password);
+                    var pw = _ui.AskPassword(Path.GetFileName(archive), reason, message);
+                    if (pw is null) return UseOutcome.Cancelled;
+                    password = pw;
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    session.Close();
+                    Logger.LogError($"{errorHead}: {archive} → {KeysForLog(keys)}", ex);
+                    _ui.ShowError($"{errorHead}:\n\n{ErrorMessages.ToUserMessage(ex)}");
+                    return UseOutcome.Failed;
+                }
                 if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
-                return UseOutcome.Done;
-            }
-            catch (OperationCanceledException)
-            {
-                return UseOutcome.Cancelled;
-            }
-            catch (Exception ex) when (IsPasswordRelated(ex))
-            {
-                session.Close();
-                var (reason, message) = PasswordPrompt(ex, password);
-                var pw = _ui.AskPassword(Path.GetFileName(archive), reason, message);
-                if (pw is null) return UseOutcome.Cancelled;
-                password = pw;
-            }
-            catch (Exception ex)
-            {
-                session.Close();
-                Logger.LogError($"{errorHead}: {archive} → {key}", ex);
-                _ui.ShowError($"{errorHead}:\n\n{ErrorMessages.ToUserMessage(ex)}");
-                return UseOutcome.Failed;
+                if (afterExtract is null) return UseOutcome.Done;
+
+                // 꺼낸 뒤의 일(뒤 스레드) — 암호 판정과 섞이지 않게 따로 받는다(경로에 '암호'가 든 입출력 오류를 암호 문제로 보지 않게)
+                try
+                {
+                    var ct = session.CancellationToken;
+                    await Task.Run(() =>
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        afterExtract(session);
+                    }, ct);
+                    return UseOutcome.Done;
+                }
+                catch (OperationCanceledException)
+                {
+                    return UseOutcome.Cancelled;
+                }
+                catch (Exception ex)
+                {
+                    session.Close();
+                    Logger.LogError($"{errorHead}(꺼낸 뒤): {archive} → {KeysForLog(keys)}", ex);
+                    _ui.ShowError($"{errorHead}:\n\n{ErrorMessages.ToUserMessage(ex)}");
+                    return UseOutcome.Failed;
+                }
             }
             finally
             {
@@ -199,20 +224,17 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>꺼낸 파일의 자리: 풀기 규칙대로의 이름(<see cref="EntryPaths.ToSafeRelative"/>), 없으면 꺼낸 폴더 안 하나뿐인 파일.</summary>
-    private static string? FindExtracted(string staging, string key)
+    /// <summary>로그에 남길 열쇠(많으면 앞의 몇 개와 개수만).</summary>
+    private static string KeysForLog(IReadOnlyCollection<string> keys) =>
+        keys.Count <= 5 ? string.Join(", ", keys) : $"{string.Join(", ", keys.Take(5))} 외 {keys.Count - 5}개";
+
+    /// <summary>진행 창 없이(미리 보기의 [암호 넣기]) — 취소 없음.</summary>
+    private sealed class QuietSession : IProgressSession, IProgress<ArchiveProgress>
     {
-        string expected = Path.Combine(staging, EntryPaths.ToSafeRelative(key));
-        if (File.Exists(expected)) return expected;
-        try
-        {
-            var files = Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories).Take(2).ToList();
-            return files.Count == 1 ? files[0] : null;
-        }
-        catch
-        {
-            return null;
-        }
+        public IProgress<ArchiveProgress> Progress => this;
+        public CancellationToken CancellationToken => CancellationToken.None;
+        public void Report(ArchiveProgress value) { }
+        public void Close() { }
     }
 
     /// <summary>꺼낸 파일을 순번 폴더 바로 아래(<c>…\open\key16\1\파일</c>)로 옮긴다(W2-04 와 같음). 못 옮기면 꺼낸 자리 그대로.</summary>
@@ -571,7 +593,10 @@ public partial class MainViewModel
     internal static string ExitWhileReinsertingMessage(string name) =>
         $"‘{name}’{Josa.EulReul(name)} 압축 파일에 다시 넣는 일이 아직 끝나지 않았어요. 끝난 뒤에 닫아 주세요.";
 
-    /// <summary>일집을 닫을 때(창이 닫힘): 감시를 멈추고 작업 폴더를 모두 지운다(다른 프로그램이 잡은 파일은 남김 — 예외 없음).</summary>
+    /// <summary>
+    /// 일집을 닫을 때(창이 닫힘): 감시를 멈추고 작업 폴더를 모두 지운다(다른 프로그램이 잡은 파일은 남김 — 예외 없음).
+    /// IJ3-01: 남은 끌기의 임시 폴더도 지우고, Ctrl+C 사본은 마지막 것만 남긴다(아직 클립보드에 있을 수 있음 — 일집을 꺼도 붙여넣기 되게, 24시간 뒤 청소).
+    /// </summary>
     public void Shutdown()
     {
         _entryWatcher?.Dispose();
@@ -580,6 +605,7 @@ public partial class MainViewModel
         _workspace = null;
         _retiredWorkspaces.Clear();
         _workspacePasswords.Clear();
+        ShutdownEntryCopy();
     }
 }
 

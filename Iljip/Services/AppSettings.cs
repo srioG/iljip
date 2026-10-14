@@ -39,6 +39,9 @@ public sealed class AppSettings
     /// <summary>탐색기 연결(shell.*) — W2-12(파일 연결을 넣었는지 기록).</summary>
     public ShellSettings Shell { get; set; } = new();
 
+    /// <summary>압축 안 파일 열기(open.*) — IJ3-01(실행 파일 경고).</summary>
+    public OpenSettings Open { get; set; } = new();
+
     /// <summary>읽은 JSON 에 묶음이 null 로 들어 있었을 때 기본값으로 채운다.</summary>
     internal AppSettings Normalize()
     {
@@ -50,6 +53,7 @@ public sealed class AppSettings
         Sfx ??= new SfxSettings();
         Recent ??= new RecentSettings();
         Shell ??= new ShellSettings();
+        Open ??= new OpenSettings();
         Recent.Files ??= new List<RecentFile>();
         Recent.Files.RemoveAll(f => f is null || string.IsNullOrWhiteSpace(f.Path));
         return this;
@@ -208,6 +212,19 @@ public sealed class UiSettings
     /// <summary>쓸 수 있는 트리 너비로(너무 좁거나 넓거나 숫자가 아니면 기본값).</summary>
     public static double ClampTreeWidth(double width) =>
         double.IsFinite(width) && width >= 80 && width <= 2000 ? width : DefaultTreeWidth;
+
+    /// <summary>ui.previewVisible — 오른쪽 그림 미리 보기 칸을 켜 두었는지(IJ3-01 — I3-7, 창을 닫을 때 한 번 저장). 기본 꺼짐.</summary>
+    public bool PreviewVisible { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>open.* — 압축 안 파일 열기(IJ3-01 — I1-3).</summary>
+public sealed class OpenSettings
+{
+    /// <summary>open.warnExecutables — 실행 파일(.exe·.bat·.js …)을 열기 전에 물어볼지. 기본 켬(설정 파일에서만 끌 수 있음).</summary>
+    public bool WarnExecutables { get; set; } = true;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }

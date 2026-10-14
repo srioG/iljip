@@ -6,7 +6,7 @@ namespace Iljip.Services;
 /// '인터넷에서 받은 파일' 표식(NTFS 대체 데이터 스트림 <c>:Zone.Identifier</c> — MOTW)을 압축 파일에서 꺼낸 파일로 옮긴다(W2-04 — I1-3).
 /// 메일·웹에서 받은 압축 속 문서를 일집에서 바로 열어도 오피스가 '제한된 보기'로 열게(보호 유지). 열기·미리 보기·Ctrl+C 는 꺼낸 파일마다 붙인다
 /// (Ctrl+C 는 붙여넣을 때 탐색기가 파일째 복사해 표식도 따라감). 끌어내기는 탐색기가 내용 스트림으로 새 파일을 만들어 임시 파일의 표식이 옮겨지지 않으므로,
-/// 끌기 데이터에 셸 형식 'ZoneIdentifier'(영역 번호 DWORD — <see cref="ParseZoneId"/>)를 함께 실어 탐색기가 붙이게 한다(실제 반영은 손 점검 MANUAL_CHECKLIST 12절).
+/// 끌기 데이터에 셸 형식 'ZoneIdentifier'(영역 번호 DWORD — <see cref="ParseZoneId"/>)를 함께 실어 탐색기가 붙이게 한다(실제 반영은 손 점검 MANUAL_CHECKLIST 20절).
 /// 압축 파일에 표식이 없으면 아무것도 하지 않는다. NTFS 가 아니거나(USB 의 exFAT 등) 실패하면 조용히 넘어가고 로그만 남긴다.
 /// (보통 '압축 풀기'에는 아직 옮기지 않는다 — 재사용장치 엑셀 COM 영향 확인이 먼저라 HANDOFF '보고 안건')
 /// </summary>
@@ -69,8 +69,10 @@ public static class ZoneIdentifier
         return data is null ? 0 : Apply(data, extractedPath);
     }
 
-    /// <summary>표식 내용을 파일(또는 폴더 안 모든 파일)에 쓴다. 실패는 로그만.</summary>
-    public static int Apply(byte[] data, string path)
+    /// <summary>
+    /// 표식 내용을 파일(또는 폴더 안 모든 파일)에 쓴다. 실패는 로그만. <paramref name="ct"/> 는 파일마다 본다(IJ3-01 — Ctrl+C 로 큰 폴더를 복사할 때 진행 창 [취소]).
+    /// </summary>
+    public static int Apply(byte[] data, string path, CancellationToken ct = default)
     {
         int count = 0;
         IEnumerable<string> files;
@@ -87,6 +89,7 @@ public static class ZoneIdentifier
         }
         foreach (var f in files)
         {
+            ct.ThrowIfCancellationRequested();
             try
             {
                 File.WriteAllBytes(f + StreamName, data);

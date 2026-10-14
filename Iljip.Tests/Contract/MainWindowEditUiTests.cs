@@ -50,7 +50,8 @@ public class MainWindowEditUiTests
                 Assert.All(grid.Columns.Skip(1), c => Assert.True(c.IsReadOnly, $"읽기 전용이 아닌 열: {c.Header}"));
 
                 var gridMenu = grid.ContextMenu!.Items.OfType<MenuItem>().Select(m => (string)m.Header).ToList();
-                Assert.Equal(new[] { "선택 항목 압축 풀기", "열기", "이름 바꾸기 (F2)", "지우기 (Del)", "파일 넣기...", "새 폴더..." }, gridMenu);
+                // IJ3-01(I1-4): '열기' 다음에 '복사 (Ctrl+C)'(탐색기에 붙여넣기)
+                Assert.Equal(new[] { "선택 항목 압축 풀기", "열기", "복사 (Ctrl+C)", "이름 바꾸기 (F2)", "지우기 (Del)", "파일 넣기...", "새 폴더..." }, gridMenu);
 
                 var menuButton = Assert.IsType<Button>(w.FindName("MenuButton"));
                 var menu = menuButton.ContextMenu!.Items.OfType<MenuItem>().Select(m => (string)m.Header).ToList();

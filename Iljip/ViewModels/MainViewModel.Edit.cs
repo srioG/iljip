@@ -263,6 +263,7 @@ public partial class MainViewModel
             var entries = await service.ListEntriesAsync(archive, _archivePassword);
             Entries.Clear();
             foreach (var e in entries) Entries.Add(e);
+            BumpArchiveGeneration();   // IJ3-01: 같은 경로라도 내용이 바뀌었을 수 있다 — 고치기 전에 읽어 둔 그림은 버린다
             BuildFolderTree();
             if (folder.Length > 0) NavigateToFolder(folder);
             StatusText = $"{entries.Count}개 항목";

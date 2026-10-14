@@ -53,4 +53,10 @@ public sealed class ArchiveEntry
 
     /// <summary>로컬 파일 시스템 경로 (압축 시 소스 추적용, 표시 안 함)</summary>
     public string? SourcePath { get; init; }
+
+    /// <summary>
+    /// 암호가 걸린 항목인가(W2-04 — 끌어내기·미리 보기 전에 암호를 먼저 물을지 정할 때). 엔진이 알려 줄 때만 true(ZIP·7z·RAR·EGG 등).
+    /// SharpCompress 는 암호 없는 7z 의 빈 파일도 true 로 줄 수 있어, 쓰는 쪽은 크기 0 항목은 따지지 않는다.
+    /// </summary>
+    public bool IsEncrypted { get; init; }
 }

@@ -97,6 +97,7 @@ internal static class SevenZipEngine
             CompressedSize = 0,   // 7z.dll 은 항목별 압축 크기를 주지 않는다(SharpCompress 7z 와 같게 0)
             IsDirectory = i.IsDirectory,
             LastModified = i.Modified,
+            IsEncrypted = !i.IsDirectory && i.Encrypted,   // W2-04: 끌어내기·미리 보기 전 암호 확인
         }).ToList();
     }
 

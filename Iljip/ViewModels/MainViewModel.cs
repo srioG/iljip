@@ -27,12 +27,13 @@ public partial class MainViewModel : ObservableObject
 
     /// <param name="ui">사용자에게 묻고 알리는 창. null 이면 실제 WPF 창(<see cref="WpfUserInteraction"/>). 테스트는 가짜를 넣는다.</param>
     /// <param name="locator">형식 라우터. null 이면 기본.</param>
-    /// <param name="services">셸·휴지통·설정(W2-05). null 이면 진짜 구현. 테스트는 가짜 묶음(TestSupport/TestServices)을 넣는다.</param>
+    /// <param name="services">셸·휴지통·설정(W2-05)·클립보드·그림 읽기(IJ3-01) 등. null 이면 진짜 구현. 테스트는 가짜 묶음(TestSupport/TestServices)을 넣는다.</param>
     public MainViewModel(IUserInteraction? ui, ArchiveServiceLocator? locator = null, AppServices? services = null)
     {
         _ui = ui ?? new WpfUserInteraction();
         _locator = locator ?? new ArchiveServiceLocator();
         _services = services ?? AppServices.CreateDefault();
+        Preview = CreatePreview();   // IJ3-01(I3-7): 그림 미리 보기 칸
         Entries.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(IsStagingMode));
@@ -64,6 +65,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAnyContent));
         OnPropertyChanged(nameof(CanEditArchive));   // W2-06
         OnPropertyChanged(nameof(IsStartVisible));   // W2-11: 시작 화면
+        OnPropertyChanged(nameof(IsPreviewPaneVisible));   // IJ3-01: 미리 보기 칸은 압축을 보는 중에만
     }
 
     // ===== 모드 판별 =====
@@ -181,6 +183,7 @@ public partial class MainViewModel : ObservableObject
                 }
                 CurrentArchivePath = archivePath;
                 _archivePassword = string.IsNullOrEmpty(password) ? null : password;
+                BumpArchiveGeneration();   // IJ3-01: 앞 압축(같은 압축을 다시 연 것도)의 미리 보기·읽던 그림은 버린다
                 BuildFolderTree();
                 StatusText = $"{entries.Count}개 항목";
                 RememberRecentFile(archivePath);   // W2-11(I3-15): 시작 화면 '최근 파일' 맨 앞에(저장은 창을 닫을 때 한 번)
@@ -635,6 +638,7 @@ public partial class MainViewModel : ObservableObject
         Entries.Clear();
         CurrentArchivePath = null;
         _archivePassword = null;
+        BumpArchiveGeneration();   // IJ3-01: 미리 보기를 비우고 읽던 그림은 버린다
         FolderTree.Clear();
         InvalidateBrowseCaches();
         SelectedFolder = null;

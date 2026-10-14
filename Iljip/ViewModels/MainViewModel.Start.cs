@@ -211,9 +211,9 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// 창을 닫을 때 한 번: 가르는 막대로 바꾼 트리 너비(W2-09)와 이번에 연 최근 파일(W2-11)을 함께 — 바뀐 것이 있을 때만 한 번 저장한다
-    /// (따로 두 번 쓰면 회사 PC DLP 가 연속 저장을 말없이 놓칠 수 있음). 저장은 <see cref="SaveSettings"/> — 최신 설정에 이 창이 바꾼 것만 얹는다(창 두 개),
-    /// 앞서 못 저장한 바꾸기도 함께.
+    /// 창을 닫을 때 한 번: 가르는 막대로 바꾼 트리 너비(W2-09)와 이번에 연 최근 파일(W2-11)·미리 보기 칸을 켜 두었는지(IJ3-01 — ui.previewVisible)를 함께 —
+    /// 바뀐 것이 있을 때만 한 번 저장한다(따로 두 번 쓰면 회사 PC DLP 가 연속 저장을 말없이 놓칠 수 있음). 저장은 <see cref="SaveSettings"/> — 최신 설정에
+    /// 이 창이 바꾼 것만 얹는다(창 두 개), 앞서 못 저장한 바꾸기도 함께.
     /// </summary>
     public void SaveOnExit(double treeWidth)
     {
@@ -226,6 +226,12 @@ public partial class MainViewModel
                 Settings.Ui.TreeWidth = w;
                 change = s => s.Ui.TreeWidth = w;
             }
+        }
+        if (Preview.IsVisible != Settings.Ui.PreviewVisible)
+        {
+            bool visible = Preview.IsVisible;
+            Settings.Ui.PreviewVisible = visible;
+            change += s => s.Ui.PreviewVisible = visible;
         }
         if (change is null && !HasUnsavedSettings) return;
         SaveSettings(change);

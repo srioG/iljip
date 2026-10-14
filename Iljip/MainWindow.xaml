@@ -26,6 +26,15 @@
 
     <Window.Resources>
         <conv:BytesToHumanConverter x:Key="BytesToHuman" />
+        <!-- IJ3-01(I3-7) 미리 보기 단추 아이콘·칸 아래 단추 -->
+        <Geometry x:Key="IconImage">M21,19V5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19M8.5,13.5L11,16.5L14.5,12L19,18H5L8.5,13.5Z</Geometry>
+        <Style x:Key="PreviewBarButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="Auto" />
+            <Setter Property="MinWidth" Value="30" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -142,6 +151,13 @@
 
                 <!-- 우측: 보조 동작 -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- IJ3-01(I3-7): 그림 미리 보기 칸 켜기/끄기 -->
+                    <Button Style="{StaticResource IconButton}" Command="{Binding Preview.ToggleCommand}"
+                            ToolTip="그림 미리 보기 칸 켜기/끄기"
+                            IsEnabled="{Binding IsArchiveMode}">
+                        <Path Data="{StaticResource IconImage}" Width="18" Height="18" Stretch="Uniform"
+                              Fill="{DynamicResource FgMutedBrush}" />
+                    </Button>
                     <Button x:Name="ThemeButton" Style="{StaticResource IconButton}" Click="Theme_Click" ToolTip="라이트/다크 전환">
                         <Path x:Name="ThemeIcon" Data="{StaticResource IconMoon}" Width="18" Height="18" Stretch="Uniform"
                               Fill="{DynamicResource FgMutedBrush}" />
@@ -183,6 +199,7 @@
                 <ColumnDefinition x:Name="TreeColumn" Width="0" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="240" />
+                <ColumnDefinition Width="Auto" /> <!-- IJ3-01(I3-7) 그림 미리 보기(켰을 때만 320) -->
             </Grid.ColumnDefinitions>
 
             <!-- 좌측 폴더 트리 (압축 파일을 열었을 때만 표시) -->
@@ -250,10 +267,13 @@
                 </DockPanel>
                 <!-- 정렬은 VM 이 맡는다(Sorting 에서 기본 정렬을 막고 vm.SortBy — 폴더 먼저, 폴더를 옮겨도 유지, I0-5).
                      열 폭 손잡이·정렬 화살표는 Styles.xaml 의 DataGridColumnHeader 템플릿 -->
-                <!-- W2-06: 이름 열만 바꿀 수 있게(F2·메뉴 '이름 바꾸기'로만 — BeginningEdit 가 그 밖의 편집을 막음). 행 지우기는 끈다(Del 은 VM 이 묻고 지움) -->
+                <!-- W2-06: 이름 열만 바꿀 수 있게(F2·메뉴 '이름 바꾸기'로만 — BeginningEdit 가 그 밖의 편집을 막음). 행 지우기는 끈다(Del 은 VM 이 묻고 지움)
+                     IJ3-01: 두 번 누르기·Enter 로 안의 파일 열기, 끌어서 탐색기로 꺼내기, Ctrl+C 복사, 고른 항목을 미리 보기가 따라감 -->
+
                 <DataGrid x:Name="EntriesGrid"
                           Grid.Row="1"
                           ItemsSource="{Binding VisibleEntries}"
+                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                           Margin="10,8"
                           SelectionChanged="EntriesGrid_SelectionChanged"
                           IsReadOnly="False"
@@ -264,12 +284,16 @@
                           MouseDoubleClick="EntriesGrid_MouseDoubleClick"
                           BeginningEdit="EntriesGrid_BeginningEdit"
                           CellEditEnding="EntriesGrid_CellEditEnding"
+                          PreviewMouseLeftButtonDown="EntriesGrid_PreviewMouseLeftButtonDown"
+                          PreviewMouseLeftButtonUp="EntriesGrid_PreviewMouseLeftButtonUp"
+                          PreviewMouseMove="EntriesGrid_PreviewMouseMove"
                           Visibility="{Binding IsEmptyState, Converter={x:Static conv:InverseBoolToVisibility.Instance}}">
                     <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="선택 항목 압축 풀기" Click="ExtractSelected_Click" />
-                            <!-- W2-06: 열기(I1-3)·압축 고치기(I2-3) -->
+                            <!-- W2-06: 열기(I1-3)·압축 고치기(I2-3), IJ3-01: 복사(Ctrl+C — 탐색기에 붙여넣기, I1-4) -->
                             <MenuItem Header="열기" Click="OpenSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                            <MenuItem Header="복사 (Ctrl+C)" Click="CopySelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                             <Separator />
                             <MenuItem Header="이름 바꾸기 (F2)" Click="RenameSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                             <MenuItem Header="지우기 (Del)" Click="DeleteSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
@@ -329,6 +353,59 @@
                 <views:StartView x:Name="StartScreen" Grid.RowSpan="2"
                                  Visibility="{Binding IsStartVisible, Converter={x:Static conv:BoolToVisibility.Instance}}" />
             </Grid>
+
+            <!-- IJ3-01(I3-7): 오른쪽 그림 미리 보기 칸. 목록에서 고른 그림을 보여 주고 ←→ 로 넘김. 화면 짜임은 최소로(뒤 묶음과 겹치지 않게) -->
+            <Border Grid.Column="3" Width="320"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0"
+                    Visibility="{Binding IsPreviewPaneVisible, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                <Grid DataContext="{Binding Preview}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="10,6,4,2">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource PreviewBarButton}"
+                                Command="{Binding ToggleCommand}" ToolTip="미리 보기 닫기" Content="✕" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentEntry.Name}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding SizeText}" FontSize="11"
+                                       Foreground="{DynamicResource FgMutedBrush}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <ScrollViewer x:Name="PreviewScroll" Grid.Row="1" Margin="6"
+                                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"
+                                  SizeChanged="PreviewScroll_SizeChanged">
+                        <Image x:Name="PreviewImage" Source="{Binding Image}" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
+                                Visibility="{Binding HasMessage, Converter={x:Static conv:BoolToVisibility.Instance}}">
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" TextAlignment="Center"
+                                   Foreground="{DynamicResource FgMutedBrush}" />
+                        <Button Content="암호 넣기" Margin="0,12,0,0" HorizontalAlignment="Center"
+                                Style="{StaticResource DialogButton}"
+                                Command="{Binding EnterPasswordCommand}"
+                                Visibility="{Binding IsPasswordNeeded, Converter={x:Static conv:BoolToVisibility.Instance}}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="4,2,4,6">
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding PrevCommand}" ToolTip="이전 그림 (←)" Content="◀" />
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding NextCommand}" ToolTip="다음 그림 (→)" Content="▶" />
+                        <Rectangle Style="{StaticResource ToolSeparator}" />
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding ZoomOutCommand}" ToolTip="작게" Content="−" />
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding ZoomFitCommand}" ToolTip="칸에 맞추기" Content="{Binding ZoomText}" />
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding ZoomActualCommand}" ToolTip="원래 크기" Content="100%" />
+                        <Button Style="{StaticResource PreviewBarButton}" Command="{Binding ZoomInCommand}" ToolTip="크게" Content="+" />
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ===== 상태바 ===== -->

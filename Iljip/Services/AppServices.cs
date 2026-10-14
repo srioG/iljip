@@ -4,7 +4,7 @@ namespace Iljip.Services;
 /// 화면이 아닌 시스템 동작 묶음(설계 §5). <see cref="Iljip.ViewModels.MainViewModel"/> 생성자의 선택 인자 — null 이면 진짜 구현.
 /// 시험은 가짜를 넣는다(Iljip.Tests/TestSupport/TestServices — 셸·휴지통·설정 모두 가짜, 진짜는 절대 부르지 않음).
 /// W2-05 에서 처음 들임(모양은 W2-04 보관본과 같게 — 다시 합칠 때 겹치게). 뒤 묶음은 속성을 덧붙이기만 한다
-/// (IClipboardService·IImageDecoder·IProcessLauncher·IRegistryRoot 등 — IFileChangeSource 는 W2-06, IClock·압축 시험기는 W2-07 이 더함).
+/// (IFileChangeSource 는 W2-06, IClock·압축 시험기는 W2-07, IProcessLauncher 는 W2-11, IRegistryRoot 는 W2-12, IClipboardService·IImageDecoder 는 IJ3-01 이 더함).
 /// </summary>
 public sealed class AppServices
 {
@@ -39,6 +39,12 @@ public sealed class AppServices
     /// 레지스트리(W2-12 — 파일 연결 I1-1, HKCU 에만). 진짜는 처음 쓸 때 만든다(시험은 가짜 메모리 트리 — HKCU 를 절대 건드리지 않음).
     /// </summary>
     public IRegistryRoot Registry { get; init; } = new CurrentUserRegistryRoot();
+
+    /// <summary>클립보드(IJ3-01 — 압축 속 파일 Ctrl+C, I1-4). 시험은 기록만 하는 가짜(진짜 클립보드를 쓰지 않음).</summary>
+    public IClipboardService Clipboard { get; init; } = new ClipboardService();
+
+    /// <summary>그림 읽기(IJ3-01 — 그림 미리 보기, I3-7). 시험은 가짜(그림으로 풀지 않고 바이트만 기록).</summary>
+    public IImageDecoder ImageDecoder { get; init; } = new WicImageDecoder();
 
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();

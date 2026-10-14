@@ -83,6 +83,11 @@ public partial class App : Application
         // (W2-05 — 우클릭 풀기는 메인 창 없이 진행·암호·결과 창만 띄워, 그 창들이 닫힐 때마다 앱이 끝나면 안 된다. ShutdownIfIdleAsync)
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        // IJ3-01(W2-04 보관본에서): 지난번에 남은 임시 사본(꺼진 일집의 안의 파일 열기·끌어내기, 오래된 미리 보기·목록 캐시·다른 이름으로 저장·긴 명령줄 목록,
+        // 24시간 지난 Ctrl+C 사본) 청소 — 뒤에서(시작을 늦추지 않게, TempJanitor). 창 없이 풀기(위 분기)에서는 하지 않는다.
+        // 청소를 시작한 뒤 생긴 폴더·다른 일집이 잡은 폴더는 건드리지 않는다.
+        _ = Task.Run(() => TempJanitor.CleanupStale(SystemClock.Instance));
+
         // 전역 예외 처리: 예외를 파일 로그에 남긴 뒤 사용자에게 안내하고 앱을 계속 실행한다.
         // (로깅은 Logger.LogError가 담당. 정식 배포 시 구조적 로깅으로 교체 가능.)
         DispatcherUnhandledException += (s, args) =>

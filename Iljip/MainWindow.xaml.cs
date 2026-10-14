@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Iljip.Models;
 using Iljip.Services;
@@ -68,6 +69,8 @@ public partial class MainWindow : Window
             vm.PropertyChanged += ViewModel_PropertyChanged;
             _treeWidth = vm.TreeWidth;
             vm.RefreshRecentFiles();   // W2-11(I3-15): 시작 화면 '최근 파일'
+            vm.Preview.PropertyChanged += Preview_PropertyChanged;
+            vm.ApplyStartupSettings();   // IJ3-01(I3-7): 미리 보기 칸 켜 둔 것(settings.json ui.previewVisible)
             UpdateColumns();
             UpdateSortArrows();
             UpdateTreeColumn();
@@ -101,6 +104,123 @@ public partial class MainWindow : Window
                 _recentRefreshQueued = false;
                 if (svm.IsStartVisible) svm.RefreshRecentFiles();
             });
+        }
+        else if (e.PropertyName is nameof(MainViewModel.SelectedEntry) && ViewModel?.SelectedEntry is { } sel)
+        {
+            // IJ3-01(I3-7): 미리 보기에서 이전/다음으로 넘기면(목록 선택은 SelectedItem 묶기로 따라감) 그 줄이 보이게
+            EntriesGrid.ScrollIntoView(sel);
+        }
+    }
+
+    // ===== IJ3-01(W2-04 다시): 끌어 꺼내기·Ctrl+C·미리 보기 (논리는 VM — 여기는 손 점검 대상 껍데기) =====
+
+    private List<ArchiveEntry> SelectedEntries() => EntriesGrid.SelectedItems.OfType<ArchiveEntry>().ToList();
+
+    /// <summary>우클릭 '복사 (Ctrl+C)' — 고른 것을 꺼내 클립보드에(탐색기에서 붙여넣기).</summary>
+    private async void CopySelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { IsArchiveMode: true } vm) return;
+        var selected = SelectedEntries();
+        if (selected.Count > 0) await vm.CopyEntriesToClipboardAsync(selected);
+    }
+
+    // --- 끌어 꺼내기: 끌기 임계값을 넘으면 ole32 DoDragDrop(VirtualFileDataObject — 놓은 순간에 꺼냄) ---
+
+    private Point? _dragStart;
+    private ArchiveEntry? _selectOnMouseUp;
+
+    private void EntriesGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStart = null;
+        _selectOnMouseUp = null;
+        if (ViewModel is not { IsArchiveMode: true }) return;
+        if (FindParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { } row) return;
+        if (row.IsEditing) return;   // 이름을 고치는 중(F2)의 글자 고르기는 끌기가 아님
+        _dragStart = e.GetPosition(EntriesGrid);
+        // 여러 개를 고른 채 그중 하나를 잡아 끌 때 선택이 하나로 줄지 않게 — 끌지 않고 놓으면 그때 그것만 고른다
+        if (e.ClickCount == 1 && row.IsSelected && EntriesGrid.SelectedItems.Count > 1 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            _selectOnMouseUp = row.Item as ArchiveEntry;
+            EntriesGrid.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void EntriesGrid_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_selectOnMouseUp is { } item)
+        {
+            EntriesGrid.SelectedItems.Clear();
+            EntriesGrid.SelectedItem = item;
+        }
+        _selectOnMouseUp = null;
+        _dragStart = null;
+    }
+
+    private async void EntriesGrid_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStart is not { } start || e.LeftButton != MouseButtonState.Pressed) return;
+        var pos = e.GetPosition(EntriesGrid);
+        if (Math.Abs(pos.X - start.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(pos.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        _dragStart = null;
+        _selectOnMouseUp = null;
+        if (ViewModel is not { IsArchiveMode: true } vm) return;
+        var selected = SelectedEntries();
+        if (selected.Count == 0) return;
+
+        // 암호는 끌기 전에만 묻는다(끄는 도중에는 못 물음) — 물었으면 마우스를 놓은 뒤라 이번 끌기는 하지 않고 '다시 끌어 주세요'
+        if (vm.DragNeedsPassword(selected))
+        {
+            await vm.EnsurePasswordForDragAsync(selected);
+            return;
+        }
+        var data = vm.CreateDragData(selected);
+        if (data is null) return;
+        try
+        {
+            EntriesGrid.ReleaseMouseCapture();
+            Mouse.Capture(null);
+            data.DoDragDrop(DragDropEffects.Copy);
+        }
+        catch (Exception ex)
+        {
+            Iljip.Services.Logger.LogError("끌어 꺼내기 실패", ex);
+        }
+    }
+
+    // --- 미리 보기 확대(맞춤 / 비율) ---
+
+    private void Preview_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ImagePreviewViewModel.IsFit) or nameof(ImagePreviewViewModel.ZoomPercent) or nameof(ImagePreviewViewModel.Image))
+            UpdatePreviewZoom();
+    }
+
+    private void PreviewScroll_SizeChanged(object sender, SizeChangedEventArgs e) => UpdatePreviewZoom();
+
+    /// <summary>맞춤이면 칸에 맞게(스크롤 없음), 비율이면 그림 화소 × 비율(스크롤). 맞춤일 때 실제 비율을 VM 에 알려 +/− 의 출발점으로.</summary>
+    private void UpdatePreviewZoom()
+    {
+        if (ViewModel?.Preview is not { } p) return;
+        var bmp = p.Image as BitmapSource;
+        if (bmp is not null && PreviewScroll.ActualWidth > 0 && PreviewScroll.ActualHeight > 0)
+            p.FitPercent = Math.Min(100.0 * PreviewScroll.ActualWidth / bmp.PixelWidth, 100.0 * PreviewScroll.ActualHeight / bmp.PixelHeight);
+        if (p.IsFit || bmp is null)
+        {
+            PreviewScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            PreviewScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            PreviewImage.Stretch = Stretch.Uniform;
+            PreviewImage.Width = double.NaN;
+            PreviewImage.Height = double.NaN;
+        }
+        else
+        {
+            PreviewScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+            PreviewScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            PreviewImage.Stretch = Stretch.Fill;
+            PreviewImage.Width = bmp.PixelWidth * p.ZoomScale;
+            PreviewImage.Height = bmp.PixelHeight * p.ZoomScale;
         }
     }
 
@@ -228,11 +348,11 @@ public partial class MainWindow : Window
             vm.GoToFolder(node);   // W2-09: 찾는 중이면 찾기를 지우고 그 폴더로
     }
 
-    /// <summary>목록에서 폴더를 더블클릭하면 그 폴더로 진입. 파일이면 꺼내서 기본 프로그램으로 연다(I1-3 — W2-06 이 최소로 들임).</summary>
+    /// <summary>목록에서 폴더를 더블클릭하면 그 폴더로 진입. 파일이면 꺼내서 기본 프로그램으로 연다(I1-3).</summary>
     private async void EntriesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel is not { IsArchiveMode: true } vm) return;
-        if (e.OriginalSource is DependencyObject src && FindParent<DataGridColumnHeader>(src) is not null) return;   // 열 머리 두 번 누르기
+        if (FindParent<DataGridRow>(e.OriginalSource as DependencyObject) is null) return;   // 열 머리·스크롤 막대 두 번 누르기는 무시(줄에서만)
         if (EntriesGrid.SelectedItem is ArchiveEntry { IsDirectory: true } entry)
         {
             vm.GoToFolder(entry.Path);   // W2-09: 찾은 결과의 폴더면 찾기를 지우고 그 폴더로
@@ -361,6 +481,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// 목록에서 Delete 키 → 스테이징(압축 대기) 모드면 선택 항목을 목록에서 뺀다.
     /// W2-06: 압축 파일을 보는 중이면 Del = 압축 파일에서 지우기(VM 이 먼저 묻는다), F2 = 이름 바꾸기, Enter = 열기.
+    /// IJ3-01: Ctrl+C = 꺼내서 클립보드에, 미리 보기 칸을 켰으면 ←→ = 이전/다음 그림.
     /// 이름 칸을 고치는 중(글자 칸)의 키는 그 칸에 맡긴다.
     /// </summary>
     private async void EntriesGrid_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -380,6 +501,22 @@ public partial class MainWindow : Window
             {
                 e.Handled = true;
                 avm.ClearSearch();
+                return;
+            }
+            // IJ3-01(I1-4): Ctrl+C = 고른 것을 꺼내 클립보드에(탐색기에 붙여넣기 — 뒤에서 꺼내고 진행 창·취소)
+            if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                e.Handled = true;
+                var toCopy = SelectedEntries();
+                if (toCopy.Count > 0) await avm.CopyEntriesToClipboardAsync(toCopy);
+                return;
+            }
+            // IJ3-01(I3-7): 미리 보기 칸을 켰으면 ←→ 로 그 폴더의 그림 넘기기
+            if (avm.IsPreviewPaneVisible && e.Key is Key.Left or Key.Right && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                e.Handled = true;
+                if (e.Key == Key.Left) await avm.Preview.PrevCommand.ExecuteAsync(null);
+                else await avm.Preview.NextCommand.ExecuteAsync(null);
                 return;
             }
             if (e.Key == Key.Delete)
