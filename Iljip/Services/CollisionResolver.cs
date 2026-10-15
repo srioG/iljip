@@ -6,6 +6,7 @@ namespace Iljip.Services;
 // 서비스(IArchiveService)는 시그니처가 그대로이고, 화면이 해제 한 번(또는 여러 개 풀기 한 묶음)을 ExtractionScope 로 감싸면
 // 모든 해제 길목(OutputFiles — SharpCompress 직접 쓰기·EGG/ALZ·raw bz2, 7z.dll·압축된 tar 의 임시 폴더 옮기기)이 그 범위의 처리기에 묻는다.
 // 범위가 없으면(창 없이 풀기 --extract-to·재사용장치·서비스를 바로 부르는 시험) 예전 그대로 '이름 (1).ext' 로 비켜 쓴다 — 묻지 않는다.
+// IJ3-03: 화면은 범위가 적어 둔 '이번에 만든 파일'(ExtractionScope.CreatedFiles)에만 인터넷 표식(Zone.Identifier)을 붙인다 — 범위가 없는 창 없이 풀기에는 붙지 않는다.
 
 /// <summary>같은 이름 파일을 만났을 때 고른 것.</summary>
 public enum CollisionChoice
@@ -226,6 +227,15 @@ public sealed class ExtractionScope : IDisposable
     {
         string key = Normalize(path);
         lock (_gate) return _created.Contains(key);
+    }
+
+    /// <summary>
+    /// 이번 해제가 만든(또는 새 내용으로 바꾼) 파일 — 지금까지의 사본(전체 경로). 되돌린·쓰다 만 파일은 빠져 있고, 원래 있던 파일·건너뛴 파일은 없다.
+    /// IJ3-03: 일집 창·우클릭 풀기가 다 푼 뒤 이 파일들에만 인터넷 표식을 붙인다(<see cref="ZoneIdentifier.MarkExtractedAsync"/>).
+    /// </summary>
+    internal IReadOnlyList<string> CreatedFiles
+    {
+        get { lock (_gate) return _created.ToList(); }
     }
 
     private static string Normalize(string path)

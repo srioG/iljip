@@ -419,9 +419,10 @@ internal static class SevenZipEngine
                         ? new SharpSevenZipExtractor(src.ArchivePath, password!, format)
                         : new SharpSevenZipExtractor(src.ArchivePath, format);
                 }
-                // ★ 보안 결정 보류(보고 안건): 인터넷에서 받은 압축의 '웹에서 받은 파일 표시(MOTW)'를 풀린 파일에 옮기지 않는다.
-                //   다른 엔진(SharpCompress·EggDotNet)도 옮기지 않아 동작을 맞춘 것. 켜면 Office 보호된 보기가 살아나지만,
-                //   재사용장치(엑셀 COM 으로 여는 자동 처리)에 영향이 있을 수 있어 사용자 결정 전까지 그대로 둔다(KnownGapTests 기록).
+                // ★ 엔진(서비스)은 '인터넷에서 받은 파일 표시(MOTW)'를 옮기지 않는다 — 다른 엔진(SharpCompress·EggDotNet)과 같게.
+                //   IJ3-03(사용자 결정 I2-15): 일집 창·우클릭 풀기는 화면이 다 푼 뒤 '이번에 만든 파일'에만 붙인다(ZoneIdentifier.MarkExtractedAsync —
+                //   설정으로 끌 수 있음). 창 없이 풀기(--extract-to — 재사용장치가 엑셀 COM 으로 자동 처리)는 서비스만 불러 붙지 않는다
+                //   (ReuseDeviceContractTests·KnownGapTests 기록). 여기서 켜면 그 약속이 깨지고 임시 폴더 파일에도 붙는다 — 켜지 말 것.
                 extractor.PropagateMarkOfTheWeb = false;
                 var from = DateTime.Now;
                 var data = extractor.ArchiveFileData;      // 여기서 실제로 연다

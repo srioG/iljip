@@ -86,9 +86,19 @@
 - **IJ3-01(2026-10-14 — W2-04 다시)**: 목록에서 파일 두 번 누르기·Enter → 그 파일만 꺼내 기본 프로그램으로 열기(W2-06 이 먼저 들인 것 + 실행 파일 경고를 설정으로 끄기),
   탐색기·바탕 화면으로 **끌어 꺼내기**(놓는 순간 꺼냄 — 여럿이면 한 번에, 큰 것은 진행 창), **Ctrl+C → 탐색기 붙여넣기**(우클릭 '복사 (Ctrl+C)' — 수천 개도 화면이 굳지 않고 진행·취소,
   Windows 가 못 쓰는 이름은 바꿔 복사하고 알림), 오른쪽 **그림 미리 보기** 칸(툴바 그림 단추 — ←→·확대, 큰 그림은 줄여 읽고 아주 큰 그림은 안 읽음), 다음 시작 때 임시 폴더 청소
+- **IJ3-03(2026-10-15 — 사용자 결정 I2-15)**: 메일·웹에서 받은 압축(‘인터넷에서 받은 파일’ 표시 — Zone.Identifier)을 **일집 창·탐색기 우클릭으로 풀면** 풀린 파일에도 그 표시를 그대로 붙임
+  (오피스 '제한된 보기' 유지 — 이번에 만든 파일에만, 수정 시각 그대로. 열기·끌기·Ctrl+C 도). ☰ ▸ 설정에서 끌 수 있음(기본 켬). **창 없이 풀기(재사용장치)는 붙이지 않음**.
+  7-Zip 라이선스를 7-zip.org 원문(`licenses\7-Zip-License.txt`)으로 바로잡음(안내·BSD 파일은 원문 줄 그대로, 판 안내 26.03)
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-14 IJ3-01 후)
+## 현재 진행 단계 (2026-10-15 IJ3-03 후)
+
+**IJ3-03(인터넷 표시 MOTW 전파·7-Zip 라이선스 원문 대조 — 사용자 결정 I2-15) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
+10/14 23:54·10/15 00:03 Windows 업데이트가 PC 를 두 번 다시 시작해, 10/15 재개 때 작업 폴더가 깨끗한 f1ef006(IJ3-01 커밋) 위에서 처음부터 했다.
+stash 는 손대지 않음 — 지금 `stash@{0}` `iljip-wave3-IJ3-02-failed`(IJ3-02 — 검증에서 되돌림), `stash@{1}` `iljip-wave2-W2-08-failed`, `stash@{2}` `iljip-wave2-W2-04-failed`(IJ3-01 이 다시 함), `stash@{3}` `iljip-wave1-W1-B-failed`.
+새 파일(아직 git 에 없음 — 커밋할 때 같이): `Iljip/licenses/7-Zip-License.txt`(원문 — 바이트 그대로), 시험 `Iljip.Tests/Contract/InternetMarkTests.cs`·`ThirdPartyLicenseTests.cs`.
+계약 테스트 실패 0(전체 2394 — 통과 2394·건너뜀 0, Debug. 그 전 2345). 아래 변경 이력 'IJ3-03'. **진짜 오피스 '제한된 보기'·탐색기 우클릭은 MANUAL_CHECKLIST 21절, 창 없이 풀기는 8절 마지막 줄(실기기 확인 필요)**.
+**설치·등록·재배포는 하지 않았다**(`D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음 — 발행 시험은 시험 임시 폴더에만). 그 전(IJ3-01) 기록:
 
 **IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·바로 열기 나머지 I1-3) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
 보관분 `stash@{1}` `iljip-wave2-W2-04-failed` 를 `git stash apply` 로 얹고 충돌은 main 의 뜻대로 손으로 풀었다 — **stash 셋은 drop 하지 않았다**(그대로). 충돌 표시를 지운 뒤
@@ -159,7 +169,7 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
    시간이 되면 10~17절(새 기능 화면 — 7z 만들기·나눠 만들기·같은 이름 창·압축 고치기·한 화면 압축 창·풀기 창·자동 풀림 EXE·시작 화면)
 2. 확인되면 **일집-dist 재배포**(아래 '일집-dist 재배포' 절 — 재사용장치가 돌지 않는 시간에) → 다음 날 재사용장치 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지
 3. **셸 확장·파일 연결 반영**(아래 '셸 확장·파일 연결 반영(W2-12)' 절 — 인증서·`Rebuild.ps1`·`--register-associations`) → MANUAL_CHECKLIST 18절. 일집-dist 와는 따로(셸 확장은 `일집-build\package\Iljip.exe` 를 부름)
-4. 결정할 것: W2-04·W2-08(stash) 다시 할지, 7-Zip `License.txt` 원문 대조(내려받기 허락), 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(아래 '향후 작업')
+4. 결정할 것: W2-08·IJ3-02(stash) 다시 할지(아래 '향후 작업'). (W2-04 는 IJ3-01 에서 다시 함, 7-Zip `License.txt` 원문 대조와 '웹에서 받은 파일 표시(MOTW)'는 IJ3-03 에서 끝 — 사용자 결정 I2-15)
 (예전 다음 단계 — 1~8절 확인·W1-B 다시 시도 — 는 위에 합침. W1-B 는 W2-01 에서, 7z 만들기 W2-02, 분할 만들기 W2-03 에서 끝)
 
 ### MSIX 셸 확장
@@ -206,16 +216,18 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
     zipx·iso·cab·lzh·wim·xz 는 종료 1 + '이 형식을 여는 부품(7z.dll)을 불러오지 못했어요…'(→ 반디집으로). egg·alz 는 7z.dll 과 상관없이 EggDotNet 그대로.
   - 창 없이 풀기는 **일집 설정(settings.json)을 읽지 않는다** — '같은 이름이 있을 때'·'다 푼 뒤 압축 파일을 휴지통으로'·'폴더 열기'·풀기 창 기억이 재사용장치에 새지 않음(같은 이름은 늘 '이름 (1)', 첨부는 그대로).
     `ReuseDeviceContractTests`(실제 exe)·`RecycleAfterExtractTests.창_없이_풀기는_설정과_휴지통을_쓰지_않는다`(소스)가 지킴.
+  - (IJ3-03) 창 없이 풀기는 **'인터넷에서 받은 파일' 표시(Zone.Identifier)를 풀린 파일에 붙이지 않는다** — 메일 첨부를 엑셀 COM 으로 여는 자동 처리가 '제한된 보기'·매크로 차단에 막히지 않게
+    (일집 창·우클릭 풀기만 붙임 — 사용자 결정 I2-15). `ReuseDeviceContractTests.창없이_풀기는_인터넷에서_받은_표시를_…`(실제 exe — EGG·ALZ·RAR5·ZIP·7Z·TGZ)가 지킴. 재배포 전 손 확인은 MANUAL_CHECKLIST 8절 마지막 줄.
   - 7z.dll·압축된 TAR 는 결과 폴더(재사용장치의 `mkdtemp`) 안 숨김 `.일집-임시-…` 폴더에 먼저 풀고 다 맞을 때만 옮긴다 — 실패면 아무것도 안 남김(재사용장치는 실패면 그 폴더를 통째로 버리므로 영향 없음).
   - 확장자를 모르는 파일은 내용(서명)으로 알아본다(이름이 바뀐 압축·자동 풀림 exe). 재사용장치는 확장자(egg·alz·7z·rar)로 골라 넘기므로 지금은 해당 없음. 속이 ZIP 인 문서(.xlsx 등)는 그대로 종료 2.
 - 발행 파일(2026-10-14 Release 발행으로 확인 — 임시 폴더에 발행해 세고 지움, 발행한 exe 로 7z·ZIP 창 없이 풀기 종료 0): 맨 위 11개 — Iljip.exe·Iljip.dll·Iljip.pdb·Iljip.deps.json·Iljip.runtimeconfig.json, SharpCompress·SharpSevenZip·EggDotNet·ICSharpCode.SharpZipLib·CommunityToolkit.Mvvm(.dll), THIRD-PARTY-NOTICES.txt,
-  하위 폴더 `x64\7z.dll`(**없으면 7z·rar 는 대신 길, 나머지 새 형식은 못 풂** — 꼭 같이), `licenses\`(라이선스 전문 10개 — LGPL 상 같이 둘 것), `icons\`(형식 아이콘 22개 — 파일 연결용), `sfx\Iljip.SfxStub.exe`(자동 풀림 만들기 부품 —
+  하위 폴더 `x64\7z.dll`(**없으면 7z·rar 는 대신 길, 나머지 새 형식은 못 풂** — 꼭 같이), `licenses\`(라이선스 전문 11개 — IJ3-03 부터 `7-Zip-License.txt` 원문 포함, LGPL 상 같이 둘 것), `icons\`(형식 아이콘 22개 — 파일 연결용), `sfx\Iljip.SfxStub.exe`(자동 풀림 만들기 부품 —
   재사용장치 풀기와는 상관없고, 없으면 압축 창 형식 목록에서 '자동 풀림 EXE' 만 빠진다. 회사 백신이 지울 수 있음 — MANUAL_CHECKLIST 16절). 예전 판의 `ZstdSharp.dll` 은 필요 없다.
 - 절차(재사용장치가 돌지 않는 시간에 — 바꾸는 동안 일집-dist 가 비면 셸 확장 패키지 판이 쓰일 수 있으니 한 번에):
   ```powershell
   # 1) 새 판 발행(저장소 bin 이 아니라 일집-build 아래로 — -o 를 꼭 줄 것)
   dotnet publish "D:\Python\일집\Iljip\Iljip.csproj" -c Release -o "D:\Python\일집-build\publish-새판"
-  Get-ChildItem "D:\Python\일집-build\publish-새판" -Recurse -File | Measure-Object    # 파일 45개(맨 위 11 + x64\7z.dll 1·sfx 1·licenses 10·icons 22)
+  Get-ChildItem "D:\Python\일집-build\publish-새판" -Recurse -File | Measure-Object    # 파일 46개(맨 위 11 + x64\7z.dll 1·sfx 1·licenses 11·icons 22 — IJ3-03 Debug --no-build 발행으로 셈)
   # 2) 새 판으로 진짜 egg 하나 미리 풀어 보기(MANUAL_CHECKLIST 8절) — 종료 코드 0
   # 3) 바꾸기
   Rename-Item "D:\Python\일집-dist" "일집-dist-20260623-예전판"     # 되돌릴 곳(지우지 말 것)
@@ -332,6 +344,9 @@ dotnet run --project Iljip
 9. **(W2-12) 외부 위치 패키지**: `uap10:RuntimeBehavior="win32App"` 이면 `EntryPoint` 를 두면 안 됨(makeappx 가 거부). makeappx 는 매니페스트의 `Iljip.exe` 가 패키지 폴더에 **있어야** 통과(Build.ps1 은 publish 를 package 폴더에 하므로 됨)
 10. **(W2-12) 확장자마다 ItemType 을 두지 말 것**: '*' 와 겹치면 '일집 ▶' 이 두 번 나온다 — 압축 확장자는 DLL(`IljipMenu.cpp ArchiveExtensions` = C# `ShellMenu.ArchiveExtensions`)이 고른다
 11. **(W2-12) 기본 앱(UserChoice)은 쓰지 말 것**: Windows 가 해시로 보호 — 쓰면 '연결이 초기화됨' 알림만. 일집은 '연결 프로그램' 후보·기본 앱 목록 칸만 넣고 `ms-settings:defaultapps?registeredAppUser=일집` 을 연다
+12. **(IJ3-03) 대체 스트림(`:Zone.Identifier`)을 쓰면 NTFS 가 파일의 수정 시각을 '지금'으로 바꾼다**(2026-10-15 실측) — 표식을 붙인 뒤 원래 수정 시각으로 되돌려야 함(`ZoneIdentifier.TryMark`).
+    읽기 전용 파일에는 스트림도 못 씀(잠깐 풀었다 되돌림). 없는 파일에 `파일:스트림` 으로 쓰면 빈 본문 파일이 새로 생기므로 있는지 먼저 볼 것.
+    7z.dll 의 `PropagateMarkOfTheWeb` 는 켜지 말 것 — 서비스(창 없이 풀기 포함)가 붙이게 되어 재사용장치 약속이 깨짐(붙이는 일은 화면만)
 
 ## 향후 작업
 
@@ -344,11 +359,15 @@ dotnet run --project Iljip
 - [x] W1-B 다시 → **W2-01(해제 쪽) 끝**: 7z.dll 로 7z·RAR·ISO/UDF·CAB·LZH·ZIPX·WIM·XZ·숫자 분할·압축된 TAR·자동 풀림 exe 풀기(아래 변경 이력)
 - [x] **W2-02**: 7z 만들기(I2-1)·파일 이름 암호화·솔리드·옵션 창 7Z 칸·저장 형식 7Z, 목록까지 잠긴 7z·RAR 열기(I1-7) — 보관 시험 되살림(아래 변경 이력)
 - [ ] W2-02 남은 확인: MANUAL_CHECKLIST 10절(옵션 창 모양, 반디집·7-Zip 으로 일집 7z 열기, 작업 관리자 메모리, 진짜 7-Zip -mhe·WinRAR 머리 암호 파일)
-- [ ] **재배포 전 필수(보류)**: 7-Zip `License.txt` 원문을 받아 `Iljip/licenses/7-Zip-*.txt`·`THIRD-PARTY-NOTICES.txt` 와 대조(내려받기는 사용자 확인 필요).
-      GPL-3·LGPL-2.1 전문은 이 PC 의 Git for Windows 사본(FSF 원문)으로 넣음, BSD 3·2조항 전문의 저작권 줄(연도 등)은 원문 없이 적음
+- [x] **재배포 전 필수 → IJ3-03 끝**: 7-Zip `License.txt` 원문(사용자가 허락해 받은 `D:\Python\일집-build\licenses-source\7-Zip_license.txt` — 6031바이트, SHA-256 3A184AA1…)을
+      `Iljip/licenses/7-Zip-License.txt` 로 바이트 그대로 넣고, BSD 3·2조항 파일과 `THIRD-PARTY-NOTICES.txt` 의 7-Zip 부분을 원문 줄 그대로로 바로잡음(아래 변경 이력 'IJ3-03').
+      GPL-3·LGPL-2.1 전문은 예전대로 이 PC 의 Git for Windows 사본(FSF 원문)
 - [x] ALZ / EGG 지원 (EggDotNet 0.4.0, W1-A 에서 빈 항목·ALZ 한글 이름·잠김·내용 확인까지)
 - [x] 새 형식·.egg/.alz 우클릭 메뉴 — W2-12 에서 '일집 ▶' 하나(DLL 이 압축 확장자로 고름)로 바뀜, `Rebuild.ps1` 재설치 때 반영(위 W2-12 반영)
-- [ ] 보고 안건: 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)'를 옮길지(지금은 안 옮김 — 재사용장치 엑셀 COM 영향 확인 필요)
+- [x] 보고 안건 → **IJ3-03 끝(사용자 결정 I2-15)**: 압축을 풀 때 '웹에서 받은 파일 표시(MOTW)' — 일집 창·우클릭 풀기·열기·끌기·Ctrl+C 는 붙이고(설정으로 끔, 기본 켬), 창 없이 풀기(재사용장치)는 붙이지 않음
+- [ ] IJ3-03 남은 확인: MANUAL_CHECKLIST 21절(진짜 오피스 '제한된 보기'·풀린 파일 표시 내용·수정 날짜·같은 폴더의 원래 파일은 안 붙음·설정 칸·수천 개 시간·USB/NAS·매크로 파일·일집 정보 창의 7-Zip 원문) + 8절 마지막 줄(창 없이 풀기는 안 붙음)
+- [ ] (IJ3-03 남김) '다른 이름으로 저장'(같은 형식 복사·ZIP↔7Z 바꾸기)으로 만든 새 압축에는 원본의 인터넷 표시가 따라가지 않음(내용 스트림으로 복사) — 그 사본을 일집으로 풀면 표시 없음. 옮길지는 사람이 정할 일
+- [ ] (IJ3-03 남김) 일집이 만든 자동 풀림 exe(SFX 스텁)는 받는 사람 PC 에서 풀 때 exe 의 인터넷 표시를 풀린 파일에 옮기지 않음(스텁은 따로 된 프로그램 — 바꾸려면 `Iljip.SfxStub`)
 - [x] **W2-03**: 분할 압축(나눠 만들기 — I2-2 만들기) — ZIP PKZIP 나눔·7Z 숫자 조각·옵션 창 '나누기' 칸(아래 변경 이력)
 - [ ] W2-03 남은 확인: MANUAL_CHECKLIST 11절(옵션 창 '나누기' 칸, Windows 탐색기·알집으로 나눔 ZIP 열기, 진짜 메일 첨부, OneDrive 폴더)
 - [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
@@ -1104,6 +1123,26 @@ dotnet run --project Iljip
   main 기존 시험은 `MainWindowEditUiTests` 의 목록 우클릭 메뉴 기대에 '복사 (Ctrl+C)' 한 줄만 더함. 손 점검은 MANUAL_CHECKLIST 20절(보관분 12절을 옮기고 IJ3-01 줄 9개 더함 — 12절 번호는 W2-05 가 씀).
   위험·못 본 것: 진짜 탐색기와의 끌어 놓기·붙여넣기·미리 보기 화면(손 점검), 손상 항목 하나로 한 번에 꺼내기가 **실패**한 끌기만 아직 항목마다(솔리드면 느림 — 향후 작업), 이름 바뀜 알림은 폴더 안의 대소문자 겹침 '(1)' 은 세지 않음,
   알림 창은 바뀐 이름이 있을 때만 뜸(작은 창 하나). 계약 테스트 실패 0(전체 2345 — 통과 2345·건너뜀 0, Debug). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-15 IJ3-03 — 인터넷 표시(MOTW) 전파·7-Zip 라이선스 원문 대조(사용자 결정 I2-15)(커밋 전, 설치·배포 안 함)**: (재개 1015 — Windows 업데이트 재부팅 뒤 깨끗한 f1ef006 위에서 처음부터)
+  ① **MOTW**: 압축에 `:Zone.Identifier` 가 있으면 일집 창·탐색기 우클릭 풀기(`MainViewModel.ExtractToFolderCoreAsync` — 풀기 창·고른 항목·명령줄, `BatchExtractor` — 여기에·'이름' 폴더·알아서·여러 개·관리자 권한으로 다시 시도)가
+  다 푼 뒤 **이번 풀기가 만든(덮어쓴) 파일에만** 원본 바이트 그대로 붙인다(`ZoneIdentifier.MarkExtractedAsync` — 같은 이름 처리 범위의 새 `ExtractionScope.CreatedFiles` 를 씀: 풀 곳에 원래 있던 파일·[건너뛰기]한 파일·같은 폴더의 압축은 안 건드림).
+  표식은 풀기 전에 읽고(다 풀고 휴지통으로 보내도), 손상·취소로 멈춰 앞서 풀린 파일이 남아도 붙이며(finally — 암호 오류로 되돌린 것은 이미 없음), 뒤 스레드에서 붙이는 동안 진행 창 단계 알림 '인터넷에서 받은 파일 표시를 붙이는 중'
+  (여러 개 풀기 `BatchProgress` 가 `IsStage` 도 넘기게). raw bz2 는 장부 없이 써서 범위에 안 적혔음 → `OutputTarget.Commit` 이 덮어쓰기가 아닐 때도 `NoteCreated`.
+  설정 `extract.keepInternetMark`(기본 켬 — ☰ ▸ 설정 '압축 풀기' 칸 "인터넷에서 받은 압축 파일이면 푼 파일에도 '인터넷에서 받은 파일' 표시 붙이기") — 끄면 열기·끌기(`LazyEntryExtractor.KeepInternetMark` — 끌기 데이터의 'ZoneIdentifier' 형식도 안 줌)·Ctrl+C 도 안 붙임.
+  **창 없이 풀기(`App.RunHeadlessExtractAsync` — 서비스만 부름)는 붙이지 않는다**(엔진은 그대로 — 7z.dll `PropagateMarkOfTheWeb=false`, 주석에 '켜지 말 것').
+  **고치다 찾은 것**: 대체 스트림을 쓰면 NTFS 가 파일 수정 시각을 '지금'으로 바꾼다(실측) — IJ3-01 의 열기·Ctrl+C 도 꺼낸 파일 시각이 '지금'이 되던 것 → `ZoneIdentifier.TryMark` 가 원래 시각으로 되돌리고,
+  읽기 전용 파일은 잠깐 풀었다 되돌린다. 64KB 넘는 비정상 표식은 통째로 옮기지 않고 영역 번호만(풀린 파일마다 큰 스트림으로 디스크를 채우지 않게).
+  ② **7-Zip 라이선스**: 사용자가 허락해 받은 원문(`D:\Python\일집-build\licenses-source\7-Zip_license.txt` — 6031바이트, SHA-256 3A184AA1…5DDB, 'Copyright (C) 1999-2025')을 `Iljip\licenses\7-Zip-License.txt` 로 **바이트 그대로**.
+  대조해 바로잡은 것: BSD 3·2조항 파일 — 예전 기억본은 저작권 줄에 연도 없음('Copyright (c) Igor Pavlov.' → 원문 'Copyright (c) 2023-2025 Igor Pavlov.'), 원문에 없는 소스 파일 이름(LzfseDecoder.cpp·ZstdDec.c·Xxh64.c)·머리말을 덧붙였고 줄바꿈이 달랐음 → 원문 절을 그대로 자름.
+  `THIRD-PARTY-NOTICES.txt` 7-Zip 부분 — 'Copyright (C) 1999-2026'(원문은 1999-2025), 원문에 없는 'Some files are in the public domain…'·'Rar* files'·요약 문장 → 원문의 파일별 라이선스 머리와 unRAR 제한을 **줄 그대로** 싣고,
+  원문 연도(1999-2025)와 동봉 7z.dll(26.03)이 다르다는 판 안내를 영어·한국어로 덧붙임(원문은 고치지 않음). 표에 `licenses\7-Zip-License.txt`. csproj 에 `CopyToPublishDirectory` 를 명시(예전에도 기본값으로 발행엔 들어갔음).
+  (바로잡는 파일은 원문을 읽어 줄을 잘라 붙이는 스크립트로 만들어 옮겨 적기 틀림이 없게 했고, 시험이 원문과 글자 단위로 대조)
+  **시험**: 새 `Contract/InternetMarkTests.cs`(37 — Theory 줄 포함: 해제 길 13가지, 범위·설정·수정 시각·고른 항목·암호·손상·휴지통·우클릭 3동사·열기·Ctrl+C·끌기), `Contract/ThirdPartyLicenseTests.cs`(7 — 원문 해시, BSD 절, 안내 대조, 빌드 출력, **발행 출력**(`dotnet publish --no-build` 를 시험 임시 폴더에 — 약 3초, NuGet 없음), csproj),
+  `ReuseDeviceContractTests` +1(**실제 exe** — EGG·ALZ·RAR5·ZIP·7Z·TGZ 를 표시 붙은 채 창 없이 풀어도 표시 없음), `EntryWorkspaceTests` +3(시각·읽기 전용, 큰 표식, 없는 파일), `CompressDialogXamlTests` +1(설정 칸), `SevenZipLibraryTests` 목록에 한 줄.
+  기존 기대는 바꾸지 않음(`KnownGapTests` 기록은 본문 그대로 설명만 '서비스는 옮기지 않음 — 창 경로는 화면이 붙임'). 손으로 '고치면 실패하나' 확인: `OutputTarget.Commit` 의 NoteCreated 를 빼면 bz2 시험 2개 실패.
+  손 점검 MANUAL_CHECKLIST 21절(새 — 13줄)·8절 한 줄. 위험·못 본 것: 진짜 오피스 '제한된 보기'·매크로 차단(업무 파일이 막히면 설정으로 끔), 수천 개 풀기 뒤 표시를 붙이는 시간(회사 DLP — 파일마다 작은 쓰기 3번),
+  USB(exFAT)·NAS 는 표시를 붙일 수 없어 조용히 넘어감(로그만), '다른 이름으로 저장'·자동 풀림 exe 는 표시를 옮기지 않음(향후 작업). 계약 테스트 실패 0(전체 2394 — 통과 2394·건너뜀 0, Debug. 그 전 2345).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

@@ -6,7 +6,8 @@ using Microsoft.Win32;
 namespace Iljip.Views;
 
 /// <summary>
-/// 설정 창(☰ ▸ 설정 — W2-05): 같은 이름이 있을 때(물어보기·덮어쓰기·건너뛰기·이름 바꾸기), 우클릭으로 푼 뒤 폴더 열기, 다 푼 뒤 압축 파일을 휴지통으로.
+/// 설정 창(☰ ▸ 설정 — W2-05): 같은 이름이 있을 때(물어보기·덮어쓰기·건너뛰기·이름 바꾸기), 우클릭으로 푼 뒤 폴더 열기, 다 푼 뒤 압축 파일을 휴지통으로,
+/// 인터넷에서 받은 압축이면 꺼낸 파일에도 그 표시 붙이기(IJ3-03 — extract.keepInternetMark).
 /// W2-07(I3-6): 압축할 때 쓸모없는 파일 빼기와 그 목록(한 줄에 하나 — 압축 창의 '빼기 목록 고치기'와 같은 설정).
 /// W2-07 검증 지적: 압축 창 '만들 곳'의 처음 값(원본이 있는 폴더·마지막으로 만든 곳·정해 둔 폴더 — I2-12), '원본을 휴지통으로'를 켠 채로 열지(I3-4 — 압축 창은 기억하지 않음).
 /// 받은 설정의 사본을 고치고 [확인]이면 <see cref="Result"/> 로 돌려준다(저장은 부르는 쪽이 한 번만).
@@ -71,6 +72,8 @@ public partial class SettingsDialog : Window
         }).IsChecked = true;
         OpenFolderCheck.IsChecked = e.OpenFolderAfter;
         DeleteArchiveCheck.IsChecked = e.DeleteArchiveAfter;
+        // IJ3-03(I2-15): 인터넷에서 받은 압축이면 꺼낸 파일에도 그 표시(기본 켬)
+        InternetMarkCheck.IsChecked = e.KeepInternetMark;
         // W2-07 검증 지적(I2-12): 만들 곳의 처음 값
         var c = _settings.Compress;
         (c.FolderChoice switch
@@ -125,6 +128,7 @@ public partial class SettingsDialog : Window
             : CollisionPolicy.Ask;
         x.OpenFolderAfter = OpenFolderCheck.IsChecked == true;
         x.DeleteArchiveAfter = DeleteArchiveCheck.IsChecked == true;
+        x.KeepInternetMark = InternetMarkCheck.IsChecked == true;
         _settings.Compress.FolderChoice = LastFolderRadio.IsChecked == true ? CompressFolderChoice.LastFolder
             : FixedFolderRadio.IsChecked == true ? CompressFolderChoice.FixedFolder
             : CompressFolderChoice.SourceFolder;

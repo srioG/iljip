@@ -338,7 +338,10 @@ public partial class MainViewModel
     /// </param>
     internal async Task<BatchResult> RunExtractBatchAsync(IReadOnlyList<string> archives, ExtractTargetRule rule, bool fromShell, ExtractTarget? target = null)
     {
-        var batch = new BatchExtractor(_locator, _ui, CreateCollisionResolver(), rule, archives);
+        var batch = new BatchExtractor(_locator, _ui, CreateCollisionResolver(), rule, archives)
+        {
+            KeepInternetMark = Settings.Extract.KeepInternetMark,   // IJ3-03: 인터넷에서 받은 압축이면 풀린 파일에도 그 표시(설정 — 기본 켬)
+        };
         if (fromShell)
             lock (_shellBatchGate) _shellBatch = batch;
 

@@ -37,10 +37,11 @@
     <None Include="$(PkgSharpSevenZip)\build\x64\7z.dll" Link="x64\7z.dll" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
   </ItemGroup>
 
-  <!-- 공개 소프트웨어 안내(I2-15): 실행 파일 옆에 두고 '일집 정보' 창이 읽는다 -->
+  <!-- 공개 소프트웨어 안내(I2-15): 실행 파일 옆에 두고 '일집 정보' 창이 읽는다. 발행(publish) 출력에도 꼭 같이(IJ3-03 — 7-Zip License.txt 원문 포함,
+       LGPL·BSD 는 바이너리와 함께 고지해야 함 — ThirdPartyLicenseTests 가 빌드·발행 출력을 확인) -->
   <ItemGroup>
-    <None Update="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
-    <None Update="licenses\*.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="licenses\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <!-- W2-12(I1-1): 파일 연결 아이콘(DefaultIcon = '<설치 폴더>\icons\<ext>.ico')·셸 메뉴 '일집 ▶' 아이콘(icons\iljip.ico).

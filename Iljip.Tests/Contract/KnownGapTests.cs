@@ -122,10 +122,11 @@ public class KnownGapTests
     }
 
     /// <summary>
-    /// 현재 동작 기록(보안 결정 보류 — 보고 안건): 인터넷에서 받은 압축(Zone.Identifier = 웹에서 받은 파일 표시, MOTW)을 풀어도
-    /// 풀린 파일에는 그 표시를 옮기지 않는다 — 7z.dll(PropagateMarkOfTheWeb=false)·SharpCompress(ZIP) 모두.
-    /// 그래서 풀린 Office 문서는 '보호된 보기'·매크로 차단 없이 열린다(Windows 탐색기의 기본 ZIP 풀기는 옮긴다).
-    /// 켜면 재사용장치(엑셀 COM 으로 여는 자동 처리)에 영향이 있을 수 있어 사용자 결정 전까지 그대로 둔다 — 바꾸면 이 기록도 고칠 것.
+    /// 동작 기록(IJ3-03 — 사용자 결정 I2-15 뒤): 압축 서비스(엔진)는 인터넷에서 받은 압축(Zone.Identifier = 웹에서 받은 파일 표시, MOTW)을 풀어도
+    /// 풀린 파일에 그 표시를 옮기지 않는다 — 7z.dll(PropagateMarkOfTheWeb=false)·SharpCompress(ZIP) 모두. 창 없이 풀기(--extract-to — 재사용장치가
+    /// 엑셀 COM 으로 여는 자동 처리)는 이 서비스만 부르므로 표시가 붙지 않는다(실제 exe 계약은 ReuseDeviceContractTests).
+    /// 일집 창·탐색기 우클릭 풀기는 화면이 다 푼 뒤 이번에 만든 파일에 붙인다(설정 extract.keepInternetMark — InternetMarkTests).
+    /// 서비스에서 붙이게 바꾸면 재사용장치 약속이 깨진다 — 바꾸면 이 기록과 두 계약도 함께 볼 것.
     /// </summary>
     [Theory, Trait(Kinds.Key, Kinds.Record)]
     [InlineData("7z_default")]

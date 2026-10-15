@@ -74,6 +74,12 @@ public sealed class LazyEntryExtractor : IDisposable
 
     public IReadOnlyList<DragItem> Items => _items;
 
+    /// <summary>
+    /// 압축의 인터넷 표식을 꺼낸 임시 파일과 끌기 데이터('ZoneIdentifier' 형식)에 실을지(IJ3-03 — 설정 extract.keepInternetMark, 화면이 넘김. 기본 켬).
+    /// 끄면 압축의 표식을 읽지도 않는다(<see cref="ZoneId"/> = null).
+    /// </summary>
+    public bool KeepInternetMark { get; init; } = true;
+
     /// <summary>압축 서비스에 꺼내기를 맡긴 횟수(한 번에 꺼내기 = 1, 같은 항목을 두 번 불러도 다시 꺼내지 않음).</summary>
     public int ExtractionCount => Volatile.Read(ref _extractions);
 
@@ -335,7 +341,7 @@ public sealed class LazyEntryExtractor : IDisposable
             {
                 if (!_zoneRead)
                 {
-                    _zone = ZoneIdentifier.Read(_archivePath);
+                    _zone = ZoneIdentifier.ReadIfEnabled(_archivePath, KeepInternetMark);
                     _zoneRead = true;
                 }
                 return _zone;

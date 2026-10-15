@@ -245,6 +245,7 @@ public partial class App : Application
         // ★ 재사용장치(_extract_with_iljip)가 종료 코드와 stderr 문구로 결과를 가른다(ReuseDeviceContractTests):
         //   0 성공 / 2 지원하지 않는 형식 — stderr 는 정확히 영어 'Unsupported archive type: <확장자>' / 1 그 밖의 실패 — 쉬운 한국어 한 줄
         //   (손상·암호·조각·7z.dll 문구에는 '압축 파일이 아닌'·'not archive' 같은 '압축 아님' 표지를 넣지 않는다). 설정은 읽지 않는다.
+        //   IJ3-03: 인터넷에서 받은 표시(Zone.Identifier)도 풀린 파일에 붙이지 않는다(재사용장치의 엑셀 자동 처리를 막지 않게 — 서비스만 부르고 화면의 표식 붙이기를 타지 않음).
         try
         {
             var locator = new ArchiveServiceLocator();

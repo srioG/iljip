@@ -217,6 +217,7 @@ public class SevenZipLibraryTests
                      "CommunityToolkit.Mvvm-MIT.txt", "System.Text.Encoding.CodePages-MIT.txt",
                      "GPL-3.0.txt", "7-Zip-LGPL-2.1.txt",   // W1-B 검증 지적: LGPL-3 이 끌어 쓰는 GPL-3 전문, 7z.dll 의 LGPL-2.1 전문
                      "7-Zip-BSD-3-Clause.txt", "7-Zip-BSD-2-Clause.txt",   // W1-B 2차 지적: 7z.dll 안 BSD 코드의 저작권 고지·조건 전문
+                     "7-Zip-License.txt",   // IJ3-03: 7-zip.org 의 License.txt 원문 그대로(ThirdPartyLicenseTests)
                  })
             Assert.Contains(name, licenses);
         // BSD 는 바이너리로 배포할 때 저작권 고지와 조건 전문을 함께 실어야 한다(LZFSE·ZSTD = BSD-3, XXH64 = BSD-2 — 7-Zip License.txt 기준)

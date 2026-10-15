@@ -53,13 +53,14 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-14 IJ3-01 — W2-04 다시 — 후): `통과!  - 실패: 0, 통과: 2345, 건너뜀: 0, 전체: 2345` — 남은 Skip 없음. 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
+- 결과(2026-10-15 IJ3-03 — 인터넷 표시·7-Zip 라이선스 원문 — 후, Debug): `통과!  - 실패: 0, 통과: 2394, 건너뜀: 0, 전체: 2394` — 남은 Skip 없음(IJ3-01 후 2345). 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
   (Wave 2 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두: 통과 2175·건너뜀 0·전체 2175, W2-12 후: 통과 2105·건너뜀 0·전체 2105, W2-11 후: 통과 2041·건너뜀 0·전체 2041, W2-10 검증 지적 수정 2차 후: 통과 1937·건너뜀 0·전체 1937, W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
   → W2-01: 통과 1097·건너뜀 2·전체 1099)
   반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개, (W2-03) `SplitCreateTests` 의 반디집 시험(나눔 ZIP·7z 조각 — Theory 행 포함 32개)이, (W2-06) `ArchiveEditTests.고친_압축을_반디집이_푼다`(12개)가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
-  빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 3개)가 건너뜁니다.
+  빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 6개 — IJ3-03 의 '인터넷 표시를 붙이지 않는다' 포함)가 건너뜁니다.
+  (IJ3-03) `ThirdPartyLicenseTests.발행_출력에도_…` 는 `dotnet publish --no-build` 를 시험 임시 폴더에 한 번 돌립니다(약 3초, NuGet·인터넷 없음 — `dotnet` 이 PATH 에 있어야 함).
   (W2-01) Windows 의 IMAPI2FS(디스크 이미지 만들기)가 없는 PC 에서는 `DiscImageTests` 가 환경 조건(`DiscImageFact`)으로 건너뜁니다.
   (W2-10) 회사 보안 정책(AppLocker·WDAC 등)이 임시 폴더의 exe 실행을 막는 PC 에서는 만든 자동 풀림 exe 를 무인 모드로 돌려 보는 시험(`SfxCreateTests` 의 `SfxStubFact`·`SfxStubTheory`, `SfxCompressFlowTests.앱에서_만든_exe를_무인으로_풀면_원본과_같다`)이
   환경 조건으로 건너뜁니다(스텁을 한 번 실행해 보고 Windows 가 실행 자체를 거절한 Win32Exception 일 때만 — 스텁이 아예 없거나, 파일이 망가져 exe 가 아니거나(193 등),
@@ -104,7 +105,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/NameEncodingTests.cs` | [W2-09, I2-10] 압축 하나에 이름 방식 하나(한국어 먼저 → Shift-JIS·GBK, 섞이면 이름마다 예전 규칙), ZIP(목록·풀기·고르기·고치기)·TAR 의 일본어·중국어·한국어 이름, 표시 있는 UTF-8 섞임, 맥 NFD 이름 → NFC(ZIP·7z·EGG, NFD·NFC 어느 이름으로 골라도, NFC 로 겹치는 두 이름은 '이름 (1)'). (검증 지적 1차) 한자가 많은 한국어 이름은 한국어(중국어 아님)·드문 한자가 조금 섞인 중국어는 중국어, NFC 로 같은 두 파일은 하나만 골라 지우거나 이름을 바꾸지 않음·폴더와 그 안 파일을 함께 지우기, 파일 뒤 같은 이름 폴더도 풀림('이름 (1)')·원래 있던 사용자 파일은 그대로 |
 | `Contract/ExtractDialogTests.cs` | [W2-09, I2-13] 풀기 창: 최근 푼 곳(맨 앞·겹치지 않음·10개·없는 폴더 숨김)·새 설정 칸 JSON 왕복과 옛 설정, 창 VM(처음 값·미리 보기 '이름 (2)'·잘못된 풀 곳·고른 항목만이면 휴지통 칸 없음·여러 개), 화면 흐름(답대로 '이름' 폴더·폴더 열기·기억·한 번 저장, 폴더 만들기 끄기, 취소, 휴지통은 이번에만, 고른 항목만, 못 풀면 만든 폴더 지움·최근에 안 넣음, `--extract` 하나·여럿). (검증 지적 1차) 압축 안의 압축·임시 폴더의 압축은 바탕 화면을 권함·임시 폴더는 기억하지 않음, 일집 임시 폴더에는 풀지 않음, 네트워크 폴더는 열 때·칠 때 디스크를 보지 않음. `ExtractDialogXamlTests`(같은 파일 — 창 XAML 양쪽 묶기, 순차 묶음) |
 | `Contract/BrowseTests.cs` | [W2-09, I2-14] 이름으로 찾기(모든 폴더·경로 열·대소문자·폴더 이름·NFD·지우기·200ms 기다림·다른 압축을 열면 지움·찾은 폴더로 들어가면 지움·10만 개 100ms 안 — 실측 기록), 위 폴더(Backspace — 소스 확인 포함), 선택 합계('선택: N개 · 크기', 폴더 합, '약'), 크기 글자, 트리 너비(기본 260·바뀌면 한 번 저장·쓸 수 없는 값). (검증 지적 1차) 찾은 폴더에서 Enter 도 찾기 지우고 그 폴더로, 모으는 목록의 폴더는 크기를 세지 않음. `BrowseXamlTests`(같은 파일 — 메인 창의 찾기 칸·가르는 막대·경로 열) |
-| `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(본문은 '고쳐지면 맞아야 할 기대'). W2-01 에서 I2-2(열기)·I2-9 의 Skip 을 지워 통과, I2-1(7z 왕복 — 한글·빈 파일·빈 폴더)은 W2-02 에서 Skip 을 지워 통과. 압축된 tar 는 펼친 tar 안 파일 전부를 매니페스트 expected_entries 와 비교하고 '.tar 항목 없음'까지 봄(일집은 반디집보다 한 단계 더 펼친다 — W2-01 요구). 웹에서 받은 표시(MOTW)를 옮기지 않는 것은 기록(보고 안건) |
+| `Contract/KnownGapTests.cs` | [11] 알려진 빈틈(본문은 '고쳐지면 맞아야 할 기대'). W2-01 에서 I2-2(열기)·I2-9 의 Skip 을 지워 통과, I2-1(7z 왕복 — 한글·빈 파일·빈 폴더)은 W2-02 에서 Skip 을 지워 통과. 압축된 tar 는 펼친 tar 안 파일 전부를 매니페스트 expected_entries 와 비교하고 '.tar 항목 없음'까지 봄(일집은 반디집보다 한 단계 더 펼친다 — W2-01 요구). 압축 **서비스**(창 없이 풀기가 바로 부르는 길)는 웹에서 받은 표시(MOTW)를 옮기지 않는다는 기록(IJ3-03 — 창·우클릭 풀기는 화면이 붙임, `InternetMarkTests`) |
 | `Contract/CommandLineTests.cs` | [12] 명령줄 처리(60초 시간 제한) — **가짜 창으로 `--extract-here`(그 자리에)·`--extract-to-folder`(이름 폴더, 다시 하면 '이름 (2)', 암호 묻기·틀리면 다시·취소, 동시에 여러 개)** + 실제 `Iljip.exe --extract-to`. (1차 검증) 헤더 암호 7z 를 열기·우클릭 풀기에서 암호를 한 번 묻고 풀기·틀리면 다시·취소·다른 압축을 열면 잊기, 암호 창은 취소할 때까지(몇 번째 맞는 암호든 풀림), 이름 폴더 풀기를 취소·손상으로 멈추면 파일이 없을 때만 그 폴더를 지움. (W2-01) '"이름"\ 에 풀기'는 압축 확장자를 통째로 뗀 폴더(`자료.tar.gz`→`자료`, `견적.7z.001`→`견적`)에, .tar.gz 는 tar 안 내용까지 펼침, 헤더 암호 7z '여기에 풀기'가 7z.dll 로도 틀리면 다시·취소면 아무것도 없음, 실제 exe 로 7z·lzh·iso·tgz 풀기·ZIP 바탕 문서(.xlsx·.docx·.hwpx)는 `Unsupported archive type:`·종료 코드 2·잘린 xz·tar.xz·lzh·rar 는 30초 안에 종료 코드 1(한국어 한 줄, '압축 아님' 표지 없음) |
 | `Contract/CommandLineParserTests.cs` | (W1-D) 명령줄 해석 순수 함수 — 키워드·인자 개수·대문자는 경로·'--extract-to-folder' 와 '--extract-to' 안 섞임. (W2-05) 풀기 동사는 압축 여러 개(`Archives`), 우클릭 풀기 동사만 메인 창 없이(`ShowMainWindow`). (W2-06) `--add-to 압축 경로…`(키워드 7개 — 기대 6→7), 넣을 경로가 없으면 None, 메인 창 없이. (W2-06 검증 지적) `--add-to-pick 경로…`(압축은 비워 둠 — 키워드 8개, 기대 7→8). (W2-11) `--compress-to 만들폴더 원본…`·`--extract-to-folder-in 폴더 압축…`(키워드 10개, 기대 8→10), 동사 앞 표시 `--new-window`·`--elevated`(키워드 아님 — `Flags`), `ToArgs` 는 `Parse` 의 반대(모든 동사·표시 왕복), 새 동사의 메인 창 여부. (W2-11 검증 지적) `--extract-into 폴더 압축…`(여럿을 그 폴더에 바로 — 키워드 11개, 기대 10→11, 메인 창 없이, 창 없이 풀기 판정에 안 걸림). (W2-12) `--extract-smart`·`--compress-zip`·`--compress-7z`·`--register-associations [--drop-handler]`·`--unregister-associations`(키워드 16개, 기대 11→16 — `--list-file`·`--drop-handler` 는 키워드 아님), 새 동사의 메인 창 여부·해석·`ToArgs` 왕복 |
 | `Contract/ArchiveNamingTests.cs` | (W1-D) '"이름"\ 에 풀기' 폴더 이름 표(.tar.gz·.7z.001·.part1.rar·.vol1.egg·'.zip' …)와 '이름 (2)'·'(3)' 새 폴더 |
@@ -114,7 +115,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/CompressSkipTests.cs` | (W1-D) 잠긴 파일·못 들어가는 하위 폴더·없어진 원본은 건너뛰고 나머지는 그대로(zip·tar), GZ·BZ2 는 `SourceUnreadableException`, 담는 차례는 예전과 같음, 화면 안내('건너뛴 파일 N개')·결과 보존·부분 파일 정리. (1차 검증) 통째로·뒤쪽만 잠긴 파일(바이트 범위 잠금)도 건너뜀(뒤쪽은 빼고 다시 씀), 하나도 못 담으면 빈 zip·tar 를 만들지 않고 `NothingToCompressException`(기존 파일 그대로, 화면은 오류 안내). (W2-02) 7z 도 같은 규칙(.7z 행 — 공유를 막은·통째로·뒤쪽만 잠긴 파일, 못 들어가는 하위 폴더, 없어진 원본, 하나도 못 담음·빈 폴더만 남음, 화면 안내) |
 | `Contract/DropPolicyTests.cs` | (W1-D) 끌어 놓기 규칙 표 + 가짜 선택 창으로 [취소]·[새로 압축할 목록]·[열기]·[목록에 넣기]. (1차 검증) 기본 버튼(Enter)은 늘 [취소], `ChoiceDialog` 가 정한 버튼 하나만 IsDefault(창은 만들기만), Drop 이벤트를 끝낸 뒤(Dispatcher.Yield) 처리(소스). (W2-06) 고칠 수 있는 압축(ZIP·7Z)을 보는 중이면 [이 압축 파일에 넣기]가 맨 앞(기본은 여전히 [취소] — 기존 VM 시험 2개의 선택지 기대가 바뀜), 고칠 수 없는 압축(TAR)은 예전 선택지 그대로, 넣기를 고르면 지금 폴더에 들어감 |
 | `Contract/SortingTests.cs` | (W1-D) 정렬 비교기(폴더 먼저·크기·날짜·같은 값은 이름), VM 정렬(두 번 누르면 내림, 폴더를 옮겨도 유지, 기본은 이름 오름차순), XAML 계약 + 열 머리 템플릿을 메모리에서 적용해 손잡이·화살표 확인. (1차 검증) 이름은 탐색기와 같은 자연 정렬(`2.txt` → `10.txt`, `1월` → `2월` → `10월`) |
-| `Contract/SevenZipLibraryTests.cs` | [W2-01] 출력에 x64\7z.dll 이 있고 실제로 불러짐, 판(26.03)·SHA-256 기록, 막힌 PC 흉내(7z·RAR 는 SharpCompress 로 대신 — 암호·잘림·여러 조각도 쉬운 말로, zipx·iso·cab·lzh·wim·xz·txz 는 한국어 안내·대상 폴더 안 생김, 저장 형식에 7Z 없음), 공개 소프트웨어 안내·라이선스 전문(BSD 2·3조항 포함). (W2-02) 막힌 PC 에서는 저장 형식에 7Z 가 없고 7z 만들기는 `EngineUnavailableException`(쉬운 안내, 파일·임시 파일 없음), 목록까지 잠긴 7z·머리 암호 RAR 은 대신 경로에서도 `ListPasswordRequiredException` |
+| `Contract/SevenZipLibraryTests.cs` | [W2-01] 출력에 x64\7z.dll 이 있고 실제로 불러짐, 판(26.03)·SHA-256 기록, 막힌 PC 흉내(7z·RAR 는 SharpCompress 로 대신 — 암호·잘림·여러 조각도 쉬운 말로, zipx·iso·cab·lzh·wim·xz·txz 는 한국어 안내·대상 폴더 안 생김, 저장 형식에 7Z 없음), 공개 소프트웨어 안내·라이선스 전문(BSD 2·3조항 포함, IJ3-03 부터 `7-Zip-License.txt` 원문도). (W2-02) 막힌 PC 에서는 저장 형식에 7Z 가 없고 7z 만들기는 `EngineUnavailableException`(쉬운 안내, 파일·임시 파일 없음), 목록까지 잠긴 7z·머리 암호 RAR 은 대신 경로에서도 `ListPasswordRequiredException` |
 | `Contract/TruncationTests.cs` | [W2-01 (a)·(e)] 끝이 잘린 RAR5·RAR4(한 바이트씩 전부 — 머리 사이 포함)·ZIPX·LZH(전부)·머리 암호 RAR5 는 '끝부분이 잘려'(목록도) + 대상에 아무것도 안 남김(새로 만든 폴더도), 끝 머리 없는 RAR4 는 판 20 이면 풀고 판 29 면 잘림, 여러 조각 RAR 의 마지막 조각 없음은 그 이름, 숫자 분할의 마지막 조각이 덜 받아졌으면 '덜 받아졌어요', 잘린 .gz 는 어디서 잘려도 반쪽 파일 없음 |
 | `Contract/XzTests.cs` | [W2-01 (b)] 잘린 xz·tar.xz·txz(끝 120바이트 전부 + 표본)는 10초 안에 '끝부분이 잘려'·아무것도 안 남김(1차 실험의 무한 루프 자리 포함), 큰 xz·tar.xz 취소는 2초 안(서비스·화면 둘 다), 잘린 xz 의 내용 판별 2초 안, 본체에 SharpCompress `XZStream` 없음(소스 확인) |
 | `Contract/CabTests.cs` | [W2-01] 합성 CAB(`RawCab`) 한글 이름 목록·풀기, 잘린 CAB 은 머리의 전체 크기로 '끝부분이 잘려'·아무것도 안 남김 |
@@ -162,7 +163,9 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/FileLockTests.cs` | 열기 실패 후 원본 파일을 잠그지 않는지(B8 고침) + 분할 EGG 조각들도 바로 지울 수 있는지 |
 | `Contract/RarTests.cs` | (통합 점검) 합성 RAR4·RAR5 — 작성기를 반디집으로 검증, 목록·해제·풀린 수정 시각, 목록 시각은 현지 시각, 암호 없음/틀림 → 암호 예외·아무것도 안 남음(머리 암호는 '파일 이름까지…'), 이름 보이는 암호 RAR 은 암호 없이 목록, 손상 → CRC 오류(앞 파일 남김), 진행률, '/' 로 고른 선택 해제. (W2-02) 머리 암호 RAR 을 암호 없이 읽으면 `ListPasswordRequiredException`. (Wave 2 통합 점검) RAR4 DOS 벽시계는 7z.dll 이 쓴 '지금' 시간대 편차를 되돌려 그대로(`DosWallClock` — 서머타임 시작·끝 시각 포함, 이상한 시각에서 멈추지 않음) |
 | `Contract/FormatFlowTests.cs` | (통합 점검) 형식이 달라도 화면 흐름이 같은가 — 가짜 창으로 ZIP·7z·EGG·RAR4·RAR5 암호 창 길(없음 → 틀림 → 맞음), ZIP(CP949·UTF-8)·7z·TAR·EGG·ALZ·RAR 한글 이름(목록·폴더 트리·풀린 이름), 모든 해제의 진행 막대 도중 보고, 목록 시각이 UTC 로 오지 않음, 암호 ZIP(AES·한글 ZipCrypto)도 읽는 도중 막힌 파일만 빼고 다시 써서 같은 암호로 풀림. (W2-02) 목록까지 잠긴 7z·RAR 은 첫 창이 `ListLocked`, 틀리면 '암호가 맞지 않아요' 경고 한 번 뒤 다시 |
-| `Contract/ReuseDeviceContractTests.cs` | (통합 점검) 재사용장치(`재사용장치_processor.py`)가 기대는 `Iljip.exe --extract-to` 약속 — 실제 exe 로 egg·alz·RAR4·RAR5·분할 egg 는 종료 0, 암호·잘린 파일은 종료 1 이고 실패 문구가 '압축 파일 아님'으로 읽히지 않음(반디집 재시도 유지), 본체 문구 검사. (W2-02) 일집·py7zr 이 만든 헤더 암호 7z·머리 암호 RAR5 를 창 없이 풀면 묻지 않고 종료 1·'파일 목록까지 암호로 잠긴…'·아무것도 안 남김. (W2-05) 같은 폴더에 두 번 풀어도 묻지 않고 종료 0·'이름 (1)'·압축 파일 그대로. (Wave 2 통합 점검) 그 '이름 (1)' 이 7z.dll 길(7z·RAR5·LZH)·압축된 TAR·ZIP CP949 에서도 같고 임시 파일이 남지 않음 |
+| `Contract/ReuseDeviceContractTests.cs` | (통합 점검) 재사용장치(`재사용장치_processor.py`)가 기대는 `Iljip.exe --extract-to` 약속 — 실제 exe 로 egg·alz·RAR4·RAR5·분할 egg 는 종료 0, 암호·잘린 파일은 종료 1 이고 실패 문구가 '압축 파일 아님'으로 읽히지 않음(반디집 재시도 유지), 본체 문구 검사. (W2-02) 일집·py7zr 이 만든 헤더 암호 7z·머리 암호 RAR5 를 창 없이 풀면 묻지 않고 종료 1·'파일 목록까지 암호로 잠긴…'·아무것도 안 남김. (W2-05) 같은 폴더에 두 번 풀어도 묻지 않고 종료 0·'이름 (1)'·압축 파일 그대로. (Wave 2 통합 점검) 그 '이름 (1)' 이 7z.dll 길(7z·RAR5·LZH)·압축된 TAR·ZIP CP949 에서도 같고 임시 파일이 남지 않음. (IJ3-03) 인터넷에서 받은 첨부(압축에 Zone.Identifier ZoneId=3)를 창 없이 풀어도 풀린 파일에는 표시를 **붙이지 않음**(EGG·ALZ·RAR5·ZIP·7Z·TGZ — 재사용장치 엑셀 자동 처리를 막지 않게) |
+| `Contract/InternetMarkTests.cs` | [IJ3-03, I2-15 사용자 결정] 인터넷에서 받은 압축(Zone.Identifier)을 일집 창·탐색기 우클릭(여기에·'이름' 폴더·알아서)으로 풀면 풀린 파일마다 표시를 **바이트 그대로**(ZoneId·ReferrerUrl·HostUrl) — 해제 길 전부(ZIP·7Z·LZH·TGZ·TAR·GZ·raw BZ2·XZ·EGG·ALZ·RAR5·RAR4), 이번에 만든 파일에만(원래 있던 파일·[건너뛰기]한 파일·같은 폴더의 압축 자체는 그대로, [덮어쓰기]한 파일은 붙임), 수정 시각은 압축에 적힌 그대로, 고른 항목만·암호 다시 묻기·손상으로 멈춤(앞 파일엔 붙음)·다 풀고 휴지통, 진행 창 단계 알림, 표시 없는 압축은 아무것도 안 함, 설정 `extract.keepInternetMark`(기본 켬·끄면 풀기·열기·Ctrl+C·끌기 모두 안 붙임·JSON 이름), 범위(`ExtractionScope.CreatedFiles`)가 raw bz2 도 적음 |
+| `Contract/ThirdPartyLicenseTests.cs` | [IJ3-03, I2-15] 7-Zip 라이선스 원문 대조: `licenses\7-Zip-License.txt` 가 7-zip.org License.txt 와 같음(6031바이트·SHA-256·'1999-2025'), BSD 3·2조항 파일은 원문 절을 그대로 자른 것(연도 있는 저작권 줄, 기억으로 적었던 소스 파일 이름 없음), 안내의 7-Zip 부분은 원문 머리·unRAR 제한을 줄 그대로 + 판 안내(26.03), 빌드 출력(본체·시험)과 **발행 출력**(`dotnet publish --no-build` 를 임시 폴더에)에 안내·라이선스가 같은 바이트로, 프로젝트 파일의 복사 설정 |
 | `Contract/Wave2IntegrationTests.cs` | (Wave 2 통합 점검, 2026-10-14) 묶음 사이 상호작용: 우클릭 풀기('"이름"\ 에'·'여기에'·알아서 풀기)·풀기 창의 암호 흐름이 ZIP·7z·EGG·RAR4·RAR5(이름 보임·목록 잠김·한글 암호) 모두 같은 차례, 형식이 다른 같은 암호 압축 여럿은 한 번만 묻기, ZIP·7z(7z.dll)·EGG 를 한 폴더에 풀 때 같은 이름은 한 번만 묻고 건너뛴 압축은 지우지 않음, 나눠 만든 ZIP(AES)·7Z(한글 암호·파일 이름 암호)도 진짜 시험기로 시험하고 원본 지우기·망가진 조각은 잡음, 압축 속 파일을 연 채로 넣기·이름 바꾸기를 해도 다시 넣기가 그것을 잃지 않음, 확장자가 바뀐 ZIP(CP949)·EGG·ALZ·RAR4 첨부도 창 없이 풀기가 원래 처리기로(한글 이름 그대로) |
 | `Contract/BugEvidenceTests.cs` | 버그 '지금 이렇다' 근거(고쳐지면 실패하는 게 정상). 지금은 안 고친 버그가 없어 B3 원인 사실 기록 2개만(반디집 한글 암호 = CP949, 일집 AES = UTF-8) |
 | `Contract/FixedBugTests.cs` | 고친 버그 B1·B2(점뿐인 이름 포함)·B6·B7·B9, **B3·B4·B5(W1-C)** — 다시 생기면 안 됨(예전 근거 테스트를 올바른 기대로 뒤집은 것, 계약) |
@@ -171,7 +174,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/PasswordPolicyTests.cs` | (W1-C) 압축 옵션 창의 암호 판정(두 칸 일치·8자 권장, 한글 암호 호환 경고 표) |
 | `Contract/BandizipCliTests.cs` | (W1-C) 일집이 한글 암호로 만든 ZIP 을 반디집 콘솔 `bz.exe t`(시험만)로 풀어 봄 — ZipCrypto 는 풀림(계약), AES 는 못 풂(기록). bz.exe 가 없으면 건너뜀. (W2-02) 일집 7z(AES-256 + 한글 암호 + 파일 이름 암호화 + 빈 폴더)를 반디집이 맞는 암호로 풂(틀린 암호로는 못 풂) |
 | `Contract/FixtureCoverageTests.cs` | 매니페스트의 모든 픽스처가 어느 테스트엔가 쓰이는지, 파일이 다 있는지, 시간대 스위치가 먹었는지, (Wave 2 통합 점검) 흉내를 켜도 `TestTimeZone.OsLocal` 이 이 PC 의 진짜 시간대인지 |
-| `Contract/EntryWorkspaceTests.cs` | [IJ3-01 — W2-04 보관본에서] 바탕 서비스(창 없이): 작업 폴더 `ArchiveWorkspace`(key16, `temp\open\key16\순번`, owner.lock, 닫으면 지우되 잡힌 파일만 남김, 다른 일집이 쓰는 중이면 `key16-2`, 고친 파일 판정), 청소 `TempJanitor`(주인이 꺼진 open·drag 는 지우고 살아 있는 것은 남김, 잠금이 없는 preview 는 1시간·list·convert·args 는 24시간 지난 것만(IJ3-01 — 다른 일집이 쓰는 중인 것을 지우지 않게), clip 은 24시간(가짜 시계), 청소 시작 뒤 생긴 폴더는 안 건드림, 창 없이 풀기에서는 안 부름 — 소스), 인터넷 표식 `ZoneIdentifier`, 실행 파일 판정, 설정 `settings.json` |
+| `Contract/EntryWorkspaceTests.cs` | [IJ3-01 — W2-04 보관본에서] 바탕 서비스(창 없이): 작업 폴더 `ArchiveWorkspace`(key16, `temp\open\key16\순번`, owner.lock, 닫으면 지우되 잡힌 파일만 남김, 다른 일집이 쓰는 중이면 `key16-2`, 고친 파일 판정), 청소 `TempJanitor`(주인이 꺼진 open·drag 는 지우고 살아 있는 것은 남김, 잠금이 없는 preview 는 1시간·list·convert·args 는 24시간 지난 것만(IJ3-01 — 다른 일집이 쓰는 중인 것을 지우지 않게), clip 은 24시간(가짜 시계), 청소 시작 뒤 생긴 폴더는 안 건드림, 창 없이 풀기에서는 안 부름 — 소스), 인터넷 표식 `ZoneIdentifier`(IJ3-03: 붙여도 수정 시각·읽기 전용 그대로, 없는 파일은 건너뜀, 64KB 넘는 비정상 표식은 영역 번호만), 실행 파일 판정, 설정 `settings.json` |
 | `Contract/EntryOpenTests.cs` | [IJ3-01, I1-3] 가짜 셸로 압축 속 파일 열기: 그 파일만 `temp\open\key16\순번\파일 이름`에 꺼내 한 번 열기(깊은 폴더도), 다시 열면 새 순번, 실행 파일은 먼저 묻고(기본 [취소]) 취소면 꺼내지도 않음·설정 `open.warnExecutables` 로 끔, 암호 ZIP 은 한 번 묻고 틀리면 다시·취소면 아무것도 안 남김, 머리 암호 7z, 인터넷 표식, 폴더 행, 열 프로그램 없음 안내, 닫을 때 고친 파일은 W2-06 의 다시 넣기 질문(`ConfirmExitAsync`), 압축을 바꿔도 연 파일은 앱을 닫을 때까지, 열기·풀기·복사·정리가 설정을 쓰지 않음, 미리 보기 칸 설정 적용·`SaveOnExit` 로 저장, 창 껍데기 연결(소스) |
 | `Contract/DragOutTests.cs` | [IJ3-01, I1-4] 끌어 꺼내기: 서술자(`DragPayloadBuilder` — 폴더 재귀·한글 이름·이름 겹침 '(2)'·'..'·금지 글자·259글자, 폴더 2만 개도 한 번만 훑음), 지연 꺼내기(`LazyEntryExtractor` — 부르기 전엔 안 만듦·첫 요청에 한 번에(솔리드 7z 40개도 서비스 호출 1번)·경로 공격 항목이 섞이면 안전한 파일만 한 번에·손상 항목 하나로 실패하면 항목마다·취소하면 남은 요청도 E_ABORT·암호), COM 직접 호출(`VirtualFileDataObject`), 화면(놓기 전엔 안 꺼냄·끌기 전에만 암호·진행 창 하나와 취소·오류 창 한 번·긴 경로 안내·닫으면 정리) |
 | `Contract/ClipboardCopyTests.cs` | [IJ3-01, I1-4] Ctrl+C(가짜 클립보드): 고른 파일·폴더를 `temp\clip\guid` 에 꺼내 최상위 경로를 '복사'로, 취소면 클립보드·사본 없음, 암호 한 번, 표식, 사본 2개·닫을 때 1개, 디스크 이름이 바뀌는 항목(`: ? * \| " < >`·장치 이름·점만·폴더)을 빠짐없이 + '바꿔서 복사했어요' 알림(폴더 안 것도), 수천 개 — 정리는 화면 스레드 밖·같은 진행 창 단계 알림·정리 중 취소·겹쳐 누르기, 엔진 열쇠 고르기 빠르기·같은 결과, 진짜 클립보드 데이터 모양 |
@@ -236,13 +239,31 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | **Skip 아님** — W2-09 에서 메움(`BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` Skip 해제, `NameEncodingTests`) |
 
-### 남은 Skip 0개(2026-10-14 IJ3-01 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
+### 남은 Skip 0개(2026-10-15 IJ3-03 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
 `Known.I2_10` 은 W2-09 에서 지웠습니다(마지막 Skip). 환경 조건으로 건너뛰는 시험(반디집 콘솔·로컬 SFX 픽스처·IMAPI2FS·셸 확장 DLL 이 없는 PC)은 위 '실행 방법' 대로입니다.
 Wave 2 에서 검증에 걸려 되돌린 W2-04(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지)는 IJ3-01 이 보관분(`stash` `iljip-wave2-W2-04-failed` — drop 안 함)을
 `git stash apply` 로 얹어 다시 들였습니다(아래 'IJ3-01 에서 더한 것'). W2-08(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12 — `iljip-wave2-W2-08-failed`)은
 Skip 으로 남기지 않았습니다(시험도 보관분 안에 있음 — 다시 할 때 같이 들임).
+
+### IJ3-03 에서 더한 것(2026-10-15) — 인터넷 표시(MOTW) 전파·7-Zip 라이선스 원문 대조(사용자 결정 I2-15)
+
+푼 Skip·더한 Skip 없음. 새 시험 49개: `InternetMarkTests` 37(Theory 줄 포함)·`ThirdPartyLicenseTests` 7·`EntryWorkspaceTests` +3·`ReuseDeviceContractTests` +1(실제 exe)·`CompressDialogXamlTests` +1.
+`SevenZipLibraryTests` 의 라이선스 파일 목록에 `7-Zip-License.txt` 한 줄을 더함(더 엄격). 기대를 바꾸거나 약하게 한 기존 시험 없음 —
+`KnownGapTests.기록_웹에서_받은_표시를_풀린_파일에_옮기지_않는다` 는 본문 그대로(서비스는 여전히 옮기지 않음), 설명만 '창 없이 풀기가 부르는 서비스 수준 기록'으로.
+전체 2345 → 2394, 실패 0.
+
+| 무엇 | 예전 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 일집 창·우클릭으로 풀기 | 받은 압축을 풀어도 풀린 파일에 표시 없음 — 오피스가 보통으로 엶 | 이번 풀기가 만든(덮어쓴) 파일에만 원본 표시를 바이트 그대로(ZoneId·ReferrerUrl·HostUrl), 다 풀었을 때·손상으로 멈췄을 때 모두, 풀기 전에 읽음(휴지통으로 보내도), 진행 창 단계 알림 | `InternetMarkTests` 의 풀기·우클릭 시험 |
+| 붙이는 범위 | — | 같은 이름 처리 범위가 적은 '이번에 만든 파일'(`ExtractionScope.CreatedFiles`) — 풀 곳의 원래 파일·[건너뛰기]한 파일·같은 폴더의 압축은 그대로. raw bz2(장부 없이 씀)도 `OutputTarget.Commit` 이 적음 | `원래_있던_파일과_건너뛴_파일에는_…`·`범위는_raw_bzip2로_…`(고치기 전엔 bz2 시험 2개 실패 — 손으로 확인) |
+| 창 없이 풀기(재사용장치) | 표시 없음 | 그대로 **없음**(설정과도 상관없음) | `ReuseDeviceContractTests.창없이_풀기는_인터넷에서_받은_표시를_…`(실제 exe)·`KnownGapTests` 기록 |
+| 표시를 붙인 파일의 수정 시각 | (IJ3-01 열기·Ctrl+C) 표시를 쓰면 NTFS 가 '지금'으로 바꿔 압축에 적힌 시각이 사라짐 | 원래 시각으로 되돌림, 읽기 전용도 그대로 | `EntryWorkspaceTests.표식을_붙여도_수정_시각과_…`·`InternetMarkTests.표시를_붙여도_수정_시각은_…` |
+| 아주 큰 표식 | 통째로 복사 | 64KB 넘으면 영역 번호만(디스크 채우기 방지) | `EntryWorkspaceTests.아주_큰_표식은_…` |
+| 설정 | 없음(열기·끌기·Ctrl+C 는 늘 붙임) | `extract.keepInternetMark`(기본 켬, ☰ ▸ 설정 칸) — 끄면 풀기·열기·끌기('ZoneIdentifier' 형식도)·Ctrl+C 모두 안 붙임 | `설정을_끄면_…`·`열기는_설정을_따른다`·`Ctrl_C_는_…`·`끌기는_…`·`CompressDialogXamlTests.설정_창의_인터넷_표시_칸은_…` |
+| 7-Zip 라이선스 | 기억으로 적은 BSD 저작권 줄(연도 없음)·소스 파일 이름·'public domain' 줄·1999-2026 | 7-zip.org 원문 `7-Zip-License.txt`(바이트 그대로), BSD 파일·안내는 원문 줄 그대로 + 판 안내(원문 1999-2025, 동봉 26.03) | `ThirdPartyLicenseTests` |
+| 빌드·발행 출력 | 빌드 출력만 시험 | 빌드(본체·시험)와 발행(`dotnet publish --no-build` 를 임시 폴더에) 출력에 안내·라이선스 11개가 같은 바이트로 | `ThirdPartyLicenseTests.빌드_출력에_…`·`발행_출력에도_…` |
 
 ### IJ3-01 에서 더한 것(2026-10-14) — W2-04 다시: I1-3 바로 열기 나머지·I1-4 끌어 꺼내기·Ctrl+C·I3-7 그림 미리 보기
 
@@ -682,8 +703,9 @@ I0-2 규칙(건너뛰고 나머지 압축, 하나도 못 담으면 이름이 든
 보관분(1차 W1-B) 시험 중 '앞 파일은 남긴다'였던 잘림·취소·대상 쪽 오류 시험은 설계(전부 아니면 전무)대로 '아무것도 남기지 않는다'로 바꿨고,
 한 파일의 CRC 오류만은 main 계약(`RarTests.손상된_RAR은_CRC_오류로_알리고_앞_파일은_남긴다`)대로 그 앞에서 맞게 풀린 파일을 남깁니다.
 
-웹에서 받은 파일 표시(MOTW)는 **고치지 않고 기록만** 했습니다 — 켜면 Office 보호된 보기가 살아나지만 재사용장치(엑셀 COM 자동 처리)에
-영향이 있을 수 있어 사용자 결정 사항입니다(`KnownGapTests.기록_웹에서_받은_표시를_풀린_파일에_옮기지_않는다`).
+웹에서 받은 파일 표시(MOTW)는 W2-01 때는 **고치지 않고 기록만** 했습니다(재사용장치 엑셀 COM 자동 처리 영향 — 사용자 결정 사항).
+→ IJ3-03(2026-10-15, 사용자 결정 I2-15): 일집 창·우클릭 풀기만 붙이고 창 없이 풀기는 붙이지 않음(`InternetMarkTests`·`ReuseDeviceContractTests.창없이_풀기는_인터넷에서_받은_표시를_…`).
+`KnownGapTests.기록_웹에서_받은_표시를_풀린_파일에_옮기지_않는다` 는 이제 '서비스(엔진)는 옮기지 않는다'는 기록으로 그대로 둡니다.
 
 ### 고친 버그(W1-A, 2026-10-12) — Skip 해제·근거 테스트는 `FixedBugTests` 로
 

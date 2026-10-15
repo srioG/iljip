@@ -294,6 +294,74 @@ public class EntryWorkspaceTests
         Assert.Equal(Zone3, File.ReadAllText(Path.Combine(d, "안쪽", "b.txt") + ZoneIdentifier.StreamName));
     }
 
+    /// <summary>
+    /// IJ3-03: 표식(대체 스트림)을 쓰면 NTFS 가 파일의 수정 시각을 '지금'으로 바꾼다 — 붙인 뒤 원래 수정 시각으로 되돌린다
+    /// (압축에 적힌 시각 유지 — 열기·Ctrl+C·풀기 모두 이 길). 읽기 전용 파일에도 붙이고 읽기 전용은 그대로 둔다.
+    /// </summary>
+    [Fact]
+    public void 표식을_붙여도_수정_시각과_읽기_전용은_그대로다()
+    {
+        using var tmp = new TempDir("zonetime");
+        string arc = CopyFixture(tmp, "zip_default", "받은.zip");
+        File.WriteAllText(arc + ZoneIdentifier.StreamName, Zone3);
+        var when = new DateTime(2021, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+        string normal = tmp.P("보통.docx"), ro = tmp.P("읽기전용.xlsx");
+        File.WriteAllText(normal, "보통");
+        File.WriteAllText(ro, "읽기 전용");
+        File.SetLastWriteTimeUtc(normal, when);
+        File.SetLastWriteTimeUtc(ro, when);
+        File.SetAttributes(ro, File.GetAttributes(ro) | FileAttributes.ReadOnly);
+        try
+        {
+            Assert.Equal(1, ZoneIdentifier.Copy(arc, normal));
+            Assert.Equal(1, ZoneIdentifier.Copy(arc, ro));
+            Assert.Equal(Zone3, File.ReadAllText(normal + ZoneIdentifier.StreamName));
+            Assert.Equal(Zone3, File.ReadAllText(ro + ZoneIdentifier.StreamName));
+            Assert.Equal(when, File.GetLastWriteTimeUtc(normal));
+            Assert.Equal(when, File.GetLastWriteTimeUtc(ro));
+            Assert.True((File.GetAttributes(ro) & FileAttributes.ReadOnly) != 0, "읽기 전용이 풀린 채로 남음");
+            Assert.Equal("읽기 전용", File.ReadAllText(ro));
+        }
+        finally
+        {
+            File.SetAttributes(ro, FileAttributes.Normal);   // 시험 폴더 지우기
+        }
+    }
+
+    /// <summary>
+    /// IJ3-03: 보통 크기의 표식은 바이트 그대로 읽고(ReferrerUrl·HostUrl 포함), 비정상적으로 큰 표식(64KB 넘음 — 일부러 키운 것)은 통째로 옮기지 않고
+    /// 영역 번호만 담은 작은 표식으로 바꾼다(풀린 파일마다 큰 스트림이 복사돼 디스크를 채우지 않게 — 보호는 그대로). 영역을 못 읽으면 3(인터넷).
+    /// </summary>
+    [Fact]
+    public void 아주_큰_표식은_영역_번호만_옮긴다()
+    {
+        using var tmp = new TempDir("zonebig");
+        string normal = tmp.P("보통.zip"), big = tmp.P("큰.zip"), junk = tmp.P("영역없음.zip");
+        foreach (var f in new[] { normal, big, junk }) File.WriteAllText(f, "PK");
+        var exact = System.Text.Encoding.UTF8.GetBytes("[ZoneTransfer]\r\nZoneId=4\r\nReferrerUrl=https://a.example/\r\nHostUrl=https://b.example/파일.zip\r\n");
+        File.WriteAllBytes(normal + ZoneIdentifier.StreamName, exact);
+        File.WriteAllText(big + ZoneIdentifier.StreamName, "[ZoneTransfer]\r\nZoneId=4\r\nHostUrl=https://b.example/" + new string('x', ZoneIdentifier.MaxMarkBytes) + "\r\n");
+        File.WriteAllText(junk + ZoneIdentifier.StreamName, new string('y', ZoneIdentifier.MaxMarkBytes + 10));
+
+        Assert.Equal(exact, ZoneIdentifier.Read(normal));
+        Assert.Equal("[ZoneTransfer]\r\nZoneId=4\r\n", System.Text.Encoding.ASCII.GetString(ZoneIdentifier.Read(big)!));
+        Assert.Equal("[ZoneTransfer]\r\nZoneId=3\r\n", System.Text.Encoding.ASCII.GetString(ZoneIdentifier.Read(junk)!));
+    }
+
+    /// <summary>IJ3-03: 붙일 파일이 없으면(그새 지워짐) 건너뛰고 센 수에 넣지 않는다 — 예외 없음.</summary>
+    [Fact]
+    public void 없는_파일은_건너뛰고_세지_않는다()
+    {
+        using var tmp = new TempDir("zonegone");
+        string a = tmp.P("a.txt");
+        File.WriteAllText(a, "a");
+        var data = System.Text.Encoding.UTF8.GetBytes(Zone3);
+        Assert.Equal(1, ZoneIdentifier.ApplyToFiles(data, new[] { a, tmp.P("없는.txt") }));
+        Assert.False(File.Exists(tmp.P("없는.txt")), "없는 파일을 만들어 버림");
+        Assert.Null(ZoneIdentifier.ReadIfEnabled(a, enabled: false));
+        Assert.Equal(data, ZoneIdentifier.ReadIfEnabled(a, enabled: true));
+    }
+
     /// <summary>표식의 영역 번호 읽기(끌기 데이터의 'ZoneIdentifier' 형식에 실음 — W2-04 1차 검증).</summary>
     [Theory]
     [InlineData("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://mail.example.com/\r\n", 3)]

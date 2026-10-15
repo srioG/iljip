@@ -256,6 +256,39 @@ public class CompressDialogXamlTests
     }
 
     /// <summary>
+    /// 계약(IJ3-03, I2-15): 설정 창의 '인터넷에서 받은 압축 파일이면 푼 파일에도 … 표시 붙이기' 칸은 extract.keepInternetMark — 기본 켬, 껐으면 빈 칸으로 열린다.
+    /// [확인]은 그 칸 값을 그대로 저장한다(창을 띄우지 않으므로 [확인] 코드는 소스로 확인). 묶기 오류 0.
+    /// </summary>
+    [Fact]
+    public void 설정_창의_인터넷_표시_칸은_keepInternetMark()
+    {
+        var off = new AppSettings();
+        off.Extract.KeepInternetMark = false;
+        WpfAppScope.Run(log =>
+        {
+            var on = new SettingsDialog(new AppSettings());
+            var w = new SettingsDialog(off);
+            try
+            {
+                WpfAppScope.Pump();
+                Assert.True(on.InternetMarkCheck.IsChecked);
+                Assert.False(w.InternetMarkCheck.IsChecked);
+                var label = Assert.IsType<System.Windows.Controls.TextBlock>(on.InternetMarkCheck.Content);
+                Assert.Equal("인터넷에서 받은 압축 파일이면 푼 파일에도 '인터넷에서 받은 파일' 표시 붙이기", label.Text);
+                Assert.Empty(log.Errors);
+            }
+            finally
+            {
+                w.Close();
+                on.Close();
+            }
+        });
+        string code = File.ReadAllText(RepoFiles.PathOf("Iljip", "Views", "SettingsDialog.xaml.cs"));
+        Assert.Contains("InternetMarkCheck.IsChecked = e.KeepInternetMark;", code);
+        Assert.Contains("x.KeepInternetMark = InternetMarkCheck.IsChecked == true;", code);
+    }
+
+    /// <summary>
     /// 계약(W2-12, I1-1): 설정 창의 '파일 연결' 칸 — 일집 창(VM) 없이 만들면 숨고, VM 을 받으면 보인다. 단추는 누르는 즉시 VM 을 부른다
     /// (가짜 레지스트리·가짜 셸 — 진짜 HKCU·ms-settings 는 안 부름): [연결 프로그램에 넣기] → 넣고 '지금' 글이 바뀜, [기본 앱 설정 열기] → 셸 한 번,
     /// [연결 빼기] → 뺌. 셸 확장 DLL 이 없으면 드롭 처리기 칸은 꺼져 있다. 띄우지 않고 단추 Click 만 일으킨다. 묶기 오류 0.

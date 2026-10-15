@@ -278,7 +278,12 @@ internal sealed class OutputTarget
     /// </summary>
     public string Commit()
     {
-        if (!Overwrites) return FinalPath;
+        if (!Overwrites)
+        {
+            // IJ3-03: 장부(ExtractionLedger)를 쓰지 않는 길(raw bz2)도 '이번에 만든 파일'로 적어 화면이 인터넷 표식을 붙일 수 있게(이미 적었으면 그대로)
+            ExtractionScope.Current?.NoteCreated(FinalPath);
+            return FinalPath;
+        }
         try
         {
             // 쓰는 동안만 숨김 — 옮기면 속성이 따라가므로 먼저 푼다

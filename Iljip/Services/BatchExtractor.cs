@@ -108,6 +108,7 @@ public sealed class BatchResult
 /// - 오류(손상·형식 미지원 등)는 그 파일만 실패로 적고 다음 파일로 간다.
 /// - 진행 창 [취소]·같은 이름 [취소]: 남은 것은 손대지 않고 멈춘다(지금 하던 압축은 서비스의 취소 규칙대로 되돌림).
 /// - 돌아가는 중에도 <see cref="TryAdd"/> 로 압축을 더할 수 있다(여러 개를 골라 우클릭하면 파일마다 일집이 떠 파이프로 거의 동시에 들어옴).
+/// - 인터넷에서 받은 압축이면 풀린 파일에도 그 표시를 붙인다(<see cref="KeepInternetMark"/> — IJ3-03).
 /// 창(암호·진행)은 이 메서드를 부른 흐름(UI 스레드)에서만 띄운다 — 해제만 작업 스레드.
 /// </summary>
 public sealed class BatchExtractor
@@ -139,6 +140,13 @@ public sealed class BatchExtractor
     }
 
     public ExtractTargetRule Rule { get; }
+
+    /// <summary>
+    /// 인터넷에서 받은 압축이면 풀린 파일에도 그 표시(Zone.Identifier)를 붙일지(IJ3-03 — 설정 extract.keepInternetMark, 화면이 넘김. 기본 켬).
+    /// 압축마다 풀기 전에 그 압축의 표식을 읽고, 이번에 만든 파일에만 붙인다(<see cref="ZoneIdentifier.MarkExtractedAsync"/>).
+    /// 여러 개 풀기는 일집 창·탐색기 우클릭에서만 쓰인다(창 없이 풀기 --extract-to 는 이 길을 타지 않음).
+    /// </summary>
+    public bool KeepInternetMark { get; init; } = true;
 
     /// <summary>지금까지 들어온 압축 수.</summary>
     public int Count
@@ -238,6 +246,8 @@ public sealed class BatchExtractor
         string? password = null;
         int silentTried = 0;          // 앞에서 맞은 암호를 몇 개 써 봤나
         bool askedOnce = false;       // 이 파일에 대해 암호 창을 띄웠나
+        // IJ3-03: 이 압축의 인터넷 표식 — 풀기 전에 읽는다(묶음이 끝난 뒤 압축 파일을 휴지통으로 보내도 붙이게)
+        byte[]? internetMark = ZoneIdentifier.ReadIfEnabled(archive, KeepInternetMark);
         while (true)
         {
             using var scope = ExtractionScope.Begin(_resolver);
@@ -259,7 +269,15 @@ public sealed class BatchExtractor
                         madeNewFolder = true;
                     }
                 }
-                await service.ExtractAsync(archive, dest, password, progress, session.CancellationToken);
+                try
+                {
+                    await service.ExtractAsync(archive, dest, password, progress, session.CancellationToken);
+                }
+                finally
+                {
+                    // 다 풀었을 때도, 손상·취소로 멈춰 앞서 풀린 파일이 남았을 때도 — 이번에 만든 파일에만
+                    await ZoneIdentifier.MarkExtractedAsync(internetMark, scope, progress);
+                }
                 return (new ArchiveOutcome(archive, dest, true, scope.Skipped) { ShowFolder = smart ? showFolder : null }, false, password);
             }
             catch (OperationCanceledException)
@@ -356,6 +374,7 @@ public sealed class BatchExtractor
             BatchIndex = _index,
             BatchCount = _count(),
             BatchName = _name,
+            IsStage = value.IsStage,   // IJ3-03: '인터넷에서 받은 파일 표시를 붙이는 중' 같은 단계 알림도 솎아내지 않게
         });
     }
 }

@@ -403,27 +403,38 @@ public partial class MainViewModel : ObservableObject
         bool sameArchive = string.Equals(archivePath, CurrentArchivePath, StringComparison.OrdinalIgnoreCase);
         string? password = sameArchive ? _archivePassword : null;
         var resolver = CreateCollisionResolver();
+        // IJ3-03(I2-15): 인터넷에서 받은 압축이면 풀린 파일에도 그 표시를(설정 extract.keepInternetMark — 기본 켬). 풀기 '전에' 읽어 둔다
+        // (다 풀고 압축 파일을 휴지통으로 보내도 붙이게). 창 없이 풀기(재사용장치)는 이 길을 타지 않아 붙지 않는다.
+        byte[]? internetMark = ZoneIdentifier.ReadIfEnabled(archivePath, Settings.Extract.KeepInternetMark);
         while (true)
         {
             var session = _ui.ShowProgress("압축 해제 중...");
             using var scope = ExtractionScope.Begin(resolver);
             try
             {
-                if (selectedPaths is null)
-                    await service.ExtractAsync(
-                        archivePath,
-                        destFolder,
-                        password: password,
-                        progress: session.Progress,
-                        cancellationToken: session.CancellationToken);
-                else
-                    await service.ExtractEntriesAsync(
-                        archivePath,
-                        destFolder,
-                        selectedPaths,
-                        password: password,
-                        progress: session.Progress,
-                        cancellationToken: session.CancellationToken);
+                try
+                {
+                    if (selectedPaths is null)
+                        await service.ExtractAsync(
+                            archivePath,
+                            destFolder,
+                            password: password,
+                            progress: session.Progress,
+                            cancellationToken: session.CancellationToken);
+                    else
+                        await service.ExtractEntriesAsync(
+                            archivePath,
+                            destFolder,
+                            selectedPaths,
+                            password: password,
+                            progress: session.Progress,
+                            cancellationToken: session.CancellationToken);
+                }
+                finally
+                {
+                    // 다 풀었을 때도, 손상·취소로 멈춰 앞서 풀린 파일이 남았을 때도 — 이번에 만든 파일에만(원래 있던 파일·건너뛴 파일은 그대로)
+                    await ZoneIdentifier.MarkExtractedAsync(internetMark, scope, session.Progress);
+                }
 
                 session.Close();
                 StatusText = $"압축 해제 완료: {destFolder}";

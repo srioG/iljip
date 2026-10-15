@@ -104,6 +104,13 @@ public sealed class ExtractSettings
     /// </summary>
     public bool DialogOpenFolderAfter { get; set; }
 
+    /// <summary>
+    /// extract.keepInternetMark — 인터넷에서 받은 압축(Zone.Identifier — '인터넷에서 받은 파일' 표시가 있는 압축)이면 꺼낸 파일에도 그 표시를 그대로 붙일지
+    /// (IJ3-03, 사용자 결정 I2-15 — 오피스 '제한된 보기' 유지). 기본 켬. 일집 창·탐색기 우클릭으로 풀기, 압축 속 파일 열기·끌어 꺼내기·Ctrl+C 에 적용
+    /// (<see cref="ZoneIdentifier"/>). ☰ ▸ 설정에서 끈다. 창 없이 풀기(--extract-to — 재사용장치)는 이 값과 상관없이 늘 붙이지 않는다(설정을 읽지 않음).
+    /// </summary>
+    public bool KeepInternetMark { get; set; } = true;
+
     /// <summary>최근 푼 곳을 몇 개까지 기억하나.</summary>
     public const int MaxRecentFolders = 10;
 

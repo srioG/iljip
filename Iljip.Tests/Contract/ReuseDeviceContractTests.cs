@@ -213,6 +213,45 @@ public class ReuseDeviceContractTests
         }
     }
 
+    /// <summary>
+    /// 계약(IJ3-03 — 사용자 결정 I2-15): 인터넷에서 받은 첨부(압축에 '인터넷에서 받은 파일' 표시 — Zone.Identifier, ZoneId=3)를 창 없이 풀어도
+    /// 풀린 파일에는 그 표시를 붙이지 않는다 — 재사용장치가 엑셀(COM)로 여는 자동 처리를 '제한된 보기'·매크로 차단이 막지 않게.
+    /// (일집 창·탐색기 우클릭 풀기는 붙인다 — <see cref="InternetMarkTests"/>. 창 없이 풀기는 설정을 읽지 않으므로 설정 값과도 상관없다.)
+    /// 해제 길마다(EGG·ALZ — EggDotNet, ZIP — SharpCompress, 7Z·RAR5 — 7z.dll 숨김 임시 폴더, 압축된 TAR) 종료 코드 0·내용 그대로·표시 없음, 압축 파일의 표시는 그대로.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 창없이_풀기는_인터넷에서_받은_표시를_풀린_파일에_붙이지_않는다()
+    {
+        using var tmp = new TempDir("rdmotw");
+        byte[] mark = Encoding.UTF8.GetBytes("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://mail.example.com/\r\nHostUrl=https://mail.example.com/attach\r\n");
+        var cases = new List<(string Name, string Path, IReadOnlyList<ExpectedEntry> Expected)>();
+        foreach (var kind in new[] { "egg", "alz", "rar5" })
+        {
+            var b = SyntheticArchives.Build(kind, tmp.Dir("in_" + kind));
+            cases.Add((kind, b.Path, b.Expected));
+        }
+        foreach (var id in new[] { "zip_cp949", "7z_default", "tgz_default" })
+        {
+            var fx = FixtureCatalog.Get(id);
+            string dst = Path.Combine(tmp.Dir("in_" + id), Path.GetFileName(fx.FullPath));
+            File.Copy(fx.FullPath, dst);
+            cases.Add((id, dst, fx.Expected));
+        }
+
+        foreach (var (name, path, expected) in cases)
+        {
+            File.WriteAllBytes(path + Iljip.Services.ZoneIdentifier.StreamName, mark);
+            Assert.Equal(mark, Iljip.Services.ZoneIdentifier.Read(path));   // 시험 준비: 받은 첨부처럼 표시가 붙어 있음
+            string dest = tmp.Dir("out_" + name);
+            var (code, err) = await RunIljip(path, dest);
+            Assert.True(code == 0, $"{name}: 종료 코드 {code} — {err}");
+            TreeAssert.ExtractedTreeEquals(dest, expected, context: name);
+            foreach (var f in Directory.EnumerateFiles(dest, "*", SearchOption.AllDirectories))
+                Assert.True(Iljip.Services.ZoneIdentifier.Read(f) is null, $"{name}: 창 없이 풀었는데 표시가 붙음(재사용장치 엑셀 자동 처리를 막을 수 있음): {f}");
+            Assert.Equal(mark, Iljip.Services.ZoneIdentifier.Read(path));
+        }
+    }
+
     /// <summary>Iljip.exe --extract-to 를 실행하고 (종료 코드, 표준 출력+오류 — 재사용장치처럼 UTF-8 → CP949 순으로 읽음).</summary>
     private static async Task<(int Code, string Output)> RunIljip(string archive, string dest)
     {

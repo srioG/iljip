@@ -157,8 +157,9 @@ public partial class MainViewModel : IPreviewHost
 
         string dest = Path.Combine(AppPaths.ClipRoot, Guid.NewGuid().ToString("N"));
         ClipboardCopyPlan.Result? plan = null;
+        bool keepMark = Settings.Extract.KeepInternetMark;   // IJ3-03: 설정으로 끌 수 있음(기본 켬)
         var outcome = await ExtractForUseAsync(archive, keys, dest, "복사할 파일을 꺼내는 중...", "복사하지 못했어요",
-            session => plan = ClipboardCopyPlan.Collect(dest, picks, all, ZoneIdentifier.Read(archive), session.Progress, session.CancellationToken));
+            session => plan = ClipboardCopyPlan.Collect(dest, picks, all, ZoneIdentifier.ReadIfEnabled(archive, keepMark), session.Progress, session.CancellationToken));
         if (outcome != UseOutcome.Done || plan is null)
         {
             await DeleteInBackgroundAsync(dest);
@@ -282,7 +283,10 @@ public partial class MainViewModel : IPreviewHost
         string root = Path.Combine(AppPaths.DragRoot, Guid.NewGuid().ToString("N"));
         var ui = SynchronizationContext.Current;
         var extractor = new LazyEntryExtractor(service, archive, _archivePassword, payload.Items, root,
-            items => items.Sum(i => Math.Max(0, i.Size)) >= DragProgressThreshold ? OpenProgressOn(ui, DragProgressTitle(items)) : null);
+            items => items.Sum(i => Math.Max(0, i.Size)) >= DragProgressThreshold ? OpenProgressOn(ui, DragProgressTitle(items)) : null)
+        {
+            KeepInternetMark = Settings.Extract.KeepInternetMark,   // IJ3-03: 끄면 임시 파일에도 끌기 데이터('ZoneIdentifier' 형식)에도 표식 없음
+        };
         // 오류 창은 끌기 한 번에 한 번만 — 손상·경로 공격 항목이 여럿 든 폴더를 끌면 실패한 파일마다 창이 줄줄이 떴다(탐색기도 제 오류 창을 띄움 — W2-04 2차 검증).
         // 뒤의 실패는 알림줄에 개수만 센다.
         int failures = 0;

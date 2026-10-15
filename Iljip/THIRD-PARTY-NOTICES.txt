@@ -5,10 +5,11 @@
 
   구성 요소                         버전      라이선스              전문
   -------------------------------  --------  --------------------  ------------------------------------------
-  7-Zip (7z.dll, 64비트)            26.03     GNU LGPL 2.1 이상     licenses\7-Zip-LGPL-2.1.txt
+  7-Zip (7z.dll, 64비트)            26.03     7-Zip 라이선스 원문   licenses\7-Zip-License.txt
+                                             GNU LGPL 2.1 이상     licenses\7-Zip-LGPL-2.1.txt
                                              + BSD 3-clause        licenses\7-Zip-BSD-3-Clause.txt
                                              + BSD 2-clause        licenses\7-Zip-BSD-2-Clause.txt
-                                             + unRAR 제한          (아래 7-Zip 항목 참고)
+                                             + unRAR 제한          (아래 7-Zip 항목 — 원문 그대로)
   SharpSevenZip                     2.0.128   GNU LGPL 3.0 이상     licenses\SharpSevenZip-LGPL-3.0.txt
                                              (GPL 3.0 조항 포함)   licenses\GPL-3.0.txt
   SharpCompress                     0.50.5    MIT                   licenses\SharpCompress-MIT.txt
@@ -24,31 +25,61 @@ LGPL 구성 요소(7z.dll, SharpSevenZip.dll)는 일집 실행 파일에 묶지 
 ------------------------------------------------------------------------
 7-Zip 26.03 (x64\7z.dll)
 ------------------------------------------------------------------------
-Copyright (C) 1999-2026 Igor Pavlov.
-Source code and license: https://www.7-zip.org/
+Source code: https://www.7-zip.org/
 
 7z.dll is distributed unmodified, as shipped in the SharpSevenZip 2.0.128 NuGet package
 (file version 26.03, SHA-256 65E4C1F855F9EF6E8F0F5DF8E3F27D9EB5F07311408639DA0A1CA0B8F4871B0D).
 
-Licenses for files in 7z.dll (summary of the 7-Zip License.txt):
+The complete 7-Zip license file (License.txt as published at https://www.7-zip.org/, retrieved on 2026-10-14)
+is included unchanged as:
+  licenses\7-Zip-License.txt
+Version note: the copyright line of that file reads "1999-2025"; the bundled 7z.dll is the later version 26.03.
+The license text is reproduced exactly as published and has not been edited.
+(판 안내: 받아 둔 7-Zip 라이선스 원문의 저작권 연도는 1999-2025 이고, 함께 넣은 7z.dll 은 그 뒤 판인 26.03 입니다.
+ 원문은 고치지 않고 그대로 둡니다.)
 
-  - Most of the code is under the GNU LGPL license (version 2.1 or later).
-  - The LZFSE decoder (CPP/7zip/Compress/LzfseDecoder.cpp, derived from Apple Inc's LZFSE library) and
-    the ZSTD decoder (C/ZstdDec.c, developed using Facebook Inc's zstd decoder as reference code) are under
-    the BSD 3-clause license — copyright notices and full text in licenses\7-Zip-BSD-3-Clause.txt.
-  - The XXH64 code (C/Xxh64.c, derived from Yann Collet's XXH64) is under the BSD 2-clause license —
-    copyright notices and full text in licenses\7-Zip-BSD-2-Clause.txt.
-  - Some files are in the public domain, where that status is stated in the source file.
-  - The RAR decompression code (Rar* files) is under the GNU LGPL license with the "unRAR license restriction".
-    The decompression engine for RAR archives was developed using source code of the unRAR program;
-    all copyrights to the original unRAR code are owned by Alexander Roshal.
-    The unRAR sources cannot be used to re-create the RAR compression algorithm, which is proprietary.
-    Distribution of modified unRAR sources in separate form or as a part of other software is permitted,
-    provided that it is clearly stated in the documentation and source comments that the code may not be
-    used to develop a RAR (WinRAR) compatible archiver.
+License information from the 7-Zip License.txt (verbatim):
 
-  The complete 7-Zip License.txt is included in the 7-Zip source package available at https://www.7-zip.org/.
-  The full text of the GNU LGPL version 2.1 is in licenses\7-Zip-LGPL-2.1.txt.
+  7-Zip Copyright (C) 1999-2025 Igor Pavlov.
+
+  The licenses for files are:
+
+    - 7z.dll:
+         - The "GNU LGPL" as main license for most of the code
+         - The "GNU LGPL" with "unRAR license restriction" for some code
+         - The "BSD 3-clause License" for some code
+         - The "BSD 2-clause License" for some code
+    - All other files: the "GNU LGPL".
+
+  Redistributions in binary form must reproduce related license information from this file.
+
+  Note:
+    You can use 7-Zip on any computer, including a computer in a commercial
+    organization. You don't need to register or pay for 7-Zip.
+
+The GNU LGPL information, and the BSD 3-clause and BSD 2-clause notices with their full texts, follow in
+licenses\7-Zip-License.txt. The BSD sections are also provided unchanged as separate files:
+  licenses\7-Zip-BSD-3-Clause.txt
+  licenses\7-Zip-BSD-2-Clause.txt
+The full text of the GNU Lesser General Public License version 2.1:
+  licenses\7-Zip-LGPL-2.1.txt
+
+From the 7-Zip License.txt (verbatim):
+
+unRAR license restriction
+-------------------------
+
+The decompression engine for RAR archives was developed using source
+code of unRAR program.
+All copyrights to original unRAR code are owned by Alexander Roshal.
+
+The license for original unRAR code has the following restriction:
+
+  The unRAR sources cannot be used to re-create the RAR compression algorithm,
+  which is proprietary. Distribution of modified unRAR sources in separate form
+  or as a part of other software is permitted, provided that it is clearly
+  stated in the documentation and source comments that the code may
+  not be used to develop a RAR (WinRAR) compatible archiver.
 
 Iljip does not use the RAR compression algorithm; RAR archives are only extracted.
 

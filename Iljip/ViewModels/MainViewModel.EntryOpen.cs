@@ -115,7 +115,7 @@ public partial class MainViewModel
             return false;
         }
         string path = await OpenFlatAsync(found, staging, slot, key);
-        ZoneIdentifier.Copy(archive, path);
+        if (Settings.Extract.KeepInternetMark) ZoneIdentifier.Copy(archive, path);   // IJ3-03: 설정으로 끌 수 있음(기본 켬)
         // 처음 내용(SHA-256)은 열기 '전에' 잰다(연 프로그램이 고친 뒤 재면 고친 줄 모름). 큰 파일은 몇 초 걸려 뒤에서 잰다.
         var opened = await Task.Run(() => ws.Record(key, path));
         WatchOpenedEntry(opened);
