@@ -237,6 +237,9 @@ public partial class App : Application
     /// <summary>창 없이 풀기인가(재사용장치 계약 — 판정은 <see cref="StartupDecision.IsHeadlessExtract"/>, W2-11 에서 떼어 냄. 판정 자체는 예전과 같음).</summary>
     private static bool IsHeadlessExtractCommand(string[] args) => StartupDecision.IsHeadlessExtract(args);
 
+    /// <summary>창 없이 풀기 실패의 로그 머리(뒤에 압축 경로) — MANUAL_CHECKLIST 8절의 '지켜보기' 명령이 이 글로 찾는다.</summary>
+    internal const string HeadlessFailureLogHead = "Headless extract failed: ";
+
     private static async Task<int> RunHeadlessExtractAsync(string[] args)
     {
         string archivePath = args[1];
@@ -262,15 +265,17 @@ public partial class App : Application
             await service.ExtractAsync(archivePath, destFolder);
             return 0;
         }
+        // 3차 통합 점검: 로그 첫 줄에 압축 경로를 남긴다 — 재배포 뒤 재사용장치가 반디집으로 넘긴 진짜 egg 를 이 로그에서 찾게
+        // (재사용장치 화면 로그는 수동 모드에서 파일로 남지 않음. 표준 오류 문구는 그대로).
         catch (UnsupportedFormatException ex)
         {
-            Logger.LogError("Headless extract failed", ex);
+            Logger.LogError(HeadlessFailureLogHead + archivePath, ex);
             Console.Error.WriteLine($"Unsupported archive type: {ex.Extension}");
             return ErrorMessages.HeadlessExitCode(ex);
         }
         catch (Exception ex)
         {
-            Logger.LogError("Headless extract failed", ex);
+            Logger.LogError(HeadlessFailureLogHead + archivePath, ex);
             Console.Error.WriteLine(ErrorMessages.ToUserMessage(ex).ReplaceLineEndings(" "));
             return ErrorMessages.HeadlessExitCode(ex);
         }

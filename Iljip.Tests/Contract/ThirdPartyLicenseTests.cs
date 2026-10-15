@@ -112,31 +112,43 @@ public class ThirdPartyLicenseTests
         using var tmp = new TempDir("publish");
         string outDir = tmp.P("발행");
         string dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host && File.Exists(host) ? host : "dotnet";
-        var psi = new ProcessStartInfo(dotnet)
+        async Task<(int Code, string Output)> Publish()
         {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        foreach (var a in new[] { "publish", RepoFiles.PathOf("Iljip", "Iljip.csproj"), "-c", configuration, "--no-build", "-o", outDir, "-nologo", "-v", "q" })
-            psi.ArgumentList.Add(a);
-        psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-        psi.Environment["DOTNET_NOLOGO"] = "1";
-        using var p = Process.Start(psi)!;
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        var stderr = p.StandardError.ReadToEndAsync();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        try
-        {
-            await p.WaitForExitAsync(cts.Token);
+            var psi = new ProcessStartInfo(dotnet)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            foreach (var a in new[] { "publish", RepoFiles.PathOf("Iljip", "Iljip.csproj"), "-c", configuration, "--no-build", "-o", outDir, "-nologo", "-v", "q" })
+                psi.ArgumentList.Add(a);
+            psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+            psi.Environment["DOTNET_NOLOGO"] = "1";
+            using var p = Process.Start(psi)!;
+            var stdout = p.StandardOutput.ReadToEndAsync();
+            var stderr = p.StandardError.ReadToEndAsync();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            try
+            {
+                await p.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { p.Kill(entireProcessTree: true); } catch { /* 이미 끝남 */ }
+                Assert.Fail("dotnet publish 가 3분 안에 끝나지 않음");
+            }
+            return (p.ExitCode, $"{await stdout}\n{await stderr}");
         }
-        catch (OperationCanceledException)
+        // 3차 통합 점검: UTC 전체 실행에서 한 번 'MSB3491 … obj\…\PublishOutputs.*.txt — 다른 프로세스가 사용 중'으로 실패(회사 PC 보안 프로그램이
+        // 막 쓴 파일을 검사하는 순간 — 같은 시험이 Debug·Release 에서는 통과). 그 잠깐 잠김일 때만 두 번 더 해 본다(판정은 그대로).
+        var (code, output) = await Publish();
+        for (int retry = 0; retry < 2 && code != 0 && output.Contains("MSB3491", StringComparison.Ordinal); retry++)
         {
-            try { p.Kill(entireProcessTree: true); } catch { /* 이미 끝남 */ }
-            Assert.Fail("dotnet publish 가 3분 안에 끝나지 않음");
+            await Task.Delay(1000);
+            (code, output) = await Publish();
         }
-        Assert.True(p.ExitCode == 0, $"dotnet publish 실패({p.ExitCode}):\n{await stdout}\n{await stderr}");
+        Assert.True(code == 0, $"dotnet publish 실패({code}):\n{output}");
         Assert.True(File.Exists(Path.Combine(outDir, "Iljip.exe")), "발행 출력에 Iljip.exe 가 없음");
         Assert.True(File.Exists(Path.Combine(outDir, "x64", "7z.dll")), "발행 출력에 x64\\7z.dll 이 없음");
         AssertNoticesCopied(outDir, "발행 출력", exactSet: true);

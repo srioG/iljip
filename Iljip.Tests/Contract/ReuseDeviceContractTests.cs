@@ -252,6 +252,45 @@ public class ReuseDeviceContractTests
         }
     }
 
+    /// <summary>
+    /// 계약(3차 통합 점검 — 재배포 뒤 진짜 egg 지켜보기): 창 없이 풀기가 실패하면(→ 재사용장치는 반디집으로) 일집 오류 로그
+    /// <c>%LOCALAPPDATA%\Iljip\logs\error-날짜.log</c> 에 'Headless extract failed: &lt;압축 경로&gt;'(한글 경로 그대로)와 원인을 남긴다 —
+    /// 재사용장치의 화면 로그는 수동 모드에서 파일로 남지 않아, 반디집으로 넘어간 첨부를 나중에 이 로그로 찾는다(MANUAL_CHECKLIST 8절).
+    /// 표준 오류(재사용장치가 읽는 것)는 예전 그대로 쉬운 한국어 한 줄.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 창없이_풀기가_실패하면_오류_로그에_압축_경로를_남긴다()
+    {
+        using var tmp = new TempDir("rdlog");
+        var b = SyntheticArchives.Build("egg", tmp.Dir("받은 첨부 " + Guid.NewGuid().ToString("N")[..8]));
+        byte[] bytes = File.ReadAllBytes(b.Path);
+        File.WriteAllBytes(b.Path, bytes[..(bytes.Length / 2)]);   // 끝이 잘린 egg
+
+        var (code, err) = await RunIljip(b.Path, tmp.Dir("out"));
+
+        Assert.True(code == 1, $"종료 코드 {code} — {err}");
+        foreach (var m in NotArchiveMarkers)
+            Assert.False(err.Contains(m, StringComparison.OrdinalIgnoreCase), $"실패 문구에 '{m}': {err}");
+        Assert.DoesNotContain("Headless", err);   // 로그 머리는 표준 오류로 나가지 않음
+        // 로그 파일 이름은 exe 쪽(시간대 흉내가 닿지 않는 따로 된 프로세스 — 이 PC 시간대)의 날짜. 자정 언저리를 위해 앞뒤 하루도 본다
+        string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Iljip", "logs");
+        string expected = Iljip.App.HeadlessFailureLogHead + b.Path;
+        DateTime osToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TestTimeZone.OsLocal).Date;
+        bool found = false;
+        foreach (int day in new[] { 0, -1, 1 })
+        {
+            string file = Path.Combine(logDir, $"error-{osToday.AddDays(day):yyyyMMdd}.log");
+            if (!File.Exists(file)) continue;
+            using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(fs, Encoding.UTF8);
+            string? line;
+            while ((line = reader.ReadLine()) is not null)
+                if (line.EndsWith(expected, StringComparison.Ordinal)) { found = true; break; }
+            if (found) break;
+        }
+        Assert.True(found, $"오류 로그({logDir})에 '{expected}' 줄이 없음");
+    }
+
     /// <summary>Iljip.exe --extract-to 를 실행하고 (종료 코드, 표준 출력+오류 — 재사용장치처럼 UTF-8 → CP949 순으로 읽음).</summary>
     private static async Task<(int Code, string Output)> RunIljip(string archive, string dest)
     {

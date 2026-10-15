@@ -4,10 +4,12 @@
 #   .\Rebuild.ps1              # 일반 재배포
 #   .\Rebuild.ps1 -Clean       # 빌드 캐시 전부 비우고 클린 빌드
 #   .\Rebuild.ps1 -SkipExplorerRestart   # 탐색기 재시작 생략
+#   .\Rebuild.ps1 -SystemVolume          # 패키지를 C:(시스템 볼륨)에 설치 — 새 앱 저장 위치가 D: 라 0x80070032 로 실패할 때(Install.ps1 참고)
 [CmdletBinding()]
 param(
     [switch]$SkipExplorerRestart,
     [switch]$Clean,
+    [switch]$SystemVolume,
     [string]$BuildDir = $(if ($env:IljipBuildDir) { $env:IljipBuildDir } else { "D:\Python\일집-build" })
 )
 
@@ -51,7 +53,7 @@ if ($LASTEXITCODE -ne 0 -and -not $?) { throw "빌드 실패 — 중단" }
 
 Write-Host ""
 Write-Host "==> 4/5 설치" -ForegroundColor Cyan
-& "$PSScriptRoot\Install.ps1" -BuildDir $BuildDir
+& "$PSScriptRoot\Install.ps1" -BuildDir $BuildDir -SystemVolume:$SystemVolume
 if ($LASTEXITCODE -ne 0 -and -not $?) { throw "설치 실패 — 중단" }
 
 if (-not $SkipExplorerRestart) {
