@@ -91,16 +91,27 @@
   7-Zip 라이선스를 7-zip.org 원문(`licenses\7-Zip-License.txt`)으로 바로잡음(안내·BSD 파일은 원문 줄 그대로, 판 안내 26.03)
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-15 IJ3-03 후)
+## 현재 진행 단계 (2026-10-15 3차 통합 점검 후)
 
-**IJ3-03(인터넷 표시 MOTW 전파·7-Zip 라이선스 원문 대조 — 사용자 결정 I2-15) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
+**3차(IJ3-01·IJ3-03) 통합 점검 끝 — 커밋·푸시 완료**(코드·시험 5e534c1, 이 문서 갱신은 그다음 커밋). 3차 묶음: IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C·그림 미리 보기·바로 열기 나머지) 커밋 f1ef006,
+IJ3-03(인터넷 표시 MOTW·7-Zip 라이선스 원문) 커밋 981a048 — 둘 다 푸시됨. **IJ3-02(압축 검사·깨진 ZIP 고치기 — W2-08 다시)는 검증에서 되돌려 `stash@{0}` `iljip-wave3-IJ3-02-failed`** 에 있다
+(drop 안 함 — 다시 할지는 사람이 정함, 아래 '향후 작업'). stash 넷(`stash@{0}` IJ3-02 · `@{1}` W2-08 · `@{2}` W2-04 · `@{3}` W1-B)은 그대로.
+계약 테스트 실패 0(전체 2408 — 통과 2408·건너뜀 0, **Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두**). Release 빌드 경고 0·오류 0(출력 `D:\Python\일집-build\dotnet\Iljip\bin\Release`).
+통합 점검에서 한 것(아래 변경 이력 '3차 통합 점검'): 묶음 사이 상호작용 시험 `Wave3IntegrationTests`(13 — 모두 처음부터 통과, 제품 동작 어긋남 없음),
+**재배포 뒤 진짜 egg 지켜보기**를 위해 창 없이 풀기 실패 로그에 압축 경로(`Headless extract failed: <경로>` — 표준 오류는 그대로)와 로그 쓰기 잠깐 막힘 다시 하기,
+**셸 확장 설치 `-SystemVolume`**(이 PC 는 '새 앱 저장 위치'가 `D:\WindowsApps` — OneDrive 패키지가 0x80070032 로 실패 중임을 확인), 발행 시험의 보안 프로그램 잠깐 잠김(MSB3491) 다시 하기.
+10/14 23:54·10/15 00:03 Windows 업데이트가 PC 를 두 번 다시 시작했다(시스템 로그 1074 — MoUsoCoreWorker·TrustedInstaller). 그 뒤 작업 폴더는 깨끗했고 IJ3-03 은 처음부터 다시 해 커밋 — 잃은 것 없음.
+**설치·등록·재배포는 하지 않았다**: `D:\Python\일집-dist` 는 아직 2026-06-23 판, 셸 확장(지금 이 PC 에 `Iljip.ShellExtension` 패키지 없음)·파일 연결 반영 안 함, `Iljip\bin` 에 exe 없음.
+그 전(IJ3-03) 기록:
+
+**IJ3-03(인터넷 표시 MOTW 전파·7-Zip 라이선스 원문 대조 — 사용자 결정 I2-15) 작업 끝 → 커밋 981a048·푸시(3차 통합 점검 때)**(그때 기록: 커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
 10/14 23:54·10/15 00:03 Windows 업데이트가 PC 를 두 번 다시 시작해, 10/15 재개 때 작업 폴더가 깨끗한 f1ef006(IJ3-01 커밋) 위에서 처음부터 했다.
 stash 는 손대지 않음 — 지금 `stash@{0}` `iljip-wave3-IJ3-02-failed`(IJ3-02 — 검증에서 되돌림), `stash@{1}` `iljip-wave2-W2-08-failed`, `stash@{2}` `iljip-wave2-W2-04-failed`(IJ3-01 이 다시 함), `stash@{3}` `iljip-wave1-W1-B-failed`.
 새 파일(아직 git 에 없음 — 커밋할 때 같이): `Iljip/licenses/7-Zip-License.txt`(원문 — 바이트 그대로), 시험 `Iljip.Tests/Contract/InternetMarkTests.cs`·`ThirdPartyLicenseTests.cs`.
 계약 테스트 실패 0(전체 2394 — 통과 2394·건너뜀 0, Debug. 그 전 2345). 아래 변경 이력 'IJ3-03'. **진짜 오피스 '제한된 보기'·탐색기 우클릭은 MANUAL_CHECKLIST 21절, 창 없이 풀기는 8절 마지막 줄(실기기 확인 필요)**.
 **설치·등록·재배포는 하지 않았다**(`D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음 — 발행 시험은 시험 임시 폴더에만). 그 전(IJ3-01) 기록:
 
-**IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·바로 열기 나머지 I1-3) 작업 끝, 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
+**IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·바로 열기 나머지 I1-3) 작업 끝 → 커밋 f1ef006·푸시**(그때 기록: 커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함).
 보관분 `stash@{1}` `iljip-wave2-W2-04-failed` 를 `git stash apply` 로 얹고 충돌은 main 의 뜻대로 손으로 풀었다 — **stash 셋은 drop 하지 않았다**(그대로). 충돌 표시를 지운 뒤
 색인만 `git reset -q` 로 비웠다(작업 폴더 그대로 — 바뀐 파일은 모두 '스테이징 안 됨', 새 파일은 untracked). 새 파일(아직 git 에 없음 — 커밋할 때 같이):
 `Iljip/Services/`(`ClipboardCopyPlan.cs`·`DragPayloadBuilder.cs`·`IClipboardService.cs`·`IImageDecoder.cs`·`LazyEntryExtractor.cs`·`TempJanitor.cs`·`VirtualFileDataObject.cs`)·`Iljip/ViewModels/`(`ImagePreviewViewModel.cs`·`MainViewModel.EntryCopy.cs`),
@@ -164,12 +175,15 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 계약 테스트 실패 0(통과 834·건너뜀 6·전체 840 — Debug·Release·`ILJIP_TEST_TZ=UTC` 모두). **`D:\Python\일집-dist`(재사용장치가 매일 egg 를 푸는 배포본)는 아직 예전 판**
 (2026-06-23, SharpCompress 0.38.0·EggDotNet 0.3.0)이다 — 바꾸기 전에 아래 '일집-dist 재배포' 절과 `Iljip.Tests/MANUAL_CHECKLIST.md` 를 사람이 확인할 것.
 
-**다음 단계**(Wave 2 통합 점검 후 — 모두 사람이 할 일):
-1. **재배포 전 실제 PC 확인**: MANUAL_CHECKLIST **19절**(재배포 전 마지막 확인 — Wave 2 통합, 30분) + 0·2·6·8·9절(진짜 알집·WinRAR 파일, 재사용장치 egg 해제, 7z.dll 이 막힌 PC).
+**다음 단계**(3차 통합 점검 후 — 모두 사람이 할 일):
+1. **재배포 전 실제 PC 확인**: MANUAL_CHECKLIST **22절**(3차 통합 — 20분) + **21절**(인터넷 표시·7-Zip 원문) + **20절**(끌기·Ctrl+C·미리 보기) + **19절**(Wave 2 통합) + 0·2·6·8·9절(진짜 알집·WinRAR 파일, 재사용장치 egg 해제, 7z.dll 이 막힌 PC).
    시간이 되면 10~17절(새 기능 화면 — 7z 만들기·나눠 만들기·같은 이름 창·압축 고치기·한 화면 압축 창·풀기 창·자동 풀림 EXE·시작 화면)
-2. 확인되면 **일집-dist 재배포**(아래 '일집-dist 재배포' 절 — 재사용장치가 돌지 않는 시간에) → 다음 날 재사용장치 로그에서 '(Iljip으로 .egg 해제)' 뒤 'Bandizip 폴백'이 늘지 않았는지
-3. **셸 확장·파일 연결 반영**(아래 '셸 확장·파일 연결 반영(W2-12)' 절 — 인증서·`Rebuild.ps1`·`--register-associations`) → MANUAL_CHECKLIST 18절. 일집-dist 와는 따로(셸 확장은 `일집-build\package\Iljip.exe` 를 부름)
-4. 결정할 것: W2-08·IJ3-02(stash) 다시 할지(아래 '향후 작업'). (W2-04 는 IJ3-01 에서 다시 함, 7-Zip `License.txt` 원문 대조와 '웹에서 받은 파일 표시(MOTW)'는 IJ3-03 에서 끝 — 사용자 결정 I2-15)
+2. 확인되면 **일집-dist 재배포**(아래 '일집-dist 재배포' 절 — 재사용장치가 돌지 않는 시간에) → **반디집은 1~2주 그대로 두고** MANUAL_CHECKLIST 8절 끝 '재배포 뒤 1~2주 지켜보기'
+   (진짜 egg 견본이 없어 합성 egg 로만 시험 — 일집이 못 푼 첨부는 재사용장치가 반디집으로 풀고, 일집 오류 로그에 `Headless extract failed: <경로>` 와 이유가 남음)
+3. **셸 확장·파일 연결 반영**(아래 '셸 확장·파일 연결 반영(W2-12)' 절 — 인증서·`Rebuild.ps1`·`--register-associations`) → MANUAL_CHECKLIST 18절. 일집-dist 와는 따로(셸 확장은 `일집-build\package\Iljip.exe` 를 부름).
+   **이 PC 는 '새 앱 저장 위치'가 D: 라 `.\Rebuild.ps1 -SystemVolume`** 으로(그냥 하면 0x80070032 로 실패할 수 있음 — 그 절의 '설치 볼륨' 줄)
+4. 결정할 것(아래 '향후 작업'): W2-08·IJ3-02(stash) 다시 할지, '다른 이름으로 저장'·자동 풀림 exe 에도 인터넷 표시를 옮길지, 지켜보기 뒤 반디집을 지울지,
+   Windows '새 앱 저장 위치'를 C: 로 되돌릴지(PC 전체 설정 — OneDrive 앱 패키지도 같은 0x80070032 로 설치 실패 중). (W2-04 는 IJ3-01 에서 다시 함, MOTW·7-Zip 원문은 IJ3-03 에서 끝 — 사용자 결정 I2-15)
 (예전 다음 단계 — 1~8절 확인·W1-B 다시 시도 — 는 위에 합침. W1-B 는 W2-01 에서, 7z 만들기 W2-02, 분할 만들기 W2-03 에서 끝)
 
 ### MSIX 셸 확장
@@ -178,6 +192,10 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 **(W2-12) 폴더 우클릭 메뉴 복원** — `desktop5:ItemType Type="Directory"`(desktop6 아님 — desktop5 가 폴더 항목을 받음)·`Directory\Background`. 패키지 0.4.0.0, 외부 위치(`uap10:AllowExternalContent`·mediumIL·win32App).
 2026-10-14 이 PC 에서 NuGet SDK 의 `makeappx.exe pack`(전체 검사)으로 이 매니페스트 + 빌드한 DLL·exe 를 묶어 **'Package creation succeeded'** 까지 확인(서명·설치는 안 함 — 확인용 폴더는 지움).
 남은 검증(사람): 아래 '셸 확장·파일 연결 반영(W2-12)' 절차 → 탐색기 메뉴 표시(MANUAL_CHECKLIST 18절).
+**(3차 통합 점검) 설치 볼륨**: 이 PC 는 `Get-AppxDefaultVolume` 이 `D:\WindowsApps`(시스템 볼륨 C: 가 아님)이고, 같은 PC 에서 OneDrive 앱 패키지(`Microsoft.OneDriveSync`)가
+10/11·10/13·10/15 에 '0x80070032 — 시스템 볼륨에 설치되어 있지 않아…'로 설치 실패 중이다(AppXDeploymentServer 로그 401·404). 일집 셸 확장(COM·탐색기 메뉴 확장이 든 외부 위치 패키지)도
+같은 이유로 막힐 수 있어 `Install.ps1`·`Rebuild.ps1` 에 `-SystemVolume`(C: 의 앱 저장소에 넣음 — `Add-AppxPackage -Volume`)을 더했다. 안 주면 예전과 같고, 0x80070032 로 실패하면 이 옵션을 쓰라고 쉬운 말로 알린다
+(진짜 설치로는 확인 안 함 — 매개변수 연결·구문만 확인, `Wave3IntegrationTests.셸_확장_설치는_…`).
 
 ## 일집-dist 재배포 (재사용장치 영향) — 사람이 할 일, 자동으로 하지 않음
 
@@ -220,6 +238,15 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
     (일집 창·우클릭 풀기만 붙임 — 사용자 결정 I2-15). `ReuseDeviceContractTests.창없이_풀기는_인터넷에서_받은_표시를_…`(실제 exe — EGG·ALZ·RAR5·ZIP·7Z·TGZ)가 지킴. 재배포 전 손 확인은 MANUAL_CHECKLIST 8절 마지막 줄.
   - 7z.dll·압축된 TAR 는 결과 폴더(재사용장치의 `mkdtemp`) 안 숨김 `.일집-임시-…` 폴더에 먼저 풀고 다 맞을 때만 옮긴다 — 실패면 아무것도 안 남김(재사용장치는 실패면 그 폴더를 통째로 버리므로 영향 없음).
   - 확장자를 모르는 파일은 내용(서명)으로 알아본다(이름이 바뀐 압축·자동 풀림 exe). 재사용장치는 확장자(egg·alz·7z·rar)로 골라 넘기므로 지금은 해당 없음. 속이 ZIP 인 문서(.xlsx 등)는 그대로 종료 2.
+- **3차 판(IJ3-01·IJ3-03 + 3차 통합 점검)에서 재사용장치에 더 바뀌는 점** — 종료 코드·표준 오류 문구는 Wave 2 판과 같다(`ReuseDeviceContractTests` 8개 — 실제 exe 7·소스 1):
+  - 창 없이 풀기는 인터넷 표시를 풀린 파일에 붙이지 않는다(IJ3-03 — 위). 임시 폴더 청소(IJ3-01 `TempJanitor`)도 창 없이 풀기에서는 돌지 않는다(빨리 끝나게 — `EntryWorkspaceTests` 소스 확인).
+  - **실패하면 일집 오류 로그 `%LOCALAPPDATA%\Iljip\logs\error-날짜.log` 에 `Headless extract failed: <첨부 경로>` + 이유**(예전엔 경로 없이 'Headless extract failed'). 재사용장치의 수동 모드 화면 로그는 파일로 남지 않아
+    (자동 16시 모드만 `D:\Python\재사용장치\System_code\logs\batch_날짜.log`), 재배포 뒤 반디집으로 넘어간 진짜 egg 를 이 로그로 찾는다 — MANUAL_CHECKLIST 8절 끝 '재배포 뒤 1~2주 지켜보기'.
+    로그 쓰기가 다른 일집 프로세스와 겹쳐 잠깐 막히면 5번까지 다시 쓴다(예전엔 그 기록을 말없이 잃음).
+  - 주의: 이 PC 에서 개발 시험을 돌리면 같은 로그에 시험 기록이 쌓인다(경로에 `IljipTests` — 지켜보기 명령은 그 줄을 뺌). 10/13·10/14 로그는 IJ3-02 손상 훑기 시험 때문에 85MB·255MB — 지워도 된다(사람이 정함).
+- **진짜 egg 지켜보기 계획(재배포 뒤 1~2주)**: 진짜 알집 egg 견본이 없어 egg 는 합성 파일로만 시험했다(크기·CRC 확인이 진짜 파일에서 어긋날 위험 — 위 '위험'). 그래서 재배포한 뒤 **반디집을 지우지 않고 1~2주**
+  (egg 첨부 5~10개 — 6월 배치 로그로는 2주에 1~2개) 지켜본다: 재사용장치 화면의 '(Iljip 해제 실패: … → Bandizip 폴백)' 줄 + 일주일에 한 번 오류 로그 명령(MANUAL_CHECKLIST 8절 끝).
+  암호 egg 실패는 정상(창 없이는 암호를 못 넣음 — 반디집이 풂). 그 밖의 이유가 2주 동안 없으면 반디집을 지울지 정한다(사람). 있으면 그 egg 를 보관해 다음 판에서 고친다.
 - 발행 파일(2026-10-14 Release 발행으로 확인 — 임시 폴더에 발행해 세고 지움, 발행한 exe 로 7z·ZIP 창 없이 풀기 종료 0): 맨 위 11개 — Iljip.exe·Iljip.dll·Iljip.pdb·Iljip.deps.json·Iljip.runtimeconfig.json, SharpCompress·SharpSevenZip·EggDotNet·ICSharpCode.SharpZipLib·CommunityToolkit.Mvvm(.dll), THIRD-PARTY-NOTICES.txt,
   하위 폴더 `x64\7z.dll`(**없으면 7z·rar 는 대신 길, 나머지 새 형식은 못 풂** — 꼭 같이), `licenses\`(라이선스 전문 11개 — IJ3-03 부터 `7-Zip-License.txt` 원문 포함, LGPL 상 같이 둘 것), `icons\`(형식 아이콘 22개 — 파일 연결용), `sfx\Iljip.SfxStub.exe`(자동 풀림 만들기 부품 —
   재사용장치 풀기와는 상관없고, 없으면 압축 창 형식 목록에서 '자동 풀림 EXE' 만 빠진다. 회사 백신이 지울 수 있음 — MANUAL_CHECKLIST 16절). 예전 판의 `ZstdSharp.dll` 은 필요 없다.
@@ -278,8 +305,16 @@ reg export "HKCU\Software\Classes" "$env:USERPROFILE\Desktop\일집반영전-HKC
 # 1) (최초 1회 — 관리자 PowerShell) 인증서. packaging\cert\Iljip.pfx 가 이미 있으면 건너뜀
 cd "D:\Python\일집\packaging"; .\CreateCert.ps1
 
+# 1-1) (3차 통합 점검) 설치 볼륨 확인 — 'PackageStorePath' 가 C:\Program Files\WindowsApps 가 아니면 2) 에 -SystemVolume
+Get-AppxDefaultVolume | Select-Object PackageStorePath, IsSystemVolume       # 이 PC(2026-10-15): D:\WindowsApps, False → -SystemVolume
+#      같은 이유로 막힌 기록이 있는지(이 PC 는 OneDrive 패키지가 10/11·10/13·10/15 에 막힘):
+Get-WinEvent -LogName "Microsoft-Windows-AppXDeploymentServer/Operational" -MaxEvents 500 | Where-Object { $_.Message -match '0x80070032' } | Select-Object -First 5 TimeCreated, Message
+
 # 2) 셸 확장 빌드·설치(보통 PowerShell): 예전 패키지 제거 → 빌드(NuGet SDK 자동) → 서명 → Add-AppxPackage → 탐색기 재시작
-cd "D:\Python\일집\packaging"; .\Rebuild.ps1                 # 탐색기 재시작이 싫으면 -SkipExplorerRestart 후 로그오프·로그온
+cd "D:\Python\일집\packaging"; .\Rebuild.ps1 -SystemVolume   # 기본 볼륨이 C: 인 PC 는 -SystemVolume 없이. 탐색기 재시작이 싫으면 -SkipExplorerRestart 후 로그오프·로그온
+#    -SystemVolume 없이 했다가 '설치하지 못했어요(0x80070032)…' 가 나오면: 빌드는 끝났으므로 .\Install.ps1 -SystemVolume 만 다시 → 탐색기 다시 시작
+#    그래도 0x80070032 면(드묾): 설정 ▸ 시스템 ▸ 저장소 ▸ 고급 저장소 설정 ▸ '새 콘텐츠가 저장되는 위치' ▸ '새 앱 저장 위치'를 C: 로 바꾸고(PC 전체 설정 — 사람이 정함,
+#    OneDrive 앱 설치 실패도 같이 풀릴 수 있음) .\Install.ps1 다시. 관리자 'Set-AppxDefaultVolume' 은 스크립트가 하지 않음
 Get-AppxPackage Iljip.ShellExtension | Select-Object Name, Version, InstallLocation   # Version 0.4.0.0
 
 # 3) 파일 연결 넣기 — 셸 확장과 같은 폴더의 일집으로(연결은 '이 명령을 실행한 Iljip.exe' 경로로 들어감)
@@ -347,6 +382,9 @@ dotnet run --project Iljip
 12. **(IJ3-03) 대체 스트림(`:Zone.Identifier`)을 쓰면 NTFS 가 파일의 수정 시각을 '지금'으로 바꾼다**(2026-10-15 실측) — 표식을 붙인 뒤 원래 수정 시각으로 되돌려야 함(`ZoneIdentifier.TryMark`).
     읽기 전용 파일에는 스트림도 못 씀(잠깐 풀었다 되돌림). 없는 파일에 `파일:스트림` 으로 쓰면 빈 본문 파일이 새로 생기므로 있는지 먼저 볼 것.
     7z.dll 의 `PropagateMarkOfTheWeb` 는 켜지 말 것 — 서비스(창 없이 풀기 포함)가 붙이게 되어 재사용장치 약속이 깨짐(붙이는 일은 화면만)
+13. **(3차 통합 점검) 이 PC 의 '새 앱 저장 위치'는 D:**(`Get-AppxDefaultVolume` → `D:\WindowsApps`). MSIX 를 기본대로 넣으면 0x80070032('시스템 볼륨에 설치되어 있지 않아…')로 실패할 수 있다
+    (OneDrive 앱 패키지가 실제로 그렇게 실패 중) — 셸 확장은 `.\Rebuild.ps1 -SystemVolume`. 로그 머리 `Headless extract failed: ` 는 MANUAL_CHECKLIST 8절 지켜보기 명령이 찾는 글이라 바꾸지 말 것
+    (`App.HeadlessFailureLogHead` — `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_…`)
 
 ## 향후 작업
 
@@ -368,6 +406,14 @@ dotnet run --project Iljip
 - [ ] IJ3-03 남은 확인: MANUAL_CHECKLIST 21절(진짜 오피스 '제한된 보기'·풀린 파일 표시 내용·수정 날짜·같은 폴더의 원래 파일은 안 붙음·설정 칸·수천 개 시간·USB/NAS·매크로 파일·일집 정보 창의 7-Zip 원문) + 8절 마지막 줄(창 없이 풀기는 안 붙음)
 - [ ] (IJ3-03 남김) '다른 이름으로 저장'(같은 형식 복사·ZIP↔7Z 바꾸기)으로 만든 새 압축에는 원본의 인터넷 표시가 따라가지 않음(내용 스트림으로 복사) — 그 사본을 일집으로 풀면 표시 없음. 옮길지는 사람이 정할 일
 - [ ] (IJ3-03 남김) 일집이 만든 자동 풀림 exe(SFX 스텁)는 받는 사람 PC 에서 풀 때 exe 의 인터넷 표시를 풀린 파일에 옮기지 않음(스텁은 따로 된 프로그램 — 바꾸려면 `Iljip.SfxStub`)
+      (같은 exe 를 **일집 창으로** 풀면 붙음 — 3차 통합 점검 `Wave3IntegrationTests.일집이_만든_자동풀림_exe를_…`)
+- [ ] **3차 통합 점검 남은 확인**: MANUAL_CHECKLIST 22절(받은 압축 고치기·다시 넣기·[이름 바꾸기]·나눠진 압축·자동 풀림 exe·두 창의 청소·끌어 놓은 사진의 표시·설치 볼륨) + 재배포 뒤 8절 끝 '1~2주 지켜보기'
+- [ ] (3차 통합 점검 남김) 압축 고치기의 바꿔 넣기가 `File.Replace` 를 못 쓰는 드라이브(일부 NAS — `ArchiveSwap` '예비 이름 방식')로 넘어가면 고친 압축 파일의 인터넷 표시가 빠진다
+      (`File.Replace` 길은 Windows 가 표시를 이어 줌 — `Wave3IntegrationTests.표시가_있는_압축을_고쳐도_…`). 그런 드라이브는 대개 표시 자체를 못 담아 실제 영향은 작음 — 예비 이름 길에서 표식을 옮길지는 다음에
+- [ ] (3차 통합 점검 기록) I2-8 의 나머지 — 영어 엔진 문구 뒤에 따옴표 없는 한글 경로가 붙으면 `ErrorMessages` 가 한국어 문구로 보고 그대로 보임(드묾). 고친 판정(`LooksKorean`·`FromEngine`)은 IJ3-02 보관분에 있음 —
+      IJ3-02 를 다시 할 때 같이. 3차 기능의 화면·예외 문구에 영어만으로 된 글은 없음(`Wave3IntegrationTests.화면과_예외_문구에_…` — 본체 전체 소스·XAML 훑기)
+- [ ] (결정) **IJ3-02 다시 할지** — 보관분 `stash@{0}` `iljip-wave3-IJ3-02-failed`(W2-08 다시: `--test` 압축 검사·문제 창·깨진 ZIP 고치기 — 5차 검증에서도 '저장 항목 속 ZIP 머리를 바깥 파일로 살림'·
+      '흘려 쓴 ZIP 의 512바이트 0 블록'·'로컬 서명과 목록 이름이 함께 깨지면 말없이 빠짐' 지적이 남음). 하지 않으면 검사→고치기 흐름은 없고(지금 main 은 '다 만들고 시험하기'·고치기 전 원본 검사만), 재배포에는 영향 없음
 - [x] **W2-03**: 분할 압축(나눠 만들기 — I2-2 만들기) — ZIP PKZIP 나눔·7Z 숫자 조각·옵션 창 '나누기' 칸(아래 변경 이력)
 - [ ] W2-03 남은 확인: MANUAL_CHECKLIST 11절(옵션 창 '나누기' 칸, Windows 탐색기·알집으로 나눔 ZIP 열기, 진짜 메일 첨부, OneDrive 폴더)
 - [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
@@ -1096,7 +1142,7 @@ dotnet run --project Iljip
   탐색기 붙여넣기가 경로 길이에 걸릴 수 있음(실기기 확인 못 함); 끌기 서술자는 맨 위에서 대소문자만 다른 두 파일을 함께 고르면 뒤엣것을 뺌(`DragPayloadBuilder` 의 seenKeys 가 대소문자 무시).
   계약 테스트 실패 0(전체 1460 — 통과 1459·건너뜀 1: I2-10, 계약만 1303 — 통과 1302·건너뜀 1, 기록 157. 1차 검증 수정 후 1440 — 통과 1439·건너뜀 1 에서).
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
-- **2026-10-14 IJ3-01 — W2-04 다시: 끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)·바로 열기 나머지(I1-3)(커밋 전, 설치·배포 안 함)**:
+- **2026-10-14 IJ3-01 — W2-04 다시: 끌어 꺼내기·Ctrl+C(I1-4)·그림 미리 보기(I3-7)·바로 열기 나머지(I1-3)(커밋 f1ef006·푸시, 설치·배포 안 함)**:
   보관분 `iljip-wave2-W2-04-failed`(W2-03 4a4b093 위에서 만든 것)를 `git stash apply` 로 지금 main 위에 얹고(충돌 7파일 + 이미 있던 새 파일 9개는 손으로 — main 의 뜻이 이김, stash 셋은 drop 안 함),
   겹치는 바탕은 main 것을 썼다: 설정·`AppServices`(W2-05 — `Open.WarnExecutables`·`Ui.PreviewVisible`·Clipboard·ImageDecoder 만 덧붙임), 작업 폴더·열기·다시 넣기(W2-06 — 열기 길은 그대로,
   `ExtractForUseAsync` 를 여러 열쇠·진행 창 없음·'꺼낸 뒤 이어서 할 일'로 넓혀 열기·Ctrl+C·끌기 전 암호 확인·미리 보기 [암호 넣기]가 같이 씀, 꺼낸 자리는 `LazyEntryExtractor.FindExtracted`),
@@ -1123,7 +1169,7 @@ dotnet run --project Iljip
   main 기존 시험은 `MainWindowEditUiTests` 의 목록 우클릭 메뉴 기대에 '복사 (Ctrl+C)' 한 줄만 더함. 손 점검은 MANUAL_CHECKLIST 20절(보관분 12절을 옮기고 IJ3-01 줄 9개 더함 — 12절 번호는 W2-05 가 씀).
   위험·못 본 것: 진짜 탐색기와의 끌어 놓기·붙여넣기·미리 보기 화면(손 점검), 손상 항목 하나로 한 번에 꺼내기가 **실패**한 끌기만 아직 항목마다(솔리드면 느림 — 향후 작업), 이름 바뀜 알림은 폴더 안의 대소문자 겹침 '(1)' 은 세지 않음,
   알림 창은 바뀐 이름이 있을 때만 뜸(작은 창 하나). 계약 테스트 실패 0(전체 2345 — 통과 2345·건너뜀 0, Debug). `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
-- **2026-10-15 IJ3-03 — 인터넷 표시(MOTW) 전파·7-Zip 라이선스 원문 대조(사용자 결정 I2-15)(커밋 전, 설치·배포 안 함)**: (재개 1015 — Windows 업데이트 재부팅 뒤 깨끗한 f1ef006 위에서 처음부터)
+- **2026-10-15 IJ3-03 — 인터넷 표시(MOTW) 전파·7-Zip 라이선스 원문 대조(사용자 결정 I2-15)(커밋 981a048·푸시, 설치·배포 안 함)**: (재개 1015 — Windows 업데이트 재부팅 뒤 깨끗한 f1ef006 위에서 처음부터)
   ① **MOTW**: 압축에 `:Zone.Identifier` 가 있으면 일집 창·탐색기 우클릭 풀기(`MainViewModel.ExtractToFolderCoreAsync` — 풀기 창·고른 항목·명령줄, `BatchExtractor` — 여기에·'이름' 폴더·알아서·여러 개·관리자 권한으로 다시 시도)가
   다 푼 뒤 **이번 풀기가 만든(덮어쓴) 파일에만** 원본 바이트 그대로 붙인다(`ZoneIdentifier.MarkExtractedAsync` — 같은 이름 처리 범위의 새 `ExtractionScope.CreatedFiles` 를 씀: 풀 곳에 원래 있던 파일·[건너뛰기]한 파일·같은 폴더의 압축은 안 건드림).
   표식은 풀기 전에 읽고(다 풀고 휴지통으로 보내도), 손상·취소로 멈춰 앞서 풀린 파일이 남아도 붙이며(finally — 암호 오류로 되돌린 것은 이미 없음), 뒤 스레드에서 붙이는 동안 진행 창 단계 알림 '인터넷에서 받은 파일 표시를 붙이는 중'
@@ -1142,6 +1188,26 @@ dotnet run --project Iljip
   기존 기대는 바꾸지 않음(`KnownGapTests` 기록은 본문 그대로 설명만 '서비스는 옮기지 않음 — 창 경로는 화면이 붙임'). 손으로 '고치면 실패하나' 확인: `OutputTarget.Commit` 의 NoteCreated 를 빼면 bz2 시험 2개 실패.
   손 점검 MANUAL_CHECKLIST 21절(새 — 13줄)·8절 한 줄. 위험·못 본 것: 진짜 오피스 '제한된 보기'·매크로 차단(업무 파일이 막히면 설정으로 끔), 수천 개 풀기 뒤 표시를 붙이는 시간(회사 DLP — 파일마다 작은 쓰기 3번),
   USB(exFAT)·NAS 는 표시를 붙일 수 없어 조용히 넘어감(로그만), '다른 이름으로 저장'·자동 풀림 exe 는 표시를 옮기지 않음(향후 작업). 계약 테스트 실패 0(전체 2394 — 통과 2394·건너뜀 0, Debug. 그 전 2345).
+  `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-15 3차 통합 점검(IJ3-01 f1ef006·IJ3-03 981a048 을 합친 뒤 — 코드·시험 커밋 5e534c1·문서 커밋·푸시, 설치·등록·배포 안 함)**: IJ3-02 는 검증에서 되돌려 `stash@{0}`(drop 안 함).
+  Release 빌드(`dotnet build Iljip\Iljip.csproj -c Release`) 경고 0·오류 0, 계약 테스트 Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번. 10/14 23:54·10/15 00:03 Windows 업데이트 재부팅 두 번(시스템 로그 1074) — 작업 손실 없음.
+  ① **상호작용 시험 `Contract/Wave3IntegrationTests.cs`(13) — 제품 동작은 모두 처음부터 통과(어긋남 없음)**: 같은 이름 [이름 바꾸기](W2-05)로 비켜 푼 'a (1).txt' 에만 인터넷 표시(IJ3-03) — ZIP·7z.dll·EGG 길,
+  표시가 있는 압축에 파일을 넣어 고쳐도(W2-06 — `File.Replace`) 압축의 표시가 남고 다시 풀면 넣은 파일까지 붙음(ZIP·7Z), 받은 압축 속 파일을 열어(IJ3-01) 고쳐 다시 넣어도 묻기 한 번·압축 표시 그대로,
+  나눠 만든 조각 묶음(W2-03 — ZIP .z01…·7Z .001…)·자동 풀림 exe(W2-10 일집 스텁·7-Zip SFX)도 창에서 풀면 붙음.
+  **오류 문구 전수(소스)**: 본체 전체 .cs 의 화면 호출(ShowError·ShowWarning·ShowInfo·StatusText·Choose·ShowProgress·MessageBox)·던지는 예외와 XAML 글자에 영어만으로 된 문구가 없음 —
+  예외는 'Unsupported archive type'(재사용장치 약속)·로그 전용 예외 하나·정규식 조각 하나(허용 목록에 이유). 일부러 영어 문구 둘을 심으면 실패하는 것도 확인(심은 파일은 지움).
+  ② **재배포 뒤 진짜 egg 지켜보기 준비**(오케스트레이터 요청 — 진짜 egg 견본이 없음): 재사용장치 수동 모드의 화면 로그는 파일로 남지 않아(`재사용장치_processor.py` `log` = 화면 글상자, 자동 모드만 `System_code\logs\batch_*.log` —
+  마지막 파일 6/19) 반디집으로 넘어간 첨부를 나중에 찾을 길이 없었다 → `App.RunHeadlessExtractAsync` 의 실패 로그 머리를 `Headless extract failed: <압축 경로>`(`App.HeadlessFailureLogHead`)로 —
+  표준 오류·종료 코드는 그대로. `Logger.Write` 가 공유·잠금 위반이면 5번까지 다시 씀(다른 일집 프로세스와 겹쳐 기록을 말없이 잃던 것). 시험 `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_압축_경로를_남긴다`
+  (실제 exe — 끝이 잘린 egg, 한글 경로, 로그 파일은 exe 의 OS 시간대 날짜로 찾음. 머리를 예전 것으로 되돌리면 실패하는 것 확인). 지켜보기 절차는 MANUAL_CHECKLIST 8절 끝.
+  ③ **셸 확장 설치 볼륨**: 이 PC 는 `Get-AppxDefaultVolume` = `D:\WindowsApps`(시스템 볼륨 아님), AppXDeploymentServer 로그에 OneDrive 앱 패키지 0x80070032('시스템 볼륨에 설치되어 있지 않아…') 실패가 10/11·10/13·10/15 —
+  `packaging\Install.ps1`·`Rebuild.ps1` 에 `-SystemVolume`(C: 앱 저장소에 `Add-AppxPackage -Volume`)을 더하고, 안 주고 0x80070032 면 다시 할 명령을 쉬운 말로. 기본 동작은 그대로, PC 전체 설정(`Set-AppxDefaultVolume`)은 건드리지 않음.
+  설치는 하지 않음(구문 검사·없는 MSIX 로 매개변수 연결만 확인, 시험 `Wave3IntegrationTests.셸_확장_설치는_…` — BOM 유지 포함).
+  ④ **시험 안정성 하나**: 첫 UTC 전체 실행에서 `ThirdPartyLicenseTests.발행_출력에도_…` 가 'MSB3491 … obj\…\PublishOutputs.*.txt — 다른 프로세스가 사용 중'으로 한 번 실패(같은 시험이 Debug·Release 는 통과 — 회사 PC 보안 프로그램이
+  막 쓴 파일을 검사하는 순간으로 봄) → 그 오류일 때만 1초 뒤 두 번까지 다시 발행(판정은 그대로).
+  확인만 한 것(고칠 것 없음): 창 없이 풀기 분기는 `TempJanitor` 보다 앞(재사용장치 쪽은 청소 안 함), 여러 개·우클릭 풀기의 `BatchExtractor` 는 한 곳에서만 만들어지고 `KeepInternetMark` 를 받음,
+  열기는 표식을 붙인 **뒤** 처음 내용(SHA-256)을 재고 감시를 시작(표식 붙이기를 '고침'으로 보지 않음), 새 기능의 오류 창은 모두 `ErrorMessages.ToUserMessage` 를 거침, 검사→고치기 흐름(W2-08·IJ3-02)은 main 에 없음(주석 둘만).
+  계약 테스트: 전체 2394 → 2408(+14 — `Wave3IntegrationTests` 13·`ReuseDeviceContractTests` +1) — 통과 2408·건너뜀 0·**실패 0**(Debug·Release·UTC 세 번). 기대를 바꾸거나 약하게 한 기존 시험 없음.
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
