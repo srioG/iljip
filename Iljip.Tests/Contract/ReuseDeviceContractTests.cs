@@ -273,7 +273,9 @@ public class ReuseDeviceContractTests
             Assert.False(err.Contains(m, StringComparison.OrdinalIgnoreCase), $"실패 문구에 '{m}': {err}");
         Assert.DoesNotContain("Headless", err);   // 로그 머리는 표준 오류로 나가지 않음
         // 로그 파일 이름은 exe 쪽(시간대 흉내가 닿지 않는 따로 된 프로세스 — 이 PC 시간대)의 날짜. 자정 언저리를 위해 앞뒤 하루도 본다
-        string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Iljip", "logs");
+        // 사용자 PC 에서는 %LOCALAPPDATA%\Iljip\logs(AppPaths.DefaultRoot). 시험이 띄운 exe 는 환경 변수로 시험 자료 폴더의 logs 에 쓴다(I4-1 — 같은 줄, 폴더만 다름)
+        Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Iljip"), Iljip.Services.AppPaths.DefaultRoot());
+        string logDir = Path.Combine(ModuleInit.TestAppDataRoot, "logs");
         string expected = Iljip.App.HeadlessFailureLogHead + b.Path;
         DateTime osToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TestTimeZone.OsLocal).Date;
         bool found = false;
@@ -302,6 +304,7 @@ public class ReuseDeviceContractTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
+        ModuleInit.ApplyTo(psi);   // I4-1: exe 의 로그·설정도 시험 자료 폴더로(사용자 진짜 로그에 쓰지 않게)
         psi.ArgumentList.Add("--extract-to");
         psi.ArgumentList.Add(archive);
         psi.ArgumentList.Add(dest);

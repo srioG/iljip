@@ -841,6 +841,7 @@ public class CommandLineTests
         // 안전장치: --extract-to 의 압축 파일이 없으면 Iljip 이 창(GUI)으로 뜨므로 절대 그렇게 부르지 않는다.
         Assert.True(args.Length == 3 && File.Exists(args[1]), "창 없이 풀기 조건이 아님 — 창이 뜰 수 있어 실행하지 않음");
         var psi = new ProcessStartInfo(IljipExe.Path!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+        ModuleInit.ApplyTo(psi);   // I4-1: exe 의 로그·설정도 시험 자료 폴더로(사용자 진짜 로그에 쓰지 않게)
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi)!;
         using var errBytes = new MemoryStream();

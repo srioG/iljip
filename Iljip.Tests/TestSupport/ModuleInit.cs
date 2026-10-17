@@ -20,12 +20,92 @@ internal static class ModuleInit
         TestTimeZone.ApplyFromEnvironment();
         // W2-05: 일집 자료 폴더(설정 settings.json·임시 폴더)를 시험 전용 빈 폴더로 — 이 PC 사용자가 일집 설정에서 '풀고 나서 압축 파일 지우기'를
         // 켜 두었어도, 가짜 없이 만든 화면(new MainViewModel(ui))이 그 설정을 읽어 진짜 휴지통으로 픽스처를 보내는 일이 없게(설정은 늘 기본값).
+        // I4-1: 로그(AppPaths.Root\logs)도 이 폴더로 — 시험이 사용자 진짜 로그(%LOCALAPPDATA%\Iljip\logs)에 쓰지 않게.
+        // 시험이 띄우는 Iljip.exe 에는 환경 변수(ApplyTo)로 같은 폴더를 준다.
         Iljip.Services.AppPaths.OverrideRootForTests(TestAppDataRoot, processWide: true);
+        SweepStaleAppData();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => DeleteQuietly(TestAppDataRoot);
     }
 
     /// <summary>시험 중 일집 자료 폴더(<see cref="Iljip.Services.AppPaths.Root"/>) — 프로세스마다 따로.</summary>
     internal static readonly string TestAppDataRoot =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IljipTests", $"appdata-{Environment.ProcessId}");
+
+    /// <summary>시험이 띄우는 Iljip.exe 가 이 시험 프로세스와 같은 자료 폴더(로그·설정)를 쓰게 한다(사용자 진짜 로그·settings.json 을 건드리지 않게).</summary>
+    internal static System.Diagnostics.ProcessStartInfo ApplyTo(System.Diagnostics.ProcessStartInfo psi)
+    {
+        psi.Environment[Iljip.Services.AppPaths.TestAppDataEnvVar] = TestAppDataRoot;
+        return psi;
+    }
+
+    /// <summary>
+    /// 앞선 시험 실행이 남긴 appdata-&lt;pid&gt; 가운데 10분 넘게 지났고 그 pid 가 돌지 않는 것만 치운다(%TEMP%\IljipTests 안에서만 — 다른 곳은 보지 않음).
+    /// testhost 는 끝날 때 ProcessExit 정리를 돌리지 않는 일이 있어(I4-1 검증 지적 — 전체 시험 뒤 22MB 폴더가 남음) 다음 시험이 곧바로 치운다(예전: 하루 지난 것만).
+    /// </summary>
+    private static void SweepStaleAppData()
+    {
+        try
+        {
+            string parent = System.IO.Path.GetDirectoryName(TestAppDataRoot)!;
+            if (!System.IO.Directory.Exists(parent)) return;
+            foreach (var dir in System.IO.Directory.EnumerateDirectories(parent, "appdata-*"))
+            {
+                string name = System.IO.Path.GetFileName(dir);
+                if (!int.TryParse(name.AsSpan("appdata-".Length), out int pid) || pid == Environment.ProcessId) continue;
+                if (System.IO.Directory.GetLastWriteTimeUtc(dir) > DateTime.UtcNow.AddMinutes(-10)) continue;
+                if (IsRunning(pid)) continue;
+                DeleteQuietly(dir);
+            }
+        }
+        catch
+        {
+            // 청소 실패는 시험에 영향 없음
+        }
+    }
+
+    /// <summary>
+    /// 그 pid 로 시험 프로세스(testhost·dotnet)가 아직 도는가. pid 가 다른 프로그램(svchost 등)에 다시 쓰였으면 아니다 — 그렇지 않으면 오래된 폴더가 영영 남는다.
+    /// </summary>
+    private static bool IsRunning(int pid)
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            string name = p.ProcessName;
+            if (!name.StartsWith("testhost", StringComparison.OrdinalIgnoreCase) && !name.Equals("dotnet", StringComparison.OrdinalIgnoreCase)) return false;
+            return !p.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;   // 그런 프로세스 없음
+        }
+        catch
+        {
+            return true;    // 모르면 남겨 둔다
+        }
+    }
+
+    /// <summary>TempDir 와 같은 방식 — 읽기 전용을 풀고 세 번까지(DLP 가 잠깐 잡고 있을 수 있음). 못 지우면 남긴다.</summary>
+    private static void DeleteQuietly(string dir)
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                if (!System.IO.Directory.Exists(dir)) return;
+                foreach (var f in System.IO.Directory.EnumerateFiles(dir, "*", System.IO.SearchOption.AllDirectories))
+                {
+                    try { System.IO.File.SetAttributes(f, System.IO.FileAttributes.Normal); } catch { /* 무시 */ }
+                }
+                System.IO.Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(100 * (attempt + 1));
+            }
+        }
+    }
 }
 
 /// <summary>

@@ -6,22 +6,24 @@ namespace Iljip.Services;
 
 /// <summary>
 /// 매우 단순한 파일 로거. 정식 배포 시 구조적 로깅(예: Serilog)으로 교체 가능.
-/// 로그는 %LOCALAPPDATA%\Iljip\logs\error-yyyyMMdd.log 에 일자별로 누적된다.
+/// 로그는 %LOCALAPPDATA%\Iljip\logs\error-yyyyMMdd.log(<see cref="AppPaths.Root"/>\logs)에 일자별로 누적된다.
 /// 로깅 자체가 앱 동작을 방해하면 안 되므로 모든 예외를 내부에서 삼킨다.
 /// </summary>
 public static class Logger
 {
     private static readonly object _gate = new();
 
-    /// <summary>로그 디렉터리 경로(%LOCALAPPDATA%\Iljip\logs). 실패 시 임시 폴더로 폴백.</summary>
-    private static string LogDirectory
+    /// <summary>
+    /// 로그 디렉터리 경로 — 일집 자료 폴더(<see cref="AppPaths.Root"/>)의 logs. 사용자 PC 에서는 예전과 같은 %LOCALAPPDATA%\Iljip\logs
+    /// (재사용장치 지켜보기 명령이 이 폴더를 본다 — MANUAL_CHECKLIST 8절). 시험은 시험 자료 폴더 아래로 가서 사용자 로그에 쓰지 않는다(I4-1).
+    /// </summary>
+    internal static string LogDirectory
     {
         get
         {
             try
             {
-                string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                return Path.Combine(baseDir, "Iljip", "logs");
+                return Path.Combine(AppPaths.Root, "logs");
             }
             catch
             {

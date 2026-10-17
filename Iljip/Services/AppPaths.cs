@@ -6,30 +6,62 @@ namespace Iljip.Services;
 /// 일집이 자기 것을 두는 곳(설계 §3): <c>%LOCALAPPDATA%\Iljip\</c> — 로그(logs\)와 같은 곳이고 OneDrive·로밍과 무관하다.
 /// W2-01 에서는 압축된 tar 목록 캐시(<c>temp\list\&lt;guid&gt;\inner.tar</c>)만 쓴다. 나머지 temp 하위 폴더·설정 파일은 뒤 묶음이 더한다
 /// (W2-04: open·drag·clip·preview 와 settings.json).
-/// 계약 테스트는 <see cref="OverrideRootForTests"/> 로 임시 폴더를 쓴다(실제 사용자 폴더를 건드리지 않게).
+/// 계약 테스트는 <see cref="OverrideRootForTests"/> 로 임시 폴더를 쓴다(실제 사용자 폴더를 건드리지 않게). 시험이 띄운 exe 는
+/// 환경 변수 <see cref="TestAppDataEnvVar"/> 로 같은 폴더를 받는다(I4-1 — 로그 <c>logs\</c> 도 이 아래).
 /// </summary>
 public static class AppPaths
 {
     private static readonly AsyncLocal<string?> TestRoot = new();
     private static string? _globalTestRoot;
 
-    /// <summary>일집 자료 폴더(없으면 만들지 않는다 — 쓰는 쪽이 만든다).</summary>
+    /// <summary>
+    /// 시험이 띄운 Iljip.exe(따로 도는 프로세스)에게 자료 폴더를 알려 주는 환경 변수 이름(I4-1 — 시험이 사용자 진짜 로그·설정을 쓰거나 읽지 않게).
+    /// 비어 있지 않은 절대 경로일 때만 쓴다. 사용자 PC 에는 없다.
+    /// </summary>
+    public const string TestAppDataEnvVar = "ILJIP_TEST_APPDATA";
+
+    /// <summary>
+    /// 일집 자료 폴더(없으면 만들지 않는다 — 쓰는 쪽이 만든다). 찾는 순서: 시험 흐름(AsyncLocal) → 시험 프로세스 전체 →
+    /// 환경 변수 <see cref="TestAppDataEnvVar"/>(시험이 띄운 exe) → <c>%LOCALAPPDATA%\Iljip</c> → <c>%TEMP%\Iljip</c>.
+    /// </summary>
     public static string Root
     {
         get
         {
             if (TestRoot.Value is { } t) return t;
             if (_globalTestRoot is { } g) return g;
-            try
-            {
-                string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                if (!string.IsNullOrEmpty(baseDir)) return Path.Combine(baseDir, "Iljip");
-            }
-            catch
-            {
-                // 아래로
-            }
-            return Path.Combine(Path.GetTempPath(), "Iljip");
+            if (FromEnvironment() is { } e) return e;
+            return DefaultRoot();
+        }
+    }
+
+    /// <summary>환경 변수가 없을 때의 자료 폴더 — 순수 함수(환경 변수·시험 덮어쓰기를 보지 않음).</summary>
+    public static string DefaultRoot()
+    {
+        try
+        {
+            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrEmpty(baseDir)) return Path.Combine(baseDir, "Iljip");
+        }
+        catch
+        {
+            // 아래로
+        }
+        return Path.Combine(Path.GetTempPath(), "Iljip");
+    }
+
+    private static string? FromEnvironment()
+    {
+        try
+        {
+            string? v = Environment.GetEnvironmentVariable(TestAppDataEnvVar);
+            if (string.IsNullOrWhiteSpace(v)) return null;
+            v = v.Trim();
+            return Path.IsPathFullyQualified(v) ? v : null;
+        }
+        catch
+        {
+            return null;
         }
     }
 
