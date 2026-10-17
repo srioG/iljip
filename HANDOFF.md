@@ -91,7 +91,25 @@
   7-Zip 라이선스를 7-zip.org 원문(`licenses\7-Zip-License.txt`)으로 바로잡음(안내·BSD 파일은 원문 줄 그대로, 판 안내 26.03)
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-15 3차 통합 점검 후)
+## 현재 진행 단계 (2026-10-18 4차 통합 점검 후)
+
+**4차 통합 점검 끝 — 커밋·푸시 완료**(코드·시험 bea2cd6, 이 문서 갱신은 그다음 커밋 — 아래 변경 이력 '4차 통합 점검'). 4차 묶음은 **I4-1 하나**(IJ3-02 다시 — 압축 검사 I2-7·오류 원인 문제 창 I2-8·
+깨진 ZIP 고치기 I3-12 를 '정직한 보수 모드'로)였고, 구현 → 검증 지적 수정 1차·2차 뒤 **3차 검증에서 되돌려 `stash@{0}` `iljip-wave4-I4-1-failed`** 에 있다(drop 안 함).
+되돌린 까닭은 major 하나 — 이 문서에 'I4-1 커밋에 넣을 새 파일' 목록이 없고(새 파일 19개, `Iljip/Views/ProblemDialog.xaml.cs` 는 어디에도 이름이 없음) 보고의 바뀐 파일 목록에
+두 파일(`Wave3IntegrationTests.cs` 수정·`ArchiveTestReview6Tests.cs` 새 파일)이 빠진 **문서·보고 누락**이다. 제품 동작 쪽 수락 기준(C0~F3·G2~G4 — 멀쩡한 ZIP 오보 0, 검사·풀기·고치기 거짓 성공 오라클 0,
+재사용장치 약속, 전체 시험 2862 실패 0)은 3차 검증에서 모두 통과했다 — 다시 할지는 사람이 정함(아래 '다음 단계' 4).
+**stash 다섯**(번호가 하나씩 밀림): `@{0}` I4-1 · `@{1}` `iljip-wave3-IJ3-02-failed` · `@{2}` `iljip-wave2-W2-08-failed` · `@{3}` `iljip-wave2-W2-04-failed` · `@{4}` `iljip-wave1-W1-B-failed` — 모두 그대로.
+**통합 점검에서 main 에 들인 것은 '시험 로그 격리' 하나**(I4-1 의 B 몫 — 보관분과 **같은 글자 그대로**라 보관분을 다시 얹어도 이 부분은 겹치지 않음, `git merge-tree` 로 확인):
+계약 테스트와 시험이 띄우는 Iljip.exe 가 사용자 진짜 로그 `%LOCALAPPDATA%\Iljip\logs`(재사용장치 지켜보기 명령이 보는 곳)에 쓰지 않는다 — 로그 폴더를 `AppPaths.Root\logs` 로,
+시험 프로세스는 `%TEMP%\IljipTests\appdata-<pid>`(끝나면 지우고, 남은 것은 다음 시험이 10분 뒤 치움), 시험이 띄우는 exe 는 환경 변수 `ILJIP_TEST_APPDATA`(`ModuleInit.ApplyTo`).
+사용자 PC 에서는 예전과 같은 폴더(환경 변수가 없으면 `AppPaths.DefaultRoot()` = `%LOCALAPPDATA%\Iljip`). 새 시험 `Wave4IntegrationTests` 3개.
+계약 테스트 실패 0(전체 2411 — 통과 2411·건너뜀 0, **Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두**). Release 빌드 경고 0·오류 0(출력 `D:\Python\일집-build\dotnet\Iljip\bin\Release`).
+세 번 돌리는 동안 `%LOCALAPPDATA%\Iljip\logs` 파일 크기·시각 그대로(확인). 실제 Release exe 로 창 없이 풀기 약속을 따로 확인(아래 변경 이력).
+사용자 로그 폴더: 10/13·10/14 로그(85MB·255MB — IJ3-02 시험 기록)는 I4-1 때 `D:\Python\일집-build\시험로그-보관\` 로 옮겨져 있다(지우지 않음). 10/15(26MB)·10/18(380KB — 10/18 04:10~04:24
+I4-1 을 되돌린 뒤 격리가 없던 main 으로 돈 시험 기록뿐) 로그는 그대로 — 지울지는 사람이 정함(일집 동작과 무관, 지켜보기 명령은 `IljipTests` 줄을 뺌).
+**설치·등록·재배포는 하지 않았다**: `D:\Python\일집-dist` 는 아직 2026-06-23 판, 셸 확장·파일 연결 반영 안 함, `Iljip\bin` 에 exe 없음.
+다른 세션의 `fix-zipcrypto-descriptor` 갈래(`D:\Python\일집-build\wt-zipcrypto` — 흘려 쓴 암호 ZIP 풀기)와 그 패치(`D:\Python\일집-build\zipcrypto-fix`)는 건드리지 않았다(이번에 바꾼 파일과 겹치지 않음 — 패치는 이 묶음 뒤에 얹을 예정).
+그 전(3차 통합 점검) 기록:
 
 **3차(IJ3-01·IJ3-03) 통합 점검 끝 — 커밋·푸시 완료**(코드·시험 5e534c1, 이 문서 갱신은 그다음 커밋). 3차 묶음: IJ3-01(W2-04 다시 — 끌어 꺼내기·Ctrl+C·그림 미리 보기·바로 열기 나머지) 커밋 f1ef006,
 IJ3-03(인터넷 표시 MOTW·7-Zip 라이선스 원문) 커밋 981a048 — 둘 다 푸시됨. **IJ3-02(압축 검사·깨진 ZIP 고치기 — W2-08 다시)는 검증에서 되돌려 `stash@{0}` `iljip-wave3-IJ3-02-failed`** 에 있다
@@ -175,14 +193,16 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 계약 테스트 실패 0(통과 834·건너뜀 6·전체 840 — Debug·Release·`ILJIP_TEST_TZ=UTC` 모두). **`D:\Python\일집-dist`(재사용장치가 매일 egg 를 푸는 배포본)는 아직 예전 판**
 (2026-06-23, SharpCompress 0.38.0·EggDotNet 0.3.0)이다 — 바꾸기 전에 아래 '일집-dist 재배포' 절과 `Iljip.Tests/MANUAL_CHECKLIST.md` 를 사람이 확인할 것.
 
-**다음 단계**(3차 통합 점검 후 — 모두 사람이 할 일):
-1. **재배포 전 실제 PC 확인**: MANUAL_CHECKLIST **22절**(3차 통합 — 20분) + **21절**(인터넷 표시·7-Zip 원문) + **20절**(끌기·Ctrl+C·미리 보기) + **19절**(Wave 2 통합) + 0·2·6·8·9절(진짜 알집·WinRAR 파일, 재사용장치 egg 해제, 7z.dll 이 막힌 PC).
+**다음 단계**(4차 통합 점검 후 — 모두 사람이 할 일. 3차 뒤와 같고 1·4 에 4차 몫을 더함):
+1. **재배포 전 실제 PC 확인**: MANUAL_CHECKLIST **23절**(4차 통합 — 5분: 이 PC 에 시험용 환경 변수가 없는지·새 판 실패 기록이 진짜 로그 폴더에 남는지) + **22절**(3차 통합 — 20분) + **21절**(인터넷 표시·7-Zip 원문) + **20절**(끌기·Ctrl+C·미리 보기) + **19절**(Wave 2 통합) + 0·2·6·8·9절(진짜 알집·WinRAR 파일, 재사용장치 egg 해제, 7z.dll 이 막힌 PC).
    시간이 되면 10~17절(새 기능 화면 — 7z 만들기·나눠 만들기·같은 이름 창·압축 고치기·한 화면 압축 창·풀기 창·자동 풀림 EXE·시작 화면)
 2. 확인되면 **일집-dist 재배포**(아래 '일집-dist 재배포' 절 — 재사용장치가 돌지 않는 시간에) → **반디집은 1~2주 그대로 두고** MANUAL_CHECKLIST 8절 끝 '재배포 뒤 1~2주 지켜보기'
    (진짜 egg 견본이 없어 합성 egg 로만 시험 — 일집이 못 푼 첨부는 재사용장치가 반디집으로 풀고, 일집 오류 로그에 `Headless extract failed: <경로>` 와 이유가 남음)
 3. **셸 확장·파일 연결 반영**(아래 '셸 확장·파일 연결 반영(W2-12)' 절 — 인증서·`Rebuild.ps1`·`--register-associations`) → MANUAL_CHECKLIST 18절. 일집-dist 와는 따로(셸 확장은 `일집-build\package\Iljip.exe` 를 부름).
    **이 PC 는 '새 앱 저장 위치'가 D: 라 `.\Rebuild.ps1 -SystemVolume`** 으로(그냥 하면 0x80070032 로 실패할 수 있음 — 그 절의 '설치 볼륨' 줄)
-4. 결정할 것(아래 '향후 작업'): W2-08·IJ3-02(stash) 다시 할지, '다른 이름으로 저장'·자동 풀림 exe 에도 인터넷 표시를 옮길지, 지켜보기 뒤 반디집을 지울지,
+4. 결정할 것(아래 '향후 작업'): **I4-1(stash `@{0}`) 다시 할지**(다시 하면 보관분을 얹고 이 문서에 새 파일 19개 목록을 넣는 일부터 — 아래 '향후 작업' 의 (결정) 줄),
+   I4-1 범위에서 남긴 결정 셋(목록·로컬 이름이 다른 파일은 '못 살린 파일'로 둘지, 암호 없이 고칠 때 암호 파일을 옮길지, 시험이 남긴 10/15·10/18 로그를 지울지),
+   '다른 이름으로 저장'·자동 풀림 exe 에도 인터넷 표시를 옮길지, 지켜보기 뒤 반디집을 지울지,
    Windows '새 앱 저장 위치'를 C: 로 되돌릴지(PC 전체 설정 — OneDrive 앱 패키지도 같은 0x80070032 로 설치 실패 중). (W2-04 는 IJ3-01 에서 다시 함, MOTW·7-Zip 원문은 IJ3-03 에서 끝 — 사용자 결정 I2-15)
 (예전 다음 단계 — 1~8절 확인·W1-B 다시 시도 — 는 위에 합침. W1-B 는 W2-01 에서, 7z 만들기 W2-02, 분할 만들기 W2-03 에서 끝)
 
@@ -244,6 +264,11 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
     (자동 16시 모드만 `D:\Python\재사용장치\System_code\logs\batch_날짜.log`), 재배포 뒤 반디집으로 넘어간 진짜 egg 를 이 로그로 찾는다 — MANUAL_CHECKLIST 8절 끝 '재배포 뒤 1~2주 지켜보기'.
     로그 쓰기가 다른 일집 프로세스와 겹쳐 잠깐 막히면 5번까지 다시 쓴다(예전엔 그 기록을 말없이 잃음).
   - 주의: 이 PC 에서 개발 시험을 돌리면 같은 로그에 시험 기록이 쌓인다(경로에 `IljipTests` — 지켜보기 명령은 그 줄을 뺌). 10/13·10/14 로그는 IJ3-02 손상 훑기 시험 때문에 85MB·255MB — 지워도 된다(사람이 정함).
+    → **4차 통합 점검부터 main 의 시험은 이 로그에 쓰지 않는다**(아래 4차 판 줄). 10/13·10/14 로그는 `D:\Python\일집-build\시험로그-보관\` 로 옮겨져 있다. 격리 전 판에서 갈라진 작업 폴더(예: `wt-zipcrypto`)의 시험은 그 갈래가 main 을 합치기 전까지 여전히 쓴다.
+- **4차 판(4차 통합 점검 — I4-1 은 stash 라 들어오지 않음)에서 재사용장치에 더 바뀌는 점**: 종료 코드·표준 오류 문구·풀린 결과는 3차 판과 같다(`ReuseDeviceContractTests` 8개 — 실제 exe, 그리고 실제 Release exe 로 따로 확인 — 아래 변경 이력 '4차 통합 점검').
+  - 오류 로그는 예전과 같은 `%LOCALAPPDATA%\Iljip\logs\error-날짜.log`(같은 `Headless extract failed: <첨부 경로>` 줄). 로그·설정·임시 폴더의 뿌리를 `AppPaths.Root` 한 곳에서 정하게 바꿨고,
+    시험만 쓰는 환경 변수 **`ILJIP_TEST_APPDATA`** 가 있으면(비지 않은 절대 경로일 때만) 그 폴더를 쓴다 — 사용자 PC 에는 없어야 한다(MANUAL_CHECKLIST 23절 첫 줄로 확인. 있으면 지켜보기 명령이 실패 기록을 못 찾음).
+  - 발행 파일 수·이름은 그대로(46개 — 아래 발행 파일 줄).
 - **진짜 egg 지켜보기 계획(재배포 뒤 1~2주)**: 진짜 알집 egg 견본이 없어 egg 는 합성 파일로만 시험했다(크기·CRC 확인이 진짜 파일에서 어긋날 위험 — 위 '위험'). 그래서 재배포한 뒤 **반디집을 지우지 않고 1~2주**
   (egg 첨부 5~10개 — 6월 배치 로그로는 2주에 1~2개) 지켜본다: 재사용장치 화면의 '(Iljip 해제 실패: … → Bandizip 폴백)' 줄 + 일주일에 한 번 오류 로그 명령(MANUAL_CHECKLIST 8절 끝).
   암호 egg 실패는 정상(창 없이는 암호를 못 넣음 — 반디집이 풂). 그 밖의 이유가 2주 동안 없으면 반디집을 지울지 정한다(사람). 있으면 그 egg 를 보관해 다음 판에서 고친다.
@@ -385,6 +410,8 @@ dotnet run --project Iljip
 13. **(3차 통합 점검) 이 PC 의 '새 앱 저장 위치'는 D:**(`Get-AppxDefaultVolume` → `D:\WindowsApps`). MSIX 를 기본대로 넣으면 0x80070032('시스템 볼륨에 설치되어 있지 않아…')로 실패할 수 있다
     (OneDrive 앱 패키지가 실제로 그렇게 실패 중) — 셸 확장은 `.\Rebuild.ps1 -SystemVolume`. 로그 머리 `Headless extract failed: ` 는 MANUAL_CHECKLIST 8절 지켜보기 명령이 찾는 글이라 바꾸지 말 것
     (`App.HeadlessFailureLogHead` — `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_…`)
+14. **(4차 통합 점검) 시험이 Iljip.exe 를 띄울 때는 꼭 `ModuleInit.ApplyTo(psi)`** — 안 하면 그 exe 가 사용자 진짜 로그(`%LOCALAPPDATA%\Iljip\logs`)에 쓴다(`Wave4IntegrationTests` 가 시험 소스를 훑어 막음).
+    로그를 새로 쓰는 코드는 `Logger`(→ `AppPaths.Root\logs`)만 쓸 것 — `Environment.GetFolderPath(LocalApplicationData)` 를 직접 부르면 시험 격리가 깨진다(`AppPaths.DefaultRoot()` 만 그 값을 읽음)
 
 ## 향후 작업
 
@@ -412,8 +439,15 @@ dotnet run --project Iljip
       (`File.Replace` 길은 Windows 가 표시를 이어 줌 — `Wave3IntegrationTests.표시가_있는_압축을_고쳐도_…`). 그런 드라이브는 대개 표시 자체를 못 담아 실제 영향은 작음 — 예비 이름 길에서 표식을 옮길지는 다음에
 - [ ] (3차 통합 점검 기록) I2-8 의 나머지 — 영어 엔진 문구 뒤에 따옴표 없는 한글 경로가 붙으면 `ErrorMessages` 가 한국어 문구로 보고 그대로 보임(드묾). 고친 판정(`LooksKorean`·`FromEngine`)은 IJ3-02 보관분에 있음 —
       IJ3-02 를 다시 할 때 같이. 3차 기능의 화면·예외 문구에 영어만으로 된 글은 없음(`Wave3IntegrationTests.화면과_예외_문구에_…` — 본체 전체 소스·XAML 훑기)
-- [ ] (결정) **IJ3-02 다시 할지** — 보관분 `stash@{0}` `iljip-wave3-IJ3-02-failed`(W2-08 다시: `--test` 압축 검사·문제 창·깨진 ZIP 고치기 — 5차 검증에서도 '저장 항목 속 ZIP 머리를 바깥 파일로 살림'·
-      '흘려 쓴 ZIP 의 512바이트 0 블록'·'로컬 서명과 목록 이름이 함께 깨지면 말없이 빠짐' 지적이 남음). 하지 않으면 검사→고치기 흐름은 없고(지금 main 은 '다 만들고 시험하기'·고치기 전 원본 검사만), 재배포에는 영향 없음
+- [x] (결정) IJ3-02 다시 할지 → **I4-1(4차, 2026-10-16~17)에서 다시 함** — 보관분 `stash@{1}`(지금 번호) `iljip-wave3-IJ3-02-failed` 를 얹고 고치기는 '정직한 보수 모드'로 다시 짰지만 3차 검증에서 되돌림(아래 줄)
+- [ ] (결정) **I4-1 다시 할지** — 보관분 `stash@{0}` `iljip-wave4-I4-1-failed`(압축 검사 `--test`·☰·우클릭 '시험하기', 오류 원인 문제 창과 창 없이 풀기 stderr 한국어, 깨진 ZIP 고치기 '정직한 보수 모드').
+      3차 검증에서 제품 동작 수락 기준은 모두 통과했고 걸린 것은 **문서·보고 누락 하나**(이 문서에 'I4-1 커밋에 넣을 새 파일' 목록 없음 — 새 파일 19개: `Iljip/Services/`(`ArchiveTestService.cs`·`ErrorCatalog.cs`·`ZipRepairer.cs`)·
+      `Iljip/ViewModels/MainViewModel.Test.cs`·`Iljip/Views/ProblemDialog.xaml(.cs)`, 시험 `Iljip.Tests/Contract/`(`ArchiveTestReviewTests.cs`·`ArchiveTestReview2~7Tests.cs`·`ArchiveTesterTests.cs`·`ErrorCatalogTests.cs`·`UiStringAuditTests.cs`·`ZipRepairHonestTests.cs`·`ZipRepairTests.cs`)·
+      `Iljip.Tests/TestSupport/RepairOracle.cs` — `git show --stat stash@{0}^3` 로 확인한 목록). 다시 하면: `git stash apply stash@{0}` → 시험 로그 격리 몫(`AppPaths.cs`·`Logger.cs` 의 로그 폴더·`ModuleInit.cs`·두 시험의 `ApplyTo`)은 4차 통합 점검이 같은 글자로 먼저 들여 겹치지 않음
+      (`git merge-tree` 확인 — 문서 셋과 `MANUAL_CHECKLIST` 23절 번호는 손으로 — 보관분의 23절은 24절로) → 이 문서에 위 19개 목록 → 전체 시험. 범위가 남긴 한계(cut — 목록·로컬 이름이 다르면 '못 살린 파일', 훑기 모드에서 중간이 깨지면 뒤 조각은 수만,
+      깨진 데이터는 고치지 않음, 7z·RAR·EGG·ALZ 고치기는 안 함 등 12가지)는 보관분 HANDOFF 'I4-1' 절. 하지 않으면 검사→고치기 흐름은 없고(지금 main 은 '다 만들고 시험하기'·고치기 전 원본 검사만), 재배포에는 영향 없음
+- [ ] (I4-1 이 main 에 없어 남은 것 — 3차 검증 보고) 0 으로만 채운 1,000바이트 넘는 `.zip` 을 창 없이 풀면 종료 코드 0·파일 0개(엔진이 빈 tar 로 봄 — I4-1 이 손상으로 고침).
+      재사용장치는 `.zip` 을 일집에 넘기지 않아 지금은 해당 없음(egg·alz·7z·rar 는 4차 통합 점검에서 따로 확인 — 아래 변경 이력)
 - [x] **W2-03**: 분할 압축(나눠 만들기 — I2-2 만들기) — ZIP PKZIP 나눔·7Z 숫자 조각·옵션 창 '나누기' 칸(아래 변경 이력)
 - [ ] W2-03 남은 확인: MANUAL_CHECKLIST 11절(옵션 창 '나누기' 칸, Windows 탐색기·알집으로 나눔 ZIP 열기, 진짜 메일 첨부, OneDrive 폴더)
 - [x] **W2-05**: 같은 이름 묻기(I1-5)·메인 창 없는 우클릭 풀기(I1-6)·풀고 나서 압축 파일 휴지통으로(I2-5)·여러 개 풀기(I2-6), 설정 창(☰ ▸ 설정)
@@ -1209,6 +1243,25 @@ dotnet run --project Iljip
   열기는 표식을 붙인 **뒤** 처음 내용(SHA-256)을 재고 감시를 시작(표식 붙이기를 '고침'으로 보지 않음), 새 기능의 오류 창은 모두 `ErrorMessages.ToUserMessage` 를 거침, 검사→고치기 흐름(W2-08·IJ3-02)은 main 에 없음(주석 둘만).
   계약 테스트: 전체 2394 → 2408(+14 — `Wave3IntegrationTests` 13·`ReuseDeviceContractTests` +1) — 통과 2408·건너뜀 0·**실패 0**(Debug·Release·UTC 세 번). 기대를 바꾸거나 약하게 한 기존 시험 없음.
   `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
+- **2026-10-18 4차 통합 점검 — 시험 로그 격리(커밋 bea2cd6·푸시, 설치·배포 안 함)**: 4차 묶음 I4-1 은 3차 검증에서 되돌려 `stash@{0}` `iljip-wave4-I4-1-failed`(위 '현재 진행 단계') — main 에 들어온 제품 기능은 없다.
+  ① **고친 것 — 시험이 사용자 진짜 로그에 쓰던 것**: 계약 테스트(그리고 시험이 띄운 Iljip.exe)가 `%LOCALAPPDATA%\Iljip\logs` 에 시험 기록을 쌓아(3차까지 전체 시험 한 번에 수백 KB, IJ3-02 시험은 하루 85MB·255MB —
+  10/18 에도 I4-1 을 되돌린 뒤 돈 main 시험이 04:10~04:24 에 380KB) 재배포 뒤 '진짜 egg 지켜보기' 로그를 흐리던 것. I4-1 보관분의 B 몫을 **같은 글자 그대로** 들였다(보관분을 다시 얹을 때 겹치지 않게 —
+  `git merge-tree --merge-base f49c672 HEAD stash@{0}` 로 코드 파일 충돌 없음 확인 — 얹은 결과는 보관분 그대로 + 이번 새 시험 파일 하나):
+  `AppPaths.Root` 찾는 순서 = 시험 흐름(AsyncLocal) → 시험 프로세스 전체 → 환경 변수 `ILJIP_TEST_APPDATA`(비지 않은 절대 경로일 때만) → `DefaultRoot()`(`%LOCALAPPDATA%\Iljip`, 없으면 `%TEMP%\Iljip`),
+  `Logger.LogDirectory` = `AppPaths.Root\logs`(사용자 PC 에서는 예전과 같은 폴더), 시험 `ModuleInit` 이 시험 자료 폴더를 끝날 때 지우고 앞선 실행이 남긴 10분 넘은 `appdata-<pid>`(그 pid 의 시험이 돌지 않을 때만)를 치움,
+  시험이 Iljip.exe 를 띄우는 두 곳(`CommandLineTests.RunIljipCapture`·`ReuseDeviceContractTests.RunIljip`)에 `ModuleInit.ApplyTo`. `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_…` 는
+  시험 자료 폴더의 logs 에서 같은 `Headless extract failed: <경로>` 줄을 찾고, 사용자 PC 의 폴더(`DefaultRoot`)가 `%LOCALAPPDATA%\Iljip` 그대로임을 함께 확인(기대는 더 엄격 — 예전엔 사용자 로그를 읽기만 함).
+  새 시험 `Wave4IntegrationTests` 3개: 시험의 자료·로그 폴더가 사용자 폴더가 아니고 실제로 쓴 줄이 시험 폴더에 남음, `ApplyTo` 가 환경 변수를 넘김, 시험 소스에서 Iljip.exe 를 띄우는 곳이 모두 `ApplyTo` 를 거침.
+  ② **교차 확인**(고칠 것 없음): 실제 Release exe(`--extract-to` — 자식마다 120초 제한, 실패 로그는 `ILJIP_TEST_APPDATA` 로 스크래치 폴더에) 22가지 — 인터넷 표시를 붙인 반디집 ZIP·7Z·TGZ·CP949 ZIP·맥 NFD ZIP·
+  나눠진 ZIP(.zip 을 골라)은 종료 0·내용이 매니페스트 SHA-256 그대로·풀린 파일에 표시 없음(ZIP 하나는 환경 변수 없이 — 성공은 로그를 쓰지 않음), 받다 만 ZIP·7Z, 0 으로 채운 EGG·ALZ·7Z·RAR(4,096·300바이트 —
+  재사용장치가 일집에 넘기는 확장자), 암호 ZIP, CRC 손상 ZIP 은 종료 1·한 줄·반쪽 파일 없음('압축 파일이 손상됐어요. 다시 받아 보세요.' 등), 내용이 압축이 아닌 `.xyz` 는 종료 2 'Unsupported archive type: .xyz',
+  실패 로그 `Headless extract failed: <경로>` 는 환경 변수 폴더에, 사용자 로그 네 파일 그대로. 예전부터 있던 것 둘(I4-1 이 고쳤지만 stash — 회귀 아님): 0 으로만 채운 4KB `.zip` 은 종료 0·파일 0개
+  (재사용장치는 `.zip` 을 넘기지 않음 — '향후 작업'), 받다 만 `.zip` 의 메인 창 오류·창 없이 풀기 stderr 는 '알 수 없는 오류가 났어요: Failed to locate the Zip Header'(우클릭·여러 개 풀기 창은 쉬운 한국어 —
+  `ExtractSettingsTests.모르는_엔진_오류는_쉬운_한국어로` 가 지금 동작으로 고정, 고친 분류는 I4-1 보관분의 `ErrorCatalog`). Release 발행(`--no-build`, 스크래치 폴더) 46개·맨 위 11개·`x64\7z.dll` 그대로.
+  검사→고치기 흐름은 main 에 없음(I4-1 stash). 끌어 꺼내기·바로 열기·Ctrl+C·미리 보기·설정의 폴더(`AppPaths.Root` 아래)는 사용자 PC 에서 같은 곳이고, 시험에서는 예전부터 시험 폴더(기존 시험 그대로 통과).
+  로그 폴더를 직접 읽는 본체 코드는 `Logger` 하나뿐(소스 확인).
+  계약 테스트: 전체 2408 → 2411(+3 `Wave4IntegrationTests`) — 통과 2411·건너뜀 0·**실패 0**(Debug·Release·UTC 세 번, 걸린 시간 Debug 7분 46초·Release 6분 50초·UTC 6분 23초). 기대를 바꾸거나 약하게 한 기존 시험 없음.
+  세 번 돌리는 동안·실제 exe 확인 뒤에도 `%LOCALAPPDATA%\Iljip\logs` 네 파일(10/12·10/15·10/16·10/18) 크기·시각 그대로. `D:\Python\일집-dist` 는 건드리지 않았고 `Iljip\bin\Release·Debug` 에 exe 없음.
 
 ## 사용자 선호
 

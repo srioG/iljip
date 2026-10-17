@@ -53,7 +53,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 
 - 솔루션(`Iljip.sln`) 전체를 `dotnet test` 로 돌리면 C++ 셸 확장 때문에 실패하므로 **csproj 를 직접** 지정합니다.
 - 처음 한 번은 NuGet(xunit 등)을 내려받습니다. 그다음부터는 빌드 포함 약 1분, 테스트만 30~60초.
-- 결과(2026-10-15 3차 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두): `통과!  - 실패: 0, 통과: 2408, 건너뜀: 0, 전체: 2408` — 남은 Skip 없음(IJ3-03 후 2394, IJ3-01 후 2345). 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
+- 결과(2026-10-18 4차 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두): `통과!  - 실패: 0, 통과: 2411, 건너뜀: 0, 전체: 2411` — 남은 Skip 없음(3차 통합 점검 후 2408, IJ3-03 후 2394, IJ3-01 후 2345). 반디집·픽스처가 없는 PC 에서는 아래처럼 환경 조건으로 건너뛰는 것이 생깁니다.
   (Wave 2 통합 점검 후 — Debug·Release·`ILJIP_TEST_TZ=UTC` 세 번 모두: 통과 2175·건너뜀 0·전체 2175, W2-12 후: 통과 2105·건너뜀 0·전체 2105, W2-11 후: 통과 2041·건너뜀 0·전체 2041, W2-10 검증 지적 수정 2차 후: 통과 1937·건너뜀 0·전체 1937, W2-10 검증 지적 수정 1차 후: 통과 1919·건너뜀 0·전체 1919, W2-10 후: 통과 1900·건너뜀 0·전체 1900, W2-09 검증 지적 수정 1차 후: 통과 1843·건너뜀 0·전체 1843, W2-09 후: 통과 1816·건너뜀 0·전체 1816, W2-07 검증 지적 2차 후: 통과 1746·건너뜀 1·전체 1747, W2-06 검증 지적 2차 후: 통과 1643·건너뜀 1·전체 1644, W2-06 검증 지적 1차 후: 통과 1614·건너뜀 1·전체 1615, W2-06 후: 통과 1587·건너뜀 1·전체 1588, W2-05 후: 통과 1423·건너뜀 1·전체 1424, W2-03 후: 통과 1304·건너뜀 1·전체 1305, W2-02 후: 통과 1200·건너뜀 1·전체 1201)
   (W1-A 전: 통과 394·건너뜀 20·전체 414 → W1-A: 통과 430·건너뜀 10·전체 440 → W1-A 1차 검증: 통과 478·건너뜀 10·전체 488 → W1-C: 통과 578·건너뜀 6·전체 584
   → W1-D: 통과 714·건너뜀 6·전체 720 → W1-D 1차 검증: 통과 759·건너뜀 6·전체 765 → 통합 점검: 통과 834·건너뜀 6·전체 840
@@ -61,6 +61,9 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
   반디집 콘솔(`C:\Program Files\Bandizip\bz.exe`)이 없는 PC 에서는 `BandizipCliTests` 3개와 `RarTests.합성_RAR을_반디집도_맞게_푼다` 1개, (W2-03) `SplitCreateTests` 의 반디집 시험(나눔 ZIP·7z 조각 — Theory 행 포함 32개)이, (W2-06) `ArchiveEditTests.고친_압축을_반디집이_푼다`(12개)가, 로컬 SFX 픽스처가 없으면 SFX 테스트가 더 건너뜁니다.
   빌드된 `Iljip.exe` 를 못 찾으면 실제 exe 를 띄우는 테스트(`CommandLineTests.실행파일_…`, `ReuseDeviceContractTests` 7개 — IJ3-03 의 '인터넷 표시를 붙이지 않는다'·3차 통합 점검의 '실패하면 오류 로그에 압축 경로' 포함)가 건너뜁니다.
   (3차 통합 점검) `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_…` 는 이 PC 의 진짜 일집 오류 로그(`%LOCALAPPDATA%\Iljip\logs\error-날짜.log`)를 **읽기만** 합니다(exe 가 거기에 씀 — 시험 기록은 경로에 `IljipTests`).
+  → **(4차 통합 점검) 시험 로그 격리**: 이제 시험은 사용자 진짜 로그에 쓰지도 읽지도 않습니다. 시험 프로세스의 일집 자료 폴더는 `%TEMP%\IljipTests\appdata-<pid>`(로그는 그 아래 `logs\` — `Logger.LogDirectory = AppPaths.Root\logs`),
+  시험이 띄우는 Iljip.exe 는 환경 변수 `ILJIP_TEST_APPDATA`(`ModuleInit.ApplyTo` — **새 시험이 exe 를 띄울 때도 꼭 거칠 것**, `Wave4IntegrationTests` 가 소스를 훑어 막음)로 같은 폴더를 받습니다.
+  끝나면 그 폴더를 지우고, testhost 가 정리를 못 하고 끝난 폴더는 10분 뒤 다음 시험이 시작할 때 치웁니다(그 pid 의 시험이 돌고 있으면 둠).
   (IJ3-03) `ThirdPartyLicenseTests.발행_출력에도_…` 는 `dotnet publish --no-build` 를 시험 임시 폴더에 한 번 돌립니다(약 3초, NuGet·인터넷 없음 — `dotnet` 이 PATH 에 있어야 함.
   3차 통합 점검부터 보안 프로그램이 obj 파일을 잠깐 잡은 'MSB3491' 일 때만 1초 뒤 두 번까지 다시 발행).
   (W2-01) Windows 의 IMAPI2FS(디스크 이미지 만들기)가 없는 PC 에서는 `DiscImageTests` 가 환경 조건(`DiscImageFact`)으로 건너뜁니다.
@@ -168,6 +171,7 @@ dotnet test D:\Python\일집\Iljip.Tests\Iljip.Tests.csproj
 | `Contract/ReuseDeviceContractTests.cs` | (통합 점검) 재사용장치(`재사용장치_processor.py`)가 기대는 `Iljip.exe --extract-to` 약속 — 실제 exe 로 egg·alz·RAR4·RAR5·분할 egg 는 종료 0, 암호·잘린 파일은 종료 1 이고 실패 문구가 '압축 파일 아님'으로 읽히지 않음(반디집 재시도 유지), 본체 문구 검사. (W2-02) 일집·py7zr 이 만든 헤더 암호 7z·머리 암호 RAR5 를 창 없이 풀면 묻지 않고 종료 1·'파일 목록까지 암호로 잠긴…'·아무것도 안 남김. (W2-05) 같은 폴더에 두 번 풀어도 묻지 않고 종료 0·'이름 (1)'·압축 파일 그대로. (Wave 2 통합 점검) 그 '이름 (1)' 이 7z.dll 길(7z·RAR5·LZH)·압축된 TAR·ZIP CP949 에서도 같고 임시 파일이 남지 않음. (IJ3-03) 인터넷에서 받은 첨부(압축에 Zone.Identifier ZoneId=3)를 창 없이 풀어도 풀린 파일에는 표시를 **붙이지 않음**(EGG·ALZ·RAR5·ZIP·7Z·TGZ — 재사용장치 엑셀 자동 처리를 막지 않게) |
 | `Contract/InternetMarkTests.cs` | [IJ3-03, I2-15 사용자 결정] 인터넷에서 받은 압축(Zone.Identifier)을 일집 창·탐색기 우클릭(여기에·'이름' 폴더·알아서)으로 풀면 풀린 파일마다 표시를 **바이트 그대로**(ZoneId·ReferrerUrl·HostUrl) — 해제 길 전부(ZIP·7Z·LZH·TGZ·TAR·GZ·raw BZ2·XZ·EGG·ALZ·RAR5·RAR4), 이번에 만든 파일에만(원래 있던 파일·[건너뛰기]한 파일·같은 폴더의 압축 자체는 그대로, [덮어쓰기]한 파일은 붙임), 수정 시각은 압축에 적힌 그대로, 고른 항목만·암호 다시 묻기·손상으로 멈춤(앞 파일엔 붙음)·다 풀고 휴지통, 진행 창 단계 알림, 표시 없는 압축은 아무것도 안 함, 설정 `extract.keepInternetMark`(기본 켬·끄면 풀기·열기·Ctrl+C·끌기 모두 안 붙임·JSON 이름), 범위(`ExtractionScope.CreatedFiles`)가 raw bz2 도 적음 |
 | `Contract/ThirdPartyLicenseTests.cs` | [IJ3-03, I2-15] 7-Zip 라이선스 원문 대조: `licenses\7-Zip-License.txt` 가 7-zip.org License.txt 와 같음(6031바이트·SHA-256·'1999-2025'), BSD 3·2조항 파일은 원문 절을 그대로 자른 것(연도 있는 저작권 줄, 기억으로 적었던 소스 파일 이름 없음), 안내의 7-Zip 부분은 원문 머리·unRAR 제한을 줄 그대로 + 판 안내(26.03), 빌드 출력(본체·시험)과 **발행 출력**(`dotnet publish --no-build` 를 임시 폴더에)에 안내·라이선스가 같은 바이트로, 프로젝트 파일의 복사 설정 |
+| `Contract/Wave4IntegrationTests.cs` | (4차 통합 점검, 2026-10-18) 시험 로그 격리: 시험 프로세스의 일집 자료·로그 폴더는 시험 전용(`%TEMP%\IljipTests\appdata-<pid>`)이고 실제로 쓴 줄이 거기 남음, 사용자 PC 의 자료 폴더는 `%LOCALAPPDATA%\Iljip` 그대로, 시험이 띄우는 Iljip.exe 는 환경 변수 `ILJIP_TEST_APPDATA` 로 같은 폴더를 받음(시험 소스의 exe 띄우는 곳 전부 — 소스 훑기) |
 | `Contract/Wave3IntegrationTests.cs` | (3차 통합 점검, 2026-10-15) IJ3-01·IJ3-03 × 앞 묶음: 같은 이름 [이름 바꾸기](W2-05)로 비켜 푼 사본에만 인터넷 표시(ZIP·7z.dll·EGG), 표시가 있는 압축을 고쳐도(W2-06) 압축 표시가 남고 다시 풀면 넣은 파일까지, 받은 압축 속 파일을 열어 고쳐 다시 넣어도 묻기 한 번·압축 표시 그대로, 나눠 만든 조각 묶음(W2-03 ZIP·7Z)·자동 풀림 exe(일집 스텁·7-Zip SFX)를 창에서 풀어도 표시. **오류 문구 전수(소스)** — 본체 전체 .cs 의 화면 호출·던지는 예외·XAML 글자에 영어만으로 된 문구가 없음(허용 셋 — 이유는 시험 안). 셸 확장 설치 스크립트의 `-SystemVolume`(기본은 그대로, BOM 유지) |
 | `Contract/Wave2IntegrationTests.cs` | (Wave 2 통합 점검, 2026-10-14) 묶음 사이 상호작용: 우클릭 풀기('"이름"\ 에'·'여기에'·알아서 풀기)·풀기 창의 암호 흐름이 ZIP·7z·EGG·RAR4·RAR5(이름 보임·목록 잠김·한글 암호) 모두 같은 차례, 형식이 다른 같은 암호 압축 여럿은 한 번만 묻기, ZIP·7z(7z.dll)·EGG 를 한 폴더에 풀 때 같은 이름은 한 번만 묻고 건너뛴 압축은 지우지 않음, 나눠 만든 ZIP(AES)·7Z(한글 암호·파일 이름 암호)도 진짜 시험기로 시험하고 원본 지우기·망가진 조각은 잡음, 압축 속 파일을 연 채로 넣기·이름 바꾸기를 해도 다시 넣기가 그것을 잃지 않음, 확장자가 바뀐 ZIP(CP949)·EGG·ALZ·RAR4 첨부도 창 없이 풀기가 원래 처리기로(한글 이름 그대로) |
 | `Contract/BugEvidenceTests.cs` | 버그 '지금 이렇다' 근거(고쳐지면 실패하는 게 정상). 지금은 안 고친 버그가 없어 B3 원인 사실 기록 2개만(반디집 한글 암호 = CP949, 일집 AES = UTF-8) |
@@ -242,14 +246,25 @@ Skip 은 두 종류입니다. 사유 문구는 `TestSupport/Known.cs` 한 곳에
 | I2-2 | 분할 열기·만들기 | **Skip 아님** — 열기는 W2-01(`KnownGapTests.숫자분할_…`), 만들기는 W2-03(`SplitCreateTests` — 새 계약) |
 | I2-10 | 맥 NFD 이름 | **Skip 아님** — W2-09 에서 메움(`BandizipFixtureTests.NFD_이름이_NFC로_보이고_NFC로_풀린다` Skip 해제, `NameEncodingTests`) |
 
-### 남은 Skip 0개(2026-10-15 3차 통합 점검 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
+### 남은 Skip 0개(2026-10-18 4차 통합 점검 후) — 알려진 빈틈도, 안 고친 버그(Bn)도 없음
 
 `Known.I2_1` 은 지웠습니다(W2-02). `Known.I2_2` 는 W2-03 에서 지웠습니다(쓰는 Skip 이 없음 — 만들기 계약은 Skip 없이 `SplitCreateTests` 로). `Known.I2_9` 는 지웠습니다.
 `Known.I2_10` 은 W2-09 에서 지웠습니다(마지막 Skip). 환경 조건으로 건너뛰는 시험(반디집 콘솔·로컬 SFX 픽스처·IMAPI2FS·셸 확장 DLL 이 없는 PC)은 위 '실행 방법' 대로입니다.
 Wave 2 에서 검증에 걸려 되돌린 W2-04(끌어 꺼내기·Ctrl+C I1-4·그림 미리 보기 I3-7·압축 속 파일 열기 I1-3 의 나머지)는 IJ3-01 이 보관분(`stash` `iljip-wave2-W2-04-failed` — drop 안 함)을
 `git stash apply` 로 얹어 다시 들였습니다(아래 'IJ3-01 에서 더한 것'). W2-08(압축 검사 `--test` I2-7·오류 원인 문제 창 I2-8·깨진 ZIP 고치기 I3-12 — `iljip-wave2-W2-08-failed`)은
 Skip 으로 남기지 않았습니다(시험도 보관분 안에 있음 — 다시 할 때 같이 들임). 3차에서 W2-08 을 다시 한 IJ3-02 도 검증에서 되돌려 `stash@{0}` `iljip-wave3-IJ3-02-failed` 에 있습니다
-(시험 `ArchiveTestReview*Tests` 등도 그 안 — Skip 으로 남기지 않음).
+(시험 `ArchiveTestReview*Tests` 등도 그 안 — Skip 으로 남기지 않음). 4차에서 IJ3-02 를 다시 한 I4-1 도 3차 검증에서 되돌려 `stash@{0}` `iljip-wave4-I4-1-failed` 에 있습니다
+(IJ3-02 보관분은 `stash@{1}` 로 밀림 — 시험도 보관분 안, Skip 으로 남기지 않음).
+
+### 4차 통합 점검에서 더한 것(2026-10-18) — I4-1 은 stash, 시험 로그 격리만 들임
+
+푼 Skip·더한 Skip 없음. 새 시험 3개(`Wave4IntegrationTests`). 기존 시험 하나는 더 엄격해짐 — `ReuseDeviceContractTests.창없이_풀기가_실패하면_오류_로그에_…` 가 시험 자료 폴더의 logs 에서 같은 줄을 찾고,
+사용자 PC 의 자료 폴더(`AppPaths.DefaultRoot()`)가 `%LOCALAPPDATA%\Iljip` 그대로임도 확인합니다. 전체 2408 → 2411, 실패 0(Debug·Release·UTC 세 번).
+
+| 무엇 | 예전 | 지금 | 지키는 테스트 |
+|---|---|---|---|
+| 시험이 쓰는 일집 로그 | 사용자 진짜 로그 `%LOCALAPPDATA%\Iljip\logs`(전체 시험 한 번에 수백 KB — IJ3-02 시험은 하루 85MB·255MB) | 시험 자료 폴더 `%TEMP%\IljipTests\appdata-<pid>\logs`(끝나면 지움) | `시험의_자료_폴더와_로그는_사용자_폴더가_아니다` |
+| 시험이 띄우는 Iljip.exe 의 로그·설정·임시 폴더 | 사용자 폴더 | 환경 변수 `ILJIP_TEST_APPDATA` 로 시험 자료 폴더(본체는 비지 않은 절대 경로일 때만 받음) | `시험이_띄우는_exe_에는_…`·`시험이_Iljip_exe_를_띄우는_곳은_모두_…`·`ReuseDeviceContractTests.창없이_풀기가_실패하면_…` |
 
 ### 3차 통합 점검에서 더한 것(2026-10-15) — IJ3-01·IJ3-03 을 합친 뒤
 
