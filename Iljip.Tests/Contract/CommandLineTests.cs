@@ -617,7 +617,10 @@ public class CommandLineTests
 
         await RunVm(new MainViewModel(ui), new[] { "--extract-to-folder", zip });
 
-        Assert.Contains("CRC", Assert.Single(ui.Errors));
+        // W2-08: 화면에는 영어 'CRC' 대신 '검사값 불일치'(설계 문구 — 예외 자체의 문구는 그대로, FixedBugTests)
+        string error = Assert.Single(ui.Errors);
+        Assert.Contains("검사값 불일치", error);
+        Assert.DoesNotContain("CRC", error);
         string dest = Path.Combine(work, "손상");
         if (breakFirst)
             Assert.False(Directory.Exists(dest), "파일 하나 없는 '손상' 폴더가 남음");
@@ -807,6 +810,71 @@ public class CommandLineTests
         Assert.DoesNotContain("압축 파일이 아닌", err);
         Assert.DoesNotContain("unsupported archive", err, StringComparison.OrdinalIgnoreCase);
         TreeAssert.NoFiles(dest);
+    }
+
+    /// <summary>
+    /// [IJ3-02 (g)] 작은따옴표 뒤에 한글이 오는 폴더('26년 견적)에서 창 없이 풀기가 실패해도 stderr 는 쉬운 한국어 한 줄이다 — 영어 .NET 문구('Cannot create …',
+    /// 'The process cannot access …')가 그대로 나가지 않고, 경로를 보이면 끝까지 보인다(예전: 경로의 따옴표 뒤 한글을 서비스 문구로 착각해 영어 원문이 나감).
+    /// 풀 곳이 같은 이름의 파일인 경우, 압축 파일을 다른 프로그램이 잡고 있는 경우.
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_따옴표와_한글이_든_경로의_오류도_한국어다()
+    {
+        using var tmp = new TempDir("exequote");
+        string dir = tmp.Dir("'26년 견적");
+        string arc = Path.Combine(dir, "견적 묶음.zip");
+        RawZip.Write(arc, RawZip.Utf8("a.txt", "견적"));
+
+        string fileDest = Path.Combine(dir, "풀 곳");
+        File.WriteAllText(fileDest, "같은 이름의 파일");
+        var (code1, err1) = await RunIljipCapture(new[] { "--extract-to", arc, fileDest });
+        AssertKoreanLine(code1, err1, fileDest, arc);
+
+        string dest = Path.Combine(dir, "풀린 곳");
+        using (new FileStream(arc, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var (code2, err2) = await RunIljipCapture(new[] { "--extract-to", arc, dest });
+            AssertKoreanLine(code2, err2, dest, arc);
+        }
+
+        static void AssertKoreanLine(int code, string err, params string[] paths)
+        {
+            Assert.True(code == 1, $"종료 코드 {code} — {err}");
+            string line = err.Trim();
+            Assert.DoesNotContain('\n', line);
+            string rest = paths.Aggregate(line, (s, p) => s.Replace(p, " ", StringComparison.Ordinal));
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(rest, "[가-힣]"), line);
+            Assert.False(System.Text.RegularExpressions.Regex.IsMatch(rest, "[A-Za-z]{3,}"), $"영어가 남음 — {line}");
+            if (line.Contains(@":\", StringComparison.Ordinal))
+                Assert.True(paths.Any(p => line.Contains(p, StringComparison.Ordinal)), $"경로가 잘림 — {line}");
+        }
+    }
+
+    /// <summary>
+    /// [IJ3-02 5차] 끝 머리의 '목록이 시작하는 디스크 번호' 칸과 셋째 목록 기록의 서명이 함께 깨진 ZIP 을 창 없이 풀면 종료 코드 1, stderr 는 목록 손상 한국어 한 줄
+    /// (예전: 그 칸이 깨지면 목록 구조 검사를 건너뛰어 앞 폴더 기록 2개만 읽고 파일 0개·종료 코드 0 — 재사용장치가 파일을 잃은 줄 모름).
+    /// </summary>
+    [IljipExeFact]
+    public async Task 실행파일_extract_to_끝머리_디스크_칸과_목록이_깨진_ZIP은_1()
+    {
+        var fx = FixtureCatalog.Get("zip_default");
+        byte[] b = File.ReadAllBytes(fx.FullPath);
+        int eocd = b.Length - 22;
+        Assert.Equal(0x06054b50u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(eocd)));
+        int cd = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(eocd + 16));
+        int third = cd;
+        for (int i = 0; i < 2; i++)
+            third += 46 + System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(third + 28))
+                        + System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(third + 30))
+                        + System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(third + 32));
+        b[eocd + 6] ^= 0x01;     // 목록이 시작하는 디스크 번호
+        b[third + 1] ^= 0xFF;    // 셋째 목록 기록의 서명
+        using var tmp = new TempDir("exe5eocd");
+        string arc = tmp.P("깨진 목록.zip");
+        File.WriteAllBytes(arc, b);
+        var (code, err) = await RunIljipCapture(new[] { "--extract-to", arc, tmp.P("풀 곳") });
+        Assert.True(code == 1, $"종료 코드 {code} — {err}");
+        Assert.Equal(Iljip.Services.ZipListDamagedException.MissingMessage, err.Trim());
     }
 
     /// <summary>암호 ZIP 은 창 없이 풀기로 풀 수 없다(암호를 넘길 방법이 없음) — 종료 코드 1, 파일·새 폴더가 남지 않는다(W1-C 판정은 만들기 전).</summary>

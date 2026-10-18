@@ -68,6 +68,30 @@ internal static class SevenZipEngine
 
         /// <summary>이름 없는 단일 스트림(xz) — 한꺼번에 풀기 대신 스트림으로 꺼낸다(7z.dll 의 임시 이름 규칙에 기대지 않게).</summary>
         public bool SingleStream { get; init; }
+
+        /// <summary>
+        /// 7z.dll 이 말없이 넘기는 목록 손상 검사(ZIPX — ZIP 과 같은 목록·로컬 머리 대조, I4-1 검증 지적). 연 항목을 받아 문제가 없으면 null.
+        /// 풀기·검사만 부른다(목록 보기는 예전처럼 너그럽게 — ZIP 과 같음).
+        /// </summary>
+        public Func<IReadOnlyList<Item>, ListProblems?>? ListCheck { get; init; }
+    }
+
+    /// <summary>목록 손상 검사 결과: 압축 전체 문제(없으면 null)와 목록과 맞지 않는 항목(<see cref="Item.Index"/> — 풀거나 확인하지 않음).</summary>
+    internal sealed record ListProblems(ArchiveException? Whole, IReadOnlySet<int> BadIndices);
+
+    /// <summary><see cref="Source.ListCheck"/> — 사용자 환경 문제(입출력)는 그대로 던지고, 그 밖의 읽기 실패는 '검사 못 함'(null)으로.</summary>
+    private static ListProblems? CheckList(Source src, IReadOnlyList<Item> items)
+    {
+        if (src.ListCheck is null) return null;
+        try
+        {
+            return src.ListCheck(items);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && !ErrorCatalog.IsEnvironmentProblem(ex))
+        {
+            Logger.LogError("목록 구조 검사를 하지 못함(넘어감): " + src.ArchivePath, ex);
+            return null;
+        }
     }
 
     /// <summary>7z.dll 항목 하나와 우리가 정한 이름들.</summary>
@@ -119,6 +143,25 @@ internal static class SevenZipEngine
         using var session = Session.Open(src, password, ct, tracker.OnPosition);
         var selected = session.Items.Where(i => shouldExtract(i.Path)).ToList();
 
+        // 목록과 맞지 않는 항목(ZIPX)은 풀지 않고, 맞는 것을 다 푼 뒤 손상으로 알린다(ZIP 과 같음 — 목록에서 빠진 파일은 전부 풀 때만)
+        var listed = CheckList(src, session.Items);
+        ArchiveException? listDamage = null;
+        if (listed is not null)
+        {
+            var skipped = selected.Where(i => listed.BadIndices.Contains(i.Index)).ToList();
+            bool all = selected.Count == session.Items.Count;
+            if (skipped.Count > 0)
+            {
+                selected = selected.Where(i => !listed.BadIndices.Contains(i.Index)).ToList();
+                listDamage = ZipListDamagedException.Mismatch(skipped[0].Path);
+            }
+            else if (all)
+            {
+                listDamage = listed.Whole;
+            }
+            if (listDamage is not null) Logger.LogError("목록 손상 — 맞지 않는 항목은 풀지 않음: " + src.ArchivePath, listDamage);
+        }
+
         // 경로 공격 사전 검사: 7z.dll 도 자체 검사를 하지만 결과를 모아 나중에 던지므로 쓰기 전에 우리가 먼저 막는다.
         // 원래 이름과 금지 문자를 바꾼 이름 둘 다 대상 폴더 안이어야 한다.
         foreach (var it in selected)
@@ -142,6 +185,7 @@ internal static class SevenZipEngine
             if (selected.Count == 0)
             {
                 tracker.Final();
+                if (listDamage is not null) throw listDamage;
                 return;
             }
 
@@ -161,6 +205,7 @@ internal static class SevenZipEngine
                 Finish(src, format, destFull, staging.FullPath, selected, files, run, ct);
             }
             tracker.Final();
+            if (listDamage is not null) throw listDamage;
         }
         catch
         {
@@ -249,6 +294,145 @@ internal static class SevenZipEngine
         if (text.Contains("Unexpected end", StringComparison.OrdinalIgnoreCase))
             throw CorruptArchiveException.Truncated(err, first.Path);
         throw new CorruptArchiveException(err, first.Path);
+    }
+
+    // ───────────────────────────── 검사(W2-08 — I2-7) ─────────────────────────────
+
+    /// <summary>
+    /// 압축 검사(디스크에 쓰지 않음): 7z.dll 시험(Check — 모든 항목을 끝까지 읽고 확인값을 봄)을 돌리며 '끝났다'고 알린 항목(FileExtractionFinished)을 모은다.
+    /// 실패라고 한 항목(LZH 는 늘 — 7z.dll 이 정상 LZH 에도 실패를 알리는 일이 있음, 실측)은 솔리드가 아니면 그 항목만 다시 꺼내
+    /// (쓰지 않고 길이·확인값만 셈 — <see cref="MeasuringStream"/>) 풀기 검증(<see cref="ExtractionVerifier"/>)과 같은 규칙으로 거짓 오류를 가린다.
+    /// 솔리드면 하나하나 다시 꺼내면 앞 항목을 매번 다시 풀어야 해 '손상된 부분이 있어요'(어느 파일인지 가릴 수 없음)로 알린다.
+    /// 열기 단계의 문제(암호·조각·끝 잘림·머리 손상)는 풀기와 같은 예외, 암호 판정(틀린 암호와 손상 가르기)도 풀기와 같다.
+    /// </summary>
+    public static TestReport Test(Source src, string? password, IProgress<ArchiveProgress>? progress, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var tracker = new ProgressTracker(progress);
+        List<Item> files;
+        InArchiveFormat format;
+        bool solid;
+        HashSet<int> ok;
+        ListProblems? listed;
+        List<Item> badItems;
+        using (var session = Session.Open(src, password, ct, tracker.OnPosition))
+        {
+            format = session.Format;
+            solid = session.IsSolid;
+            // 목록과 맞지 않는 항목(ZIPX)은 확인한 수에 넣지 않고 문제로 — 폴더로 보여도(이름이 '폴더/' 에서 잘린 파일 — I4-1 검증 지적)
+            listed = CheckList(src, session.Items);
+            badItems = listed is null ? new List<Item>() : session.Items.Where(i => listed.BadIndices.Contains(i.Index)).ToList();
+            files = session.Items.Where(i => !i.IsDirectory && (listed is null || !listed.BadIndices.Contains(i.Index))).ToList();
+            // 암호 항목인데 암호가 없으면 7z.dll 을 부르지 않는다(풀기와 같음) — 화면이 묻는다
+            if (string.IsNullOrEmpty(password) && files.Any(i => i.Encrypted && i.Size > 0))
+                throw PasswordRequiredException.For(src.HeaderEncrypted);
+            tracker.SetTotals(files.Sum(f => f.Size), files.Count);
+            ok = session.TestAll(tracker, ct);
+        }
+        ct.ThrowIfCancellationRequested();
+
+        // 결과에 목록 손상(맞지 않는 항목·목록에서 빠진 파일)을 더한다
+        TestReport Done(TestReport r)
+        {
+            if (listed is null) return r;
+            var all = r.Problems.ToList();
+            foreach (var b in badItems)
+                all.Add(new TestProblem(b.Path, ZipListDamagedException.EntryReason, ErrorCatalog.DetailsOf(ZipListDamagedException.Mismatch(b.Path)), ProblemKind.Corrupt));
+            if (listed.Whole is { } whole) all.Add(new TestProblem(string.Empty, whole.Message, ErrorCatalog.DetailsOf(whole), ProblemKind.Corrupt));
+            if (all.Count > r.Problems.Count) Logger.LogError("압축 검사 — 목록 손상: " + src.ArchivePath, listed.Whole ?? ZipListDamagedException.Mismatch(badItems.FirstOrDefault()?.Path));
+            return new TestReport { CheckedCount = r.CheckedCount, Problems = all };
+        }
+
+        var verdicts = new Dictionary<int, ExtractionVerifier.Problem>();
+        var errors = new Dictionary<int, Exception>();
+        var recheck = new List<Item>();
+        foreach (var f in files)
+        {
+            // LZH 의 빈 항목은 실패로 알려 와도 맞다(실측 — 풀기 검증과 같음)
+            if (format == InArchiveFormat.Lzh && f.Size == 0) verdicts[f.Index] = ExtractionVerifier.Problem.None;
+            else if (!ok.Contains(f.Index) || format == InArchiveFormat.Lzh) recheck.Add(f);
+            else verdicts[f.Index] = ExtractionVerifier.Problem.None;
+        }
+        bool canRecheck = !solid || format == InArchiveFormat.Lzh;   // LZH 는 SharpSevenZip 이 솔리드로 치지만 항목마다 따로 풀린다
+        if (recheck.Count > 0)
+        {
+            if (canRecheck)
+                Recheck(src, password, format, recheck, verdicts, errors, ct);
+            else
+                foreach (var f in recheck) verdicts[f.Index] = ExtractionVerifier.Problem.EngineFailed;
+        }
+
+        var failed = files.Where(f => verdicts[f.Index] != ExtractionVerifier.Problem.None).ToList();
+        int good = files.Count - failed.Count;
+        if (failed.Count == 0)
+        {
+            tracker.Final();
+            return Done(new TestReport { CheckedCount = files.Count });
+        }
+
+        // 암호 문제: 풀기(Finish)와 같은 판정 — 암호가 맞다고 이미 드러났으면(헤더 암호를 이 암호로 열었거나 다른 암호 파일이 맞게 읽힘) 손상
+        string text = string.Join("\n", errors.Values.Select(e => e.ToString()));
+        bool definiteWrong = text.Contains("Wrong password.", StringComparison.Ordinal);
+        if (definiteWrong || failed.Any(f => f.Encrypted))
+        {
+            bool passwordProven = src.HeaderEncrypted || files.Any(f => f.Encrypted && f.Size > 0 && verdicts[f.Index] == ExtractionVerifier.Problem.None);
+            if (!passwordProven || definiteWrong && !src.HeaderEncrypted)
+                throw new WrongPasswordException(src.HeaderEncrypted, errors.Values.FirstOrDefault(), failed[0].Path, mayBeCorrupt: !definiteWrong);
+        }
+
+        if (src.VolumeCheck?.Invoke() is { } volume) return Done(TestReport.ForArchive(volume, good));
+
+        if (!canRecheck)
+        {
+            string names = string.Join("\n", failed.Take(50).Select(f => f.Path));
+            return Done(new TestReport
+            {
+                CheckedCount = good,
+                Problems = new[] { new TestProblem(string.Empty, ArchiveTestService.SolidDamagedMessage, $"7z.dll 시험에서 끝나지 않은 항목 {failed.Count}개:\n{names}") },
+            });
+        }
+
+        var problems = new List<TestProblem>();
+        foreach (var f in failed)
+        {
+            errors.TryGetValue(f.Index, out var err);
+            string et = err?.ToString() ?? string.Empty;
+            var v = verdicts[f.Index];
+            var (reason, kind) = v is ExtractionVerifier.Problem.SizeMismatch or ExtractionVerifier.Problem.ChecksumMismatch
+                ? ("내용이 원래와 달라요(검사값 불일치)", ProblemKind.ChecksumMismatch)
+                : et.Contains("Unsupported method", StringComparison.OrdinalIgnoreCase)
+                    ? ($"이 압축 방식({(string.IsNullOrEmpty(f.Method) ? "알 수 없음" : f.Method)})은 아직 확인할 수 없어요", ProblemKind.UnsupportedMethod)
+                    : et.Contains("Unexpected end", StringComparison.OrdinalIgnoreCase)
+                        ? ("끝부분이 잘려 있어 끝까지 읽지 못했어요", ProblemKind.Truncated)
+                        : ("손상돼서 끝까지 읽지 못했어요", ProblemKind.Corrupt);
+            problems.Add(new TestProblem(f.Path, reason, err is null ? $"7z.dll 판정: {v}" : ErrorCatalog.DetailsOf(err), kind));
+        }
+        return Done(new TestReport { CheckedCount = good, Problems = problems });
+    }
+
+    /// <summary>7z.dll 이 실패라고 한 항목을 하나씩 다시 꺼내 길이·확인값만 센다(쓰지 않음) — 풀기 검증과 같은 규칙으로 판정.</summary>
+    private static void Recheck(Source src, string? password, InArchiveFormat format, List<Item> recheck,
+        Dictionary<int, ExtractionVerifier.Problem> verdicts, Dictionary<int, Exception> errors, CancellationToken ct)
+    {
+        using var session = Session.Open(src, password, ct, null);
+        foreach (var f in recheck)
+        {
+            ct.ThrowIfCancellationRequested();
+            var m = new MeasuringStream(ct, crc16: format == InArchiveFormat.Lzh);
+            bool finished;
+            try
+            {
+                session.ExtractTo(f.Index, m);
+                finished = true;
+            }
+            catch (Exception ex)
+            {
+                if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
+                errors[f.Index] = ex;
+                finished = false;
+            }
+            verdicts[f.Index] = ExtractionVerifier.Check(format, f, m.Written, () => m.Crc32Value, () => m.Crc16Value, finished);
+        }
     }
 
     private static bool IsInside(string destRoot, string relative)
@@ -601,6 +785,54 @@ internal static class SevenZipEngine
             }
             return new RunResult(started, finished, stagingOverride, error);
         }
+
+        // ───── W2-08(압축 검사)에서 더한 것 ─────
+
+        /// <summary>7z.dll 이 솔리드라고 보는가(못 읽으면 false).</summary>
+        public bool IsSolid
+        {
+            get
+            {
+                try { return _extractor.IsSolid; }
+                catch { return false; }
+            }
+        }
+
+        /// <summary>
+        /// 7z.dll 시험(Check — 쓰지 않고 모든 항목을 끝까지 읽음)을 돌리고 '끝났다'(확인값까지 맞음)고 알린 항목 번호를 돌려준다.
+        /// Check 는 오류를 삼키고 false 만 주므로 항목별 성공은 FileExtractionFinished 로 센다(실패 항목은 그 알림이 없음).
+        /// Check 는 입력 스트림을 닫는다 — 이 세션으로는 더 읽지 않는다.
+        /// </summary>
+        public HashSet<int> TestAll(ProgressTracker tracker, CancellationToken ct)
+        {
+            var byIndex = Items.ToDictionary(i => i.Index);
+            var ok = new HashSet<int>();
+            var gate = new object();
+            _extractor.FileExtractionFinished += (_, e) =>
+            {
+                if (ct.IsCancellationRequested) e.Cancel = true;   // 경로 생성자(RAR 여러 조각)는 이것이 유일한 취소 — 파일 단위
+                int idx = e.FileInfo.Index;
+                lock (gate) ok.Add(idx);
+                if (byIndex.TryGetValue(idx, out var it) && !it.IsDirectory)
+                {
+                    tracker.OnStarted(it.Path);
+                    tracker.OnFinished(it.Size);
+                }
+            };
+            tracker.OnStarted(string.Empty);   // 입력 위치로 진행률을 올리기 시작
+            try
+            {
+                _extractor.Check();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("7z.dll 시험 중 오류(항목별 결과로 판정)", ex);
+            }
+            lock (gate) return new HashSet<int>(ok);
+        }
+
+        /// <summary>항목 하나를 스트림으로 꺼낸다(압축 검사의 다시 확인 — 쓰지 않는 스트림).</summary>
+        public void ExtractTo(int index, Stream output) => _extractor.ExtractFile(index, output);
 
         private static string UniqueName(string path)
         {

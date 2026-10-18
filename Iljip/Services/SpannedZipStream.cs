@@ -53,11 +53,38 @@ internal sealed class SpannedZipStream : Stream
             var end = ZipDirectory.FindEnd(fs);
             if (end is null) return 0;
             long disks = end.TotalDisks;
-            return disks is >= 2 and <= MaxDisks ? (int)disks : 0;
+            if (disks is < 2 or > MaxDisks) return 0;
+            return SelfContained(fs, end) ? 0 : (int)disks;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return 0;
+        }
+    }
+
+    /// <summary>
+    /// 끝 머리의 조각 수 칸(이 디스크 번호·ZIP64 위치 표의 전체 디스크 수)만 깨진 보통 ZIP 인가: 목록이 시작하는 디스크가 0 이고, 이 파일 안에서 목록 위치부터
+    /// 기록이 끝 머리(또는 ZIP64 끝 머리) 바로 앞까지 빈틈없이 읽히며, 기록이 모두 디스크 0 의 파일을 가리킨다 — 목록이 이 파일에 통째로 있으니 이 파일이 디스크 0 이다.
+    /// 진짜 나눔 세트의 마지막 조각은 목록 시작 디스크가 그 조각 번호이거나(목록이 마지막 조각에 있음), 앞 조각에서 시작한 목록이 이 파일 안에서는 그 위치부터
+    /// 읽히지 않는다. I4-1 2차 검증 지적: 이 디스크 번호 1바이트가 깨진 보통 ZIP 을 "'a.z01' 조각이 없어요"로 알리고 고치기도 권하지 않았다.
+    /// </summary>
+    private static bool SelfContained(Stream s, ZipDirectory.End end)
+    {
+        try
+        {
+            if (end.HasZip64Locator)
+            {
+                if (end.Zip64Disk != 0) return false;
+                ZipDirectory.ApplyZip64(s, end, end.Zip64Offset);
+            }
+            if (end.CdDisk != 0 || end.CdSize < ZipDirectory.CentralFixedLength || end.CdSize > MaxDirectoryBytes) return false;
+            if (end.CdOffset < 0 || end.CdOffset + end.CdSize != end.DirectoryLimit) return false;
+            var records = ZipDirectory.ParseCentralPrefix(ZipDirectory.ReadAt(s, end.CdOffset, (int)end.CdSize), out int consumed);
+            return records.Count > 0 && consumed == end.CdSize && records.All(r => r.DiskStart == 0 && r.LocalOffset < end.CdOffset);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException or ArgumentException)
+        {
+            return false;
         }
     }
 

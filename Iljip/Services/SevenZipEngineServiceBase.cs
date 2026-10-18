@@ -75,6 +75,17 @@ public abstract class SevenZipEngineServiceBase : SharpCompressArchiveServiceBas
     }
 
     /// <summary>
+    /// 압축 검사(W2-08): 7z.dll 로(<see cref="SevenZipEngine.Test"/>), 못 쓰면 풀기와 같이 구조 검사 뒤 SharpCompress 로(베이스).
+    /// </summary>
+    internal override TestReport TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        var src = CreateSource(archivePath);
+        if (src is not null) return SevenZipEngine.Test(src, password, progress, cancellationToken);
+        if (FallbackStructureProblem(archivePath) is { } problem) return TestReport.ForArchive(problem);
+        return TestArchiveCore(archivePath, password, progress, cancellationToken);
+    }
+
+    /// <summary>
     /// SharpCompress 로 같은 압축을 열어 항목 이름(일집의 한글 판별 — <see cref="SharpCompressArchiveServiceBase.BuildReaderOptions"/>)을 순서대로 얻고,
     /// 7z.dll 목록과 순서·폴더 여부·크기·CRC 가 모두 맞을 때만 (index → 이름)을 돌려준다(하나라도 어긋나면 null — 7z.dll 이름 그대로).
     /// 7z.dll 은 이름을 OEM 코드 페이지(한국어 Windows 는 949)로 읽어, 시스템 지역이 다른 PC 에서는 한글 이름이 깨진다 — ZIPX·RAR4 의

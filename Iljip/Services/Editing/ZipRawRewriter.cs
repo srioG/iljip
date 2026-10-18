@@ -334,6 +334,19 @@ internal static class ZipRawRewriter
             _central.Add(RenamedCentral(e, newName).Rewrite(0, offset));
         }
 
+        /// <summary>
+        /// 로컬 머리를 주어진 바이트(<paramref name="header"/> — 머리 + 이름 + 추가 필드)로 쓰고 데이터를 옮긴다(ZIP 고치기 — 머리의 압축 크기 칸이 깨졌던 항목, W2-08).
+        /// <paramref name="trailer"/> 가 있으면 데이터 뒤에 쓴다(고쳐 쓴 데이터 서술자 — IJ3-02). 중앙 기록은 <paramref name="e"/> 의 것(위치만 새로).
+        /// </summary>
+        public void CopyEntryWithHeader(Stream src, ZipSourceEntry e, byte[] header, long dataStart, long dataLength, byte[]? trailer = null)
+        {
+            long offset = _out.Position;
+            _out.Write(header);
+            Copy(src, dataStart, dataLength);
+            if (trailer is not null) _out.Write(trailer);
+            _central.Add(e.Cd.Rewrite(0, offset));
+        }
+
         /// <summary>중앙 기록의 이름만 바꾼 것(플래그 bit 11, 0x7075 뺌).</summary>
         private static ZipDirectory.CentralRecord RenamedCentral(ZipSourceEntry e, byte[] newName)
         {

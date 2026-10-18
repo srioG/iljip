@@ -354,7 +354,8 @@ public class EggAlzTests
 
     /// <summary>
     /// 잘린 ALZ 라도 이름까지 온전한 항목은 CP949 한글 이름이 바르게 보인다(예전엔 끝 표시 'CLZ' 가 없으면 이름 복구를 포기해 �).
-    /// 끝 표시만 빠지고 데이터는 온전하면 끝까지 풀린다.
+    /// 끝 표시만 빠지고 데이터는 온전하면 온전한 파일은 끝까지 다 풀어 두되, 잘림으로 알린다 — 항목 경계에서 잘려 뒤 항목이 통째로 없어진
+    /// 받다 만 파일과 겉모습이 같아 구별할 수 없다(W2-08 검증 지적 1: 예전엔 오류 없이 끝나 빠진 파일을 아무도 몰랐다).
     /// </summary>
     [Fact]
     public async Task 잘린_ALZ도_온전한_항목의_한글_이름은_보인다()
@@ -371,7 +372,10 @@ public class EggAlzTests
         File.WriteAllBytes(cutEnd, b[..(b.Length - 8)]);
         Assert.Equal(want, (await Svc.For(cutEnd).ListEntriesAsync(cutEnd)).Select(e => e.Path));
         string dest = tmp.P("out");
-        await Svc.For(cutEnd).ExtractAsync(cutEnd, dest);
+        var ex = await Svc.Catch(() => Svc.For(cutEnd).ExtractAsync(cutEnd, dest));
+        var cut = Assert.IsType<CorruptArchiveException>(ex);
+        Assert.True(cut.IsTruncated, cut.Message);
+        Assert.False(Internals.IsPasswordRelated(cut));
         Assert.Equal(new[] { "폴더/앞.txt", "폴더/큰.bin" }, TreeAssert.Files(dest));
         Assert.Equal(TreeAssert.Sha256(BigData), TreeAssert.Sha256(Path.Combine(dest, "폴더", "큰.bin")));
     }

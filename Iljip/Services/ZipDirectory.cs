@@ -61,23 +61,29 @@ internal static class ZipDirectory
         public long DirectoryLimit => Zip64Position >= 0 ? Zip64Position : HasZip64Locator ? EndPosition - Zip64LocatorLength : EndPosition;
     }
 
-    /// <summary>스트림 끝(주석 최대 64KB)에서 끝 머리를 찾는다. 없으면 null. ZIP64 끝 머리는 읽지 않는다(<see cref="ApplyZip64"/>).</summary>
-    internal static End? FindEnd(Stream s)
+    /// <summary>
+    /// 스트림 끝(주석 최대 64KB)에서 끝 머리를 찾는다. 없으면 null. ZIP64 끝 머리는 읽지 않는다(<see cref="ApplyZip64"/>).
+    /// <paramref name="lenient"/> 면 주석 길이 칸이 파일 끝을 넘는(그 칸이 깨진) 끝 머리도 받는다 — 맨 뒤의 끝 머리 서명(주석은 파일 끝까지).
+    /// 압축 엔진(SharpCompress)은 그 칸을 보지 않고 연다 — 목록 구조 검사가 엔진과 같은 끝 머리를 보게(IJ3-02 5차).
+    /// </summary>
+    internal static End? FindEnd(Stream s, bool lenient = false)
     {
         long len = s.Length;
         if (len < EndLength) return null;
         int tailLen = (int)Math.Min(len, EndLength + 0xFFFF);
         long tailStart = len - tailLen;
         byte[] tail = ReadAt(s, tailStart, tailLen);
-        int at = -1;
+        int at = -1, loose = -1;
         for (int i = tailLen - EndLength; i >= 0; i--)
         {
             if (U32(tail, i) != EndSig) continue;
+            if (loose < 0) loose = i;
             if (i + EndLength + U16(tail, i + 20) <= tailLen) { at = i; break; }
         }
+        if (at < 0 && lenient) at = loose;
         if (at < 0) return null;
         long endPos = tailStart + at;
-        int commentLen = U16(tail, at + 20);
+        int commentLen = Math.Min(U16(tail, at + 20), tailLen - at - EndLength);
 
         bool hasLocator = false;
         uint z64Disk = 0, totalDisks = 0;
@@ -194,41 +200,66 @@ internal static class ZipDirectory
         var list = new List<CentralRecord>((int)count);
         int p = 0;
         for (long n = 0; n < count; n++)
-        {
-            if (p + CentralFixedLength > cd.Length || U32(cd, p) != CentralSig) throw new InvalidDataException("ZIP 중앙 디렉터리 기록이 깨짐");
-            long csize = U32(cd, p + 20), usize = U32(cd, p + 24), offset = U32(cd, p + 42), disk = U16(cd, p + 34);
-            int nameLen = U16(cd, p + 28), extraLen = U16(cd, p + 30), commentLen = U16(cd, p + 32);
-            int extraAt = p + CentralFixedLength + nameLen, next = extraAt + extraLen + commentLen;
-            if (next > cd.Length) throw new InvalidDataException("ZIP 중앙 디렉터리 기록이 깨짐");
-            for (int x = extraAt; x + 4 <= extraAt + extraLen;)
-            {
-                int id = U16(cd, x), size = U16(cd, x + 2), d = x + 4;
-                if (d + size > extraAt + extraLen) break;
-                if (id == 0x0001)
-                {
-                    // ZIP64: 원래 칸이 가득(0xFFFFFFFF/0xFFFF)인 값만 이 차례로 들어 있다
-                    int q = d, qEnd = d + size;
-                    if (usize == uint.MaxValue && q + 8 <= qEnd) { usize = ToLong(U64(cd, q)); q += 8; }
-                    if (csize == uint.MaxValue && q + 8 <= qEnd) { csize = ToLong(U64(cd, q)); q += 8; }
-                    if (offset == uint.MaxValue && q + 8 <= qEnd) { offset = ToLong(U64(cd, q)); q += 8; }
-                    if (disk == ushort.MaxValue && q + 4 <= qEnd) disk = U32(cd, q);
-                }
-                x = d + size;
-            }
-            list.Add(new CentralRecord
-            {
-                Raw = cd.AsSpan(p, next - p).ToArray(),
-                NameLength = nameLen,
-                ExtraLength = extraLen,
-                CommentLength = commentLen,
-                CompressedSize = csize,
-                UncompressedSize = usize,
-                LocalOffset = offset,
-                DiskStart = disk,
-            });
-            p = next;
-        }
+            list.Add(TryParseRecord(cd, ref p) ?? throw new InvalidDataException("ZIP 중앙 디렉터리 기록이 깨짐"));
         return list;
+    }
+
+    /// <summary>
+    /// 중앙 디렉터리 바이트를 앞에서부터 읽을 수 있는 데까지 읽는다(W2-08 검증 지적 2차 — 깨진 목록의 앞부분이라도 쓰려고: ZIP 고치기·압축 검사).
+    /// 서명이 틀리거나 길이가 넘치는 기록을 만나면 거기서 멈춘다(예외 없음). <paramref name="consumed"/> = 읽은 기록들이 차지한 바이트 수.
+    /// </summary>
+    internal static List<CentralRecord> ParseCentralPrefix(byte[] cd, out int consumed)
+    {
+        var list = new List<CentralRecord>();
+        int p = 0;
+        try
+        {
+            while (TryParseRecord(cd, ref p) is { } r) list.Add(r);
+        }
+        catch (InvalidDataException)
+        {
+            // ZIP64 값이 터무니없이 큰 기록 — 거기서 멈춘다
+        }
+        consumed = p;
+        return list;
+    }
+
+    /// <summary><paramref name="p"/> 자리의 기록 하나(읽으면 <paramref name="p"/> 를 다음 기록으로 옮김). 서명이 틀리거나 넘치면 null.</summary>
+    private static CentralRecord? TryParseRecord(byte[] cd, ref int p)
+    {
+        if (p + CentralFixedLength > cd.Length || U32(cd, p) != CentralSig) return null;
+        long csize = U32(cd, p + 20), usize = U32(cd, p + 24), offset = U32(cd, p + 42), disk = U16(cd, p + 34);
+        int nameLen = U16(cd, p + 28), extraLen = U16(cd, p + 30), commentLen = U16(cd, p + 32);
+        int extraAt = p + CentralFixedLength + nameLen, next = extraAt + extraLen + commentLen;
+        if (next > cd.Length) return null;
+        for (int x = extraAt; x + 4 <= extraAt + extraLen;)
+        {
+            int id = U16(cd, x), size = U16(cd, x + 2), d = x + 4;
+            if (d + size > extraAt + extraLen) break;
+            if (id == 0x0001)
+            {
+                // ZIP64: 원래 칸이 가득(0xFFFFFFFF/0xFFFF)인 값만 이 차례로 들어 있다
+                int q = d, qEnd = d + size;
+                if (usize == uint.MaxValue && q + 8 <= qEnd) { usize = ToLong(U64(cd, q)); q += 8; }
+                if (csize == uint.MaxValue && q + 8 <= qEnd) { csize = ToLong(U64(cd, q)); q += 8; }
+                if (offset == uint.MaxValue && q + 8 <= qEnd) { offset = ToLong(U64(cd, q)); q += 8; }
+                if (disk == ushort.MaxValue && q + 4 <= qEnd) disk = U32(cd, q);
+            }
+            x = d + size;
+        }
+        var record = new CentralRecord
+        {
+            Raw = cd.AsSpan(p, next - p).ToArray(),
+            NameLength = nameLen,
+            ExtraLength = extraLen,
+            CommentLength = commentLen,
+            CompressedSize = csize,
+            UncompressedSize = usize,
+            LocalOffset = offset,
+            DiskStart = disk,
+        };
+        p = next;
+        return record;
     }
 
     /// <summary>

@@ -4,7 +4,7 @@ namespace Iljip.Services;
 /// 화면이 아닌 시스템 동작 묶음(설계 §5). <see cref="Iljip.ViewModels.MainViewModel"/> 생성자의 선택 인자 — null 이면 진짜 구현.
 /// 시험은 가짜를 넣는다(Iljip.Tests/TestSupport/TestServices — 셸·휴지통·설정 모두 가짜, 진짜는 절대 부르지 않음).
 /// W2-05 에서 처음 들임(모양은 W2-04 보관본과 같게 — 다시 합칠 때 겹치게). 뒤 묶음은 속성을 덧붙이기만 한다
-/// (IFileChangeSource 는 W2-06, IClock·압축 시험기는 W2-07, IProcessLauncher 는 W2-11, IRegistryRoot 는 W2-12, IClipboardService·IImageDecoder 는 IJ3-01 이 더함).
+/// (IFileChangeSource 는 W2-06, IClock·압축 시험기는 W2-07, IProcessLauncher 는 W2-11, IRegistryRoot 는 W2-12, IClipboardService·IImageDecoder 는 IJ3-01, 압축 검사기·ZIP 고치기는 IJ3-02 가 더함).
 /// </summary>
 public sealed class AppServices
 {
@@ -45,6 +45,12 @@ public sealed class AppServices
 
     /// <summary>그림 읽기(IJ3-01 — 그림 미리 보기, I3-7). 시험은 가짜(그림으로 풀지 않고 바이트만 기록).</summary>
     public IImageDecoder ImageDecoder { get; init; } = new WicImageDecoder();
+
+    /// <summary>압축 검사(W2-08·IJ3-02 — ☰ ▸ 시험하기·목록 오른쪽 클릭·'--test', I2-7). 디스크에 쓰지 않는다.</summary>
+    public IArchiveTestService ArchiveTester { get; init; } = ArchiveTestService.Instance;
+
+    /// <summary>깨진 ZIP 고치기(W2-08·IJ3-02 — 살릴 수 있는 항목만 새 ZIP 으로, I3-12). 원본은 건드리지 않는다.</summary>
+    public IZipRepairer ZipRepairer { get; init; } = Iljip.Services.ZipRepairer.Instance;
 
     /// <summary>진짜 구현만으로 된 묶음.</summary>
     public static AppServices CreateDefault() => new();

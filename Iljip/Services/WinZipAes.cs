@@ -41,11 +41,29 @@ internal static class WinZipAes
     public static Stream OpenEntry(string zipPath, ZipCentralEntry e, byte[] password)
     {
         if (!CanDecompress(e)) throw new UnsupportedMethodException($"AES 안쪽 방식 {e.AesMethod}", entryPath: e.Name);
+        return OpenEntry(ZipArchiveService.OpenRawStream(zipPath), e, password);   // .zip.001 숫자 분할은 이어 붙인 스트림(W2-01)
+    }
 
-        var fs = ZipArchiveService.OpenRawStream(zipPath);   // .zip.001 숫자 분할은 이어 붙인 스트림(W2-01)
+    /// <summary>
+    /// 이미 연 ZIP 바이트 스트림(<paramref name="fs"/> — 넘겨받아 다 쓰면 닫는다)에서 AES 항목을 푼다. <see cref="ZipCentralEntry.LocalHeaderOffset"/> 는 그 스트림 안 위치.
+    /// ZIP 고치기가 나눠진 조각을 이어 붙인 스트림에서 쓴다(W2-08 검증 지적 2차 — 닫으면 안 되는 스트림은 부르는 쪽이 닫지 않는 겉으로 싸서 넘김).
+    /// </summary>
+    internal static Stream OpenEntry(Stream fs, ZipCentralEntry e, byte[] password) => OpenEntry(fs, e, password, dataStartAt: null);
+
+    /// <summary>
+    /// <paramref name="dataStartAt"/>(데이터 시작 — 주면 로컬 머리의 이름·추가 필드 길이 칸을 읽지 않음)에서 AES 항목을 푼다. ZIP 고치기가 이름 길이 칸만 깨진 머리를
+    /// 목록의 이름 길이로 읽었을 때 쓴다(IJ3-02 5차).
+    /// </summary>
+    internal static Stream OpenEntry(Stream fs, ZipCentralEntry e, byte[] password, long? dataStartAt)
+    {
+        if (!CanDecompress(e))
+        {
+            fs.Dispose();
+            throw new UnsupportedMethodException($"AES 안쪽 방식 {e.AesMethod}", entryPath: e.Name);
+        }
         try
         {
-            var (dataStart, _) = ZipPasswordProbe.LocalData(fs, e);
+            long dataStart = dataStartAt ?? ZipPasswordProbe.LocalData(fs, e).DataStart;
             int saltLen = SaltLength(e.AesStrength);
             byte[] saltPv = ZipPasswordProbe.ReadAt(fs, dataStart, saltLen + 2);
             byte[] derived = WinZipAesKeys.Derive(password, saltPv[..saltLen], e.AesStrength);

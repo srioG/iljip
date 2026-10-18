@@ -327,10 +327,12 @@ public class ExtractSettingsTests
     {
         var unknown = new InvalidOperationException("Failed to locate the Zip Header");
         Assert.Equal(ErrorMessages.UnknownPlainMessage, ErrorMessages.ToPlainMessage(unknown));
-        Assert.Contains("Failed to locate", ErrorMessages.ToUserMessage(unknown));   // 예전 화면(메인 창 오류 창·창 없이 풀기)은 그대로
+        // W2-08: 메인 창 오류 창·창 없이 풀기도 영어 원문을 보이지 않는다('알 수 없는 문제가 생겼어요.' — 원문은 '자세히'·로그)
+        Assert.DoesNotContain("Failed to locate", ErrorMessages.ToUserMessage(unknown));
+        Assert.Contains("Failed to locate", ErrorCatalog.Describe(unknown).Details);
         var known = new WrongPasswordException();
         Assert.Equal(ErrorMessages.ToUserMessage(known), ErrorMessages.ToPlainMessage(known));
-        Assert.Equal("디스크 공간이 모자라요.", ErrorMessages.ToPlainMessage(new IOException("disk", unchecked((int)0x80070070))));
+        Assert.Equal("저장할 공간이 부족해요.", ErrorMessages.ToPlainMessage(new IOException("disk", unchecked((int)0x80070070))));   // W2-08 설계 문구
         foreach (var m in new[] { "압축 파일이 아닌", "압축파일이 아닌", "not archive", "not an archive", "unsupported archive" })
             Assert.DoesNotContain(m, ErrorMessages.UnknownPlainMessage, StringComparison.OrdinalIgnoreCase);
     }

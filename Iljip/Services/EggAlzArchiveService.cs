@@ -22,9 +22,137 @@ namespace Iljip.Services;
 /// 풀린 내용의 크기·CRC 를 직접 맞춰 본다(EggDotNet 은 확인하지 않아 잘린 파일도 '완료'로 끝났음),
 /// 폴더는 이름 끝 '/' 뿐 아니라 폴더 속성으로도 알아본다(ALZ 속성은 EggDotNet 이 버려서 스캐너가 읽음).
 /// </summary>
-public sealed class EggAlzArchiveService : IArchiveService
+public sealed class EggAlzArchiveService : IArchiveService, IArchiveTestable
 {
     public IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".egg", ".alz" };
+
+    /// <summary>잘린 EGG·ALZ 검사 결과에 덧붙이는 말(EggDotNet 은 잘린 뒤쪽 항목을 목록에서 빼 버린다).</summary>
+    internal const string TruncatedListNote = "끝부분에 있던 파일은 목록에 보이지 않아 확인하지 못했을 수 있어요.";
+
+    /// <summary>
+    /// 압축 검사(W2-08): 항목마다 끝까지 풀어 보며(디스크에 쓰지 않음) 크기·CRC 를 본다(풀기와 같은 확인 — <see cref="VerifyWritten"/>).
+    /// 솔리드가 아니면 깨진 항목 뒤도 계속 본다(솔리드는 첫 문제에서 멈춤 — 뒤 항목은 이어진 데이터라 믿을 수 없어 '확인하지 못한 파일 N개'로 알림).
+    /// 끝 표시까지 온전하지 않으면(<see cref="ArchiveCompleteness.CheckEggAlz"/> — EggDotNet 은 머리 사이에서 잘린 뒤쪽 항목을 말없이 뺀다) 전체 문제 '끝부분이 잘려 있어요'.
+    /// </summary>
+    TestReport IArchiveTestable.TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        EggArchive archive;
+        List<NamedEntry> named;
+        try
+        {
+            archive = OpenArchive(archivePath, password);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return ArchiveLevel(ex, password);
+        }
+        using (archive)
+        {
+            try
+            {
+                named = NamedEntries(archive, archivePath);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return ArchiveLevel(ex, password);
+            }
+
+            var tail = ArchiveCompleteness.CheckEggAlz(archivePath, EmbeddedOffset(archivePath));
+            var files = named.Where(n => !n.IsDirectory && n.Path.Length > 0).ToList();
+            long totalBytes = files.Sum(n => n.Entry.UncompressedLength);
+            long done = 0;
+            int checkedFiles = 0;
+            int notChecked = 0;   // 솔리드에서 앞 파일이 깨져 확인하지 못한 뒤 파일 수
+            bool passwordProven = false;
+            WrongPasswordException? pendingWrong = null;
+            var problems = new List<TestProblem>();
+            var problemLog = new TestProblemLog(archivePath);   // I4-1: 항목 문제 로그는 처음 20개까지
+            var buffer = new byte[81920];
+            for (int index = 0; index < files.Count; index++)
+            {
+                var (entry, path, _) = files[index];
+                cancellationToken.ThrowIfCancellationRequested();
+                bool encrypted;
+                try { encrypted = entry.IsEncrypted; }
+                catch { encrypted = false; }
+                long size = entry.UncompressedLength;
+                if (string.IsNullOrEmpty(password) && encrypted && size > 0)
+                    throw new PasswordRequiredException(entryPath: path);
+                progress?.Report(new ArchiveProgress { CurrentFile = path, BytesProcessed = done, TotalBytes = totalBytes, FilesProcessed = checkedFiles + problems.Count, TotalFiles = files.Count });
+                long before = done;
+                try
+                {
+                    // B9: 크기 0 항목은 열지 않는다(읽을 내용도 맞춰 볼 CRC 도 없음)
+                    if (size != 0)
+                    {
+                        using var input = entry.Open();
+                        var crc = new Crc32();
+                        long written = 0;
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            crc.Update(new ArraySegment<byte>(buffer, 0, read));
+                            written += read;
+                            done += read;
+                            progress?.Report(new ArchiveProgress { CurrentFile = path, BytesProcessed = Math.Min(done, totalBytes), TotalBytes = totalBytes, FilesProcessed = checkedFiles + problems.Count, TotalFiles = files.Count });
+                        }
+                        VerifyWritten(archive, entry, path, written, (uint)crc.Value);
+                    }
+                    checkedFiles++;
+                    if (encrypted && size > 0) passwordProven = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    done = before + size;
+                    var t = ex as ArchiveException ?? (Exception?)Translate(ex, password, entry, path) ?? ex;
+                    if (t is WrongPasswordException { MayBeCorrupt: true } maybe)
+                    {
+                        pendingWrong ??= maybe;
+                    }
+                    else if (t is ArchivePasswordException || !ArchiveTestService.IsArchiveProblem(t))
+                    {
+                        if (ReferenceEquals(t, ex)) throw;
+                        throw t;
+                    }
+                    problemLog.Entry(path, ex);
+                    problems.Add(new TestProblem(path, ArchiveTestService.EntryReason(t), ErrorCatalog.DetailsOf(ex), ErrorCatalog.Describe(t).Kind));
+                    if (archive.IsSolid)
+                    {
+                        notChecked = files.Count - index - 1;
+                        break;
+                    }
+                }
+            }
+            problemLog.Finish();
+            if (pendingWrong is not null && !passwordProven) throw pendingWrong;
+            if (notChecked > 0)
+                problems.Add(new TestProblem(string.Empty, string.Format(SolidUncheckedFormat, notChecked)));
+            if (tail is not null)
+            {
+                var p = ErrorCatalog.Describe(tail);
+                problems.Add(new TestProblem(string.Empty, $"{p.Message} {TruncatedListNote}", ErrorCatalog.DetailsOf(tail), p.Kind));
+            }
+            progress?.Report(new ArchiveProgress { CurrentFile = string.Empty, BytesProcessed = totalBytes, TotalBytes = totalBytes, FilesProcessed = files.Count, TotalFiles = files.Count });
+            return new TestReport { CheckedCount = checkedFiles, Problems = problems };
+        }
+    }
+
+    /// <summary>솔리드 EGG 에서 앞 파일이 깨져 그 뒤 파일을 확인하지 못했을 때(개수).</summary>
+    internal const string SolidUncheckedFormat = "여러 파일을 한 덩어리로 압축한 파일(솔리드)이라 문제가 있는 파일 뒤의 파일 {0}개는 확인하지 못했어요.";
+
+    /// <summary>열기·목록 단계의 실패: 암호·환경 문제는 예외로, 압축 파일 문제는 전체 문제 하나로.</summary>
+    private static TestReport ArchiveLevel(Exception ex, string? password)
+    {
+        var t = ex as ArchiveException ?? (Exception?)Translate(ex, password, null, null) ?? ex;
+        if (t is ArchivePasswordException || !ArchiveTestService.IsArchiveProblem(t))
+        {
+            if (ReferenceEquals(t, ex)) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(ex);
+            throw t;
+        }
+        Logger.LogError("압축 검사 — EGG/ALZ 를 열지 못함", ex);
+        return TestReport.ForArchive(t);
+    }
 
     public Task<IReadOnlyList<ArchiveEntry>> ListEntriesAsync(
         string archivePath,
@@ -66,7 +194,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         string? password = null,
         IProgress<ArchiveProgress>? progress = null,
         CancellationToken cancellationToken = default)
-        => ExtractCore(archivePath, destinationFolder, _ => true, password, progress, cancellationToken);
+        => ExtractCore(archivePath, destinationFolder, _ => true, null, password, progress, cancellationToken);
 
     public Task ExtractEntriesAsync(
         string archivePath,
@@ -86,13 +214,17 @@ public sealed class EggAlzArchiveService : IArchiveService
             return SharpCompressArchiveServiceBase.MatchesSelector(d, selectors);
         }
 
-        return ExtractCore(archivePath, destinationFolder, ShouldExtract, password, progress, cancellationToken);
+        return ExtractCore(archivePath, destinationFolder, ShouldExtract, selectors, password, progress, cancellationToken);
     }
 
+    /// <param name="selectors">고른 항목('/' 구분, 앞뒤 '/' 없음) — null 이면 전체 풀기.
+    /// 끝이 잘린 압축(<see cref="ArchiveCompleteness.CheckEggAlz"/>)이면 남아 있는 항목을 다 푼 뒤 잘림 예외로 알린다(EggDotNet 이 뒤쪽 항목을 말없이 빼서
+    /// 예전엔 종료 코드 0 — 재사용장치가 파일을 잃음). 고른 것이 모두 목록에 있는 파일 하나하나면(항목 열기 등) 그 파일은 확인까지 끝났으니 알리지 않는다.</param>
     private static Task ExtractCore(
         string archivePath,
         string destinationFolder,
         Func<string, bool> shouldExtract,
+        IReadOnlySet<string>? selectors,
         string? password,
         IProgress<ArchiveProgress>? progress,
         CancellationToken cancellationToken)
@@ -232,6 +364,19 @@ public sealed class EggAlzArchiveService : IArchiveService
                     currentPath = null;
                 }
 
+                // W2-08 검증 지적: 끝 표시까지 온전하지 않으면(뒤쪽 항목이 목록에서 빠짐) 남은 것을 다 푼 뒤 잘림으로 알린다
+                // (고른 것이 수천 개여도 한 번 훑기 — 이름은 고른 것과 같은 열쇠 모양으로: '/' 구분·NFC·대소문자 무시)
+                bool exactFiles = false;
+                if (selectors is not null)
+                {
+                    var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var n in named)
+                        if (!n.IsDirectory) files.Add(EntryNames.SelectorKey(n.Path));
+                    exactFiles = selectors.All(files.Contains);
+                }
+                if (!exactFiles && ArchiveCompleteness.CheckEggAlz(archivePath, EmbeddedOffset(archivePath)) is { } cut)
+                    throw cut;
+
                 progress?.Report(new ArchiveProgress
                 {
                     CurrentFile = string.Empty,
@@ -281,7 +426,7 @@ public sealed class EggAlzArchiveService : IArchiveService
         if (written != expected)
             throw DamagedEntry(path, entry.IsEncrypted, $"크기가 맞지 않아요 — {written:N0} / {expected:N0}바이트");
         if (!archive.IsSolid && entry.Crc32 != 0 && crc != entry.Crc32)
-            throw DamagedEntry(path, entry.IsEncrypted, "내용 확인값(CRC)이 맞지 않아요");
+            throw DamagedEntry(path, entry.IsEncrypted, "내용 검사값이 원래와 달라요");   // W2-08: 화면에 영어 'CRC' 가 보이지 않게
     }
 
     /// <summary>

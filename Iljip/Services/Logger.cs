@@ -32,6 +32,9 @@ public static class Logger
         }
     }
 
+    /// <summary>로그 폴더(W2-08 — 오류 창의 '로그 폴더 열기'). 없을 수 있다(쓰는 쪽이 만든다).</summary>
+    public static string LogFolder => LogDirectory;
+
     /// <summary>예외를 파일에 기록. 실패해도 조용히 무시한다.</summary>
     public static void LogError(string context, Exception ex)
     {
@@ -47,6 +50,23 @@ public static class Logger
         catch
         {
             // 로깅 실패는 무시 (앱 동작에 영향 주지 않음)
+        }
+    }
+
+    /// <summary>예외 없는 한 줄 기록(I4-1 — 검사·고치기 요약처럼 스택이 필요 없는 것). 실패해도 조용히 무시한다.</summary>
+    public static void LogNote(string text)
+    {
+        try
+        {
+            var sb = new StringBuilder();
+            sb.Append('[').Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Append("] ");
+            sb.AppendLine(text);
+            sb.AppendLine(new string('-', 60));
+            Write(sb.ToString());
+        }
+        catch
+        {
+            // 로깅 실패는 무시
         }
     }
 

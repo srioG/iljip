@@ -1,0 +1,41 @@
+<Window x:Class="Iljip.Views.ProblemDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="문제가 생겼어요 - 일집"
+        Width="540" SizeToContent="Height" MaxHeight="700"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource WindowBgBrush}"
+        TextElement.Foreground="{DynamicResource FgBrush}">
+    <!-- W2-08(I2-8): 큰 글씨(무엇을 하다가·문제 종류) → 쉬운 한국어 문구 → 어떻게 하면 되는지 → 접힌 '자세히'(영어 원문·복사) → 고를 수 있는 일 -->
+    <StackPanel Margin="22">
+        <TextBlock x:Name="HeadingText" TextWrapping="Wrap" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+        <TextBox x:Name="MessageText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                 Foreground="{DynamicResource FgBrush}" FontSize="14" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" />
+
+        <TextBlock x:Name="AdviceText" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,0,12" />
+
+        <!-- 날 오류(예외 형식·영어 엔진 문구·코드)는 여기 아래에만 -->
+        <Expander x:Name="DetailExpander" Header="자세히" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBox x:Name="DetailText" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11"
+                         MaxHeight="200" VerticalScrollBarVisibility="Auto" Margin="0,6,0,6" />
+                <Button Style="{StaticResource DialogButton}" Content="자세한 내용 복사" HorizontalAlignment="Left" Height="28" Padding="12,0"
+                        Click="Copy_Click" />
+            </StackPanel>
+        </Expander>
+
+        <!-- 고를 수 있는 일('ZIP 고치기 시도' 등) -->
+        <StackPanel x:Name="ActionsPanel" Margin="0,0,0,6" />
+
+        <DockPanel LastChildFill="False">
+            <Button DockPanel.Dock="Left" Style="{StaticResource DialogButton}" Content="로그 폴더 열기" Height="32" Padding="12,0"
+                    Click="OpenLogs_Click" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource DialogButton}" Content="확인" Width="84" Height="32"
+                    Click="Ok_Click" IsDefault="True" IsCancel="True" />
+        </DockPanel>
+    </StackPanel>
+</Window>

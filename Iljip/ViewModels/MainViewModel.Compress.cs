@@ -380,12 +380,18 @@ public partial class MainViewModel
                 StatusText = "압축 취소됨";
                 return;
             }
-            string failure = o.Error is NothingToCompressException none
-                ? NothingCompressedMessage(none.Skipped)
-                : $"압축 실패:\n\n{(o.Error is { } ex ? ErrorMessages.ToUserMessage(ex) : o.Reason)}";
-            // W2-11(I3-16): 만들 곳에 쓸 권한이 없으면(읽기 전용·Program Files 등) '관리자 권한으로 다시 시도' — 같은 원본·같은 만들 곳으로 압축 창부터('--compress-to')
-            if (o.Error is null || !OfferElevatedRetry(o.Error, failure, CompressRetryFor(request, request.Sources), null, request.OutputFolder))
-                _ui.ShowError(failure);
+            // 하나도 못 담음은 무엇을 못 읽었는지까지(쉬운 한국어로 만든 글), 그 밖은 문제 창(W2-08 — 원문은 '자세히')
+            if (o.Error is NothingToCompressException none) _ui.ShowError(NothingCompressedMessage(none.Skipped));
+            else if (o.Error is { } ex)
+            {
+                // W2-11(I3-16): 만들 곳에 쓸 권한이 없으면(읽기 전용·Program Files 등) '관리자 권한으로 다시 시도' — 같은 원본·같은 만들 곳으로 압축 창부터('--compress-to')
+                // 엔진 오류에 풀기 문구('…다시 받아서 풀어 보세요')가 나오지 않게(W2-08 검증 지적 2차)
+                var problem = ErrorCatalog.DescribeCompressFailure(ex);
+                if (problem.Kind != ProblemKind.Cancelled
+                    && !OfferElevatedRetry(ex, $"압축하지 못했어요.\n\n{problem.Message}", CompressRetryFor(request, request.Sources), null, request.OutputFolder))
+                    _ui.ShowProblem(problem with { Heading = "압축하지 못했어요." });
+            }
+            else _ui.ShowError($"압축하지 못했어요.\n\n{o.Reason}");
             StatusText = "오류 발생";
             return;
         }

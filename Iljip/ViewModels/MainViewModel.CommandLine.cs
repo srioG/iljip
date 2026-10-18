@@ -140,6 +140,11 @@ public partial class MainViewModel
                     await RunQuickCompressAsync(cmd.Paths, cmd.Verb == CommandVerb.Compress7z ? CompressionFormat.SevenZip : CompressionFormat.Zip);
                     break;
 
+                case CommandVerb.Test:
+                    // W2-08: 보통은 메인 창 없이(ProcessShellCommandAsync) 오지만, 이 길로 와도 같게 검사한다
+                    await RunTestCommandAsync(cmd);
+                    break;
+
                 case CommandVerb.Paths:
                     {
                         // 키워드가 아니면 모두 경로로 간주 (드롭과 동일 처리)
@@ -153,7 +158,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             Logger.LogError("명령 처리 중 오류", ex);
-            _ui.ShowError($"명령 처리 중 오류:\n\n{ErrorMessages.ToUserMessage(ex)}");
+            ShowProblem("명령을 처리하지 못했어요.", ex);
         }
         finally
         {
@@ -198,7 +203,7 @@ public partial class MainViewModel
             catch (Exception ex)
             {
                 Logger.LogError("우클릭 바로 압축 중 오류", ex);
-                _ui.ShowError($"압축하지 못했어요.\n\n{ErrorMessages.ToPlainMessage(ex)}");
+                _ui.ShowError($"압축하지 못했어요.\n\n{ErrorMessages.ToCompressMessage(ex)}");
             }
             finally
             {
@@ -219,7 +224,29 @@ public partial class MainViewModel
             catch (Exception ex)
             {
                 Logger.LogError("우클릭 넣기 중 오류", ex);
-                _ui.ShowError($"압축 파일에 넣지 못했어요.\n\n{ErrorMessages.ToPlainMessage(ex)}");
+                ShowProblem("압축 파일에 넣지 못했어요.", ex);
+            }
+            return;
+        }
+
+        // W2-08: '--test 압축…'(압축 파일 검사) — 진행 창·결과 창만, 명령은 한 번에 하나씩
+        if (cmd.Verb == CommandVerb.Test)
+        {
+            await _commandGate.WaitAsync();
+            _inCommandGate.Value = true;
+            try
+            {
+                await RunTestCommandAsync(cmd);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("압축 시험 명령 중 오류", ex);
+                ShowProblem("압축 파일을 시험하지 못했어요.", ex);
+            }
+            finally
+            {
+                _inCommandGate.Value = false;
+                _commandGate.Release();
             }
             return;
         }
@@ -248,7 +275,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             Logger.LogError("우클릭 풀기 중 오류", ex);
-            _ui.ShowError($"압축을 풀지 못했어요.\n\n{ErrorMessages.ToPlainMessage(ex)}");
+            ShowProblem("압축을 풀지 못했어요.", ex);
         }
         finally
         {
@@ -395,7 +422,12 @@ public partial class MainViewModel
             {
                 string failure = $"‘{only.Name}’을 풀지 못했어요.\n\n{only.Reason}";
                 if (!OfferElevatedRetry(only.Error, failure, ElevatedRetryFor(rule, new[] { only.ArchivePath }), only.ArchivePath, WriteFolderFor(rule, only.ArchivePath)))
-                    _ui.ShowError(failure);
+                {
+                    // W2-08(IJ3-02): 문제 창(이유는 요약과 같은 쉬운 한국어, 원문은 '자세히') — 손상된 ZIP 이면 'ZIP 고치기 시도'
+                    var problem = ErrorCatalog.Describe(only.Error, only.ArchivePath);
+                    if (problem.Kind != ProblemKind.Cancelled)
+                        await ShowProblemAsync(problem with { Heading = $"‘{only.Name}’을 풀지 못했어요.", Message = only.Reason ?? problem.Message }, only.ArchivePath);
+                }
             }
             foreach (var n in notes) _ui.ShowWarning(n);
         }

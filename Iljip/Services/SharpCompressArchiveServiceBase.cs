@@ -13,7 +13,7 @@ namespace Iljip.Services;
 /// 압축 해제와 항목 목록 읽기는 <see cref="OpenForRead"/>(기본: 형식 판별 → 형식별 OpenArchive)로 모든 지원 포맷에서
 /// 동일하게 동작하므로 여기에 공통 구현을 두고, 각 포맷별 압축 로직은 파생 클래스가 구현한다.
 /// </summary>
-public abstract class SharpCompressArchiveServiceBase : IArchiveService
+public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiveTestable
 {
     public abstract IReadOnlyList<string> SupportedExtensions { get; }
 
@@ -165,10 +165,63 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     /// 형식별로 더 아는 것이 있으면 파생 클래스가 바꾼다(7z 헤더 암호 → <see cref="SevenZipArchiveService"/>).
     /// </summary>
     protected virtual Exception? TranslateError(Exception ex, string archivePath, string? password, IArchiveEntry? entry, string? entryPath)
-        => EngineErrorTranslator.Translate(ex, new EngineErrorTranslator.Context(
-            PasswordGiven: !string.IsNullOrEmpty(password),
-            EntryEncrypted: entry is not null && IsEncrypted(entry),
-            EntryPath: entryPath));
+        => EngineErrorTranslator.IsBadSeek(ex)
+            ? new CorruptArchiveException(ex, entryPath)   // 깨진 위치 값으로 엉뚱한 자리를 찾다 거절됨 — 손상(I4-1 검토)
+            : EngineErrorTranslator.Translate(ex, new EngineErrorTranslator.Context(
+                PasswordGiven: !string.IsNullOrEmpty(password),
+                EntryEncrypted: entry is not null && IsEncrypted(entry),
+                EntryPath: entryPath));
+
+    /// <summary>
+    /// 구조 검사 결과(W2-08 검증 지적 2차 — ZIP 의 목록 손상): <paramref name="Whole"/> = 압축 전체 문제(목록에서 파일이 빠짐 — 없으면 null),
+    /// <paramref name="BadEntries"/> = 목록과 실제 내용이 맞지 않는 항목(엔진 항목 순번 — 풀거나 읽지 않는다).
+    /// </summary>
+    protected internal sealed record StructureProblems(CorruptArchiveException? Whole, IReadOnlySet<int> BadEntries)
+    {
+        public bool Any => Whole is not null || BadEntries.Count > 0;
+    }
+
+    /// <summary>
+    /// 엔진이 말없이 넘기는 구조 손상을 따로 본다(기본: 보지 않음 — ZIP 만 <see cref="ZipArchiveService"/>). 엔진이 연 뒤 항목 수(<paramref name="engineEntryCount"/>)를 받아
+    /// 풀기·검사가 부른다(목록 보기는 예전처럼 너그럽게 — 부르지 않음). 문제가 없으면 null.
+    /// </summary>
+    protected virtual StructureProblems? CheckStructure(string archivePath, int engineEntryCount) => null;
+
+    /// <summary><see cref="CheckStructure"/> — 사용자 환경 문제(입출력)는 그대로 던지고, 그 밖의 읽기 실패는 '검사 못 함'(null)으로.</summary>
+    private StructureProblems? CheckStructureSafe(string archivePath, int engineEntryCount)
+    {
+        try
+        {
+            var p = CheckStructure(archivePath, engineEntryCount);
+            return p is { Any: true } ? p : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && !ErrorCatalog.IsEnvironmentProblem(ex))
+        {
+            Logger.LogError($"구조 검사를 하지 못함(넘어감): {archivePath}", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// '암호가 맞지 않아요'로 끝나려는 오류가 사실은 목록 손상 때문인가(IJ3-02 — I2-8: 목록의 AES 정보·위치·크기 칸이 깨지면 맞는 암호로도 암호 판정이 틀려
+    /// '암호가 맞지 않아요. 다시 넣어 주세요.'만 나오고 고치기를 권하지 않았다). 틀린 암호 예외가 아니면 그대로 돌려준다.
+    /// <paramref name="structureChecked"/>(이미 구조를 봄 — <paramref name="known"/>)이면 압축 전체 문제(목록에서 파일이 빠짐)일 때만 그 손상으로 바꾼다
+    /// (목록과 맞지 않는 항목은 풀지 않으므로 그 밖의 항목에서 난 암호 오류는 진짜 암호 문제). 아직 안 봤으면(풀기 전 암호 판정 단계) 목록 기록 차례로 보아
+    /// 문제가 하나라도 있으면 손상으로 — 판정은 깨진 기록의 값(AES 세기·위치)으로 암호를 맞춰 보기 때문이다.
+    /// </summary>
+    private Exception PasswordOrDamage(Exception translated, string archivePath, StructureProblems? known, bool structureChecked)
+    {
+        if (translated is not WrongPasswordException wrong) return translated;
+        var st = structureChecked ? known : CheckStructureSafe(archivePath, -1);
+        CorruptArchiveException? damage = st?.Whole ?? (!structureChecked && st is { BadEntries.Count: > 0 } ? ZipListDamagedException.Mismatch(null) : null);
+        // 손상은 보이지만(목록과 맞지 않는 항목) 이 항목의 암호 오류가 그 때문인지는 모름 — 틀린 암호와 손상을 가를 수 없어 '손상일 수도' 덧말을 붙인다
+        // (I4-1 검토: 맨 앞 머리가 깨져 암호 판정을 못 한 한글 암호 ZIP 이 맞는 암호에도 덧말 없이 '암호가 맞지 않아요'였다)
+        if (damage is null && st is { Any: true } && !wrong.MayBeCorrupt && !wrong.IsHeaderEncrypted)
+            return new WrongPasswordException(inner: wrong, entryPath: wrong.EntryPath, mayBeCorrupt: true);
+        if (damage is null) return translated;
+        Logger.LogError($"암호 오류 대신 목록 손상으로 알림: {archivePath}", translated);
+        return damage;
+    }
 
     /// <summary>항목이 암호 항목인지(엔진이 모르면 false).</summary>
     protected static bool IsEncrypted(IArchiveEntry entry)
@@ -235,15 +288,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         IProgress<ArchiveProgress>? progress,
         CancellationToken cancellationToken)
     {
-        ExtractPlan plan;
-        try
-        {
-            plan = PrepareExtract(archivePath, password, shouldExtract);
-        }
-        catch (Exception ex) when (ex is not ArchiveException && TranslateError(ex, archivePath, password, null, null) is { } translated)
-        {
-            throw translated;
-        }
+        var plan = PrepareChecked(archivePath, password, shouldExtract);
 
         var ledger = new ExtractionLedger();
         try
@@ -256,6 +301,28 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             // 다른 후보로 처음부터 다시 푼다 — 같은 이름으로 다시 쓰게(아니면 '이름 (1)' 로 비켜 써짐). 이번에도 실패하면 그 예외 그대로.
             ledger.Rollback();
             ExtractWithPlan(plan.Alternate, new ExtractionLedger(), archivePath, destinationFolder, shouldExtract, password, progress, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 해제·시험 준비(<see cref="PrepareExtract"/>)를 하고 엔진 예외는 일집 예외로 바꾼다. 준비 단계의 암호 판정이 '틀린 암호'라고 하면
+    /// 목록 손상 때문이 아닌지 본다(<see cref="PasswordOrDamage"/> — IJ3-02 I2-8).
+    /// </summary>
+    private ExtractPlan PrepareChecked(string archivePath, string? password, Func<string, bool> shouldExtract)
+    {
+        try
+        {
+            return PrepareExtract(archivePath, password, shouldExtract);
+        }
+        catch (Exception ex) when (ex is not ArchiveException && TranslateError(ex, archivePath, password, null, null) is { } translated)
+        {
+            throw PasswordOrDamage(translated, archivePath, null, structureChecked: false);
+        }
+        catch (WrongPasswordException ex)
+        {
+            var damage = PasswordOrDamage(ex, archivePath, null, structureChecked: false);
+            if (ReferenceEquals(damage, ex)) throw;
+            throw damage;
         }
     }
 
@@ -272,6 +339,8 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     {
         IArchiveEntry? current = null;   // 지금 풀고 있는 항목(오류 번역에 씀 — 열기 단계면 null)
         string? currentPath = null;
+        StructureProblems? structure = null;
+        bool structureChecked = false;
         try
         {
             ledger.EnsureDirectory(destinationFolder);
@@ -281,15 +350,23 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
             var entries = opened.Entries;
 
             long totalBytes = 0;
-            int totalFiles = 0;
+            int totalFiles = 0, allFiles = 0;
             foreach (var e in entries)
             {
                 if (e.IsDirectory) continue;
+                allFiles++;
                 string dp = EntryNames.Nfc(MapEntryKey(archivePath, e.Key));   // CustomDecoder가 이미 디코드 (이중 디코드 방지), 화면과 같은 NFC 이름(W2-09)
                 if (!shouldExtract(dp)) continue;
                 totalBytes += e.Size;
                 totalFiles++;
             }
+
+            // 엔진이 말없이 넘기는 목록 손상(ZIP — W2-08 검증 지적 2차): 목록과 맞지 않는 파일은 풀지 않고(다른 파일 내용이 그 이름으로 풀리지 않게),
+            // 맞는 파일을 다 푼 뒤 손상으로 알린다(목록에서 빠진 파일은 전부 풀 때만 — 목록에서 고른 파일만 풀면 그 파일은 확인까지 끝남).
+            structure = CheckStructureSafe(archivePath, entries.Count);
+            structureChecked = true;
+            string? skippedBad = null;
+            bool anySkipped = false;
 
             long bytesProcessed = 0;
             int filesProcessed = 0;
@@ -306,6 +383,17 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 current = entry;
                 currentPath = decodedPath;
 
+                // 목록과 맞지 않는 '폴더'도 풀지 않고 손상으로 알린다 — 파일 이름의 끝 바이트가 '/' 로 깨지면 엔진은 그 파일을 폴더로 봐서
+                // 예전엔 구조 검사 결과를 보기 전에 빈 폴더만 만들고 넘어가 그 파일이 말없이 빠진 채 종료 코드 0 이었다(I4-1 검증 지적)
+                if (entry.IsDirectory && structure is not null && structure.BadEntries.Contains(index))
+                {
+                    skippedBad ??= decodedPath;
+                    anySkipped = true;
+                    current = null;
+                    currentPath = null;
+                    continue;
+                }
+
                 // Zip Slip 방어 + Windows 에서 그 이름 그대로는 못 쓰는 조각(':'·'?'·장치 이름·점만 있는 폴더)을 바꾼 출력 경로
                 // (EntryPaths — 7z.dll·압축된 tar·EGG 경로와 같은 규칙, W2-01). 공격이면 '안전하지 않은 경로: …'(기존 문구).
                 string fullOutputPath = EntryPaths.ResolveOutput(destinationFolder, decodedPath);
@@ -321,6 +409,16 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 // 크기 0 항목은 풀 것이 없어 묻지 않는다 — SharpCompress 는 암호 없는 7z 의 빈 파일도 IsEncrypted = true 로 준다(실측).
                 if (string.IsNullOrEmpty(plan.Options.Password) && entry.Size > 0 && IsEncrypted(entry))
                     throw new PasswordRequiredException(entryPath: decodedPath);
+
+                if (structure is not null && structure.BadEntries.Contains(index))
+                {
+                    skippedBad ??= decodedPath;
+                    anySkipped = true;
+                    filesProcessed++;
+                    current = null;
+                    currentPath = null;
+                    continue;
+                }
 
                 string? parent = Path.GetDirectoryName(fullOutputPath);
                 if (!string.IsNullOrEmpty(parent))
@@ -404,6 +502,9 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
                 currentPath = null;
             }
 
+            if (anySkipped) throw ZipListDamagedException.Mismatch(skippedBad);
+            if (structure?.Whole is { } whole && totalFiles == allFiles) throw whole;
+
             progress?.Report(new ArchiveProgress
             {
                 CurrentFile = string.Empty,
@@ -417,9 +518,12 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         {
             var translated = ex as ArchiveException ?? TranslateError(ex, archivePath, password, current, currentPath);
             // 판정이 암호를 이미 충분히 확인했으면 암호 항목의 데이터·인증값 오류(엔진 번역의 '틀린 암호, 손상일 수도')는 손상이다(B4) —
-            // 다시 묻지 않고, 앞서 맞게 풀린 파일은 남긴다(깨진 그 파일은 위에서 이미 지움).
-            if (plan.PasswordConfirmed && translated is WrongPasswordException { MayBeCorrupt: true } maybe)
+            // 다시 묻지 않고, 앞서 맞게 풀린 파일은 남긴다(깨진 그 파일은 위에서 이미 지움). 그 항목의 암호 확인값만 어긋난 것('틀린 암호')도 확인된 암호로는
+            // 그 항목의 암호 머리가 깨진 것이다(I4-1 검토 — 맞는 암호에 '암호가 맞지 않아요'로 끝났다).
+            if (plan.PasswordConfirmed && translated is WrongPasswordException { IsHeaderEncrypted: false } maybe)
                 translated = new CorruptArchiveException(ex, maybe.EntryPath ?? currentPath);
+            // 목록이 손상돼 암호 판정·풀기가 틀린 것이면 손상으로(IJ3-02 I2-8 — 맞는 암호로도 '암호가 맞지 않아요'였다)
+            if (translated is not null) translated = PasswordOrDamage(translated, archivePath, structure, structureChecked);
             // 틀린 암호로 쓴 것(쓰레기 파일·빈 폴더)을 남기지 않는다. 같은 이름 창의 [취소](W2-05)도 이번에 만든 것을 모두 지운다.
             if (translated is ArchivePasswordException || ex is CollisionCancelledException)
                 ledger.Rollback();
@@ -437,15 +541,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
     /// <param name="onTestedBytes">지금까지 풀어 본 바이트(풀린 크기, 누적)를 읽을 때마다 알린다(진행 창 — W2-06 검증 지적 2차: ZIP 검사 동안 막대가 멈춰 보임). 다른 후보 암호로 다시 시험하면 0 부터 다시 센다.</param>
     internal int TestEntriesSync(string archivePath, string? password, Func<string, bool> include, CancellationToken cancellationToken, Action<long>? onTestedBytes = null)
     {
-        ExtractPlan plan;
-        try
-        {
-            plan = PrepareExtract(archivePath, password, include);
-        }
-        catch (Exception ex) when (ex is not ArchiveException && TranslateError(ex, archivePath, password, null, null) is { } translated)
-        {
-            throw translated;
-        }
+        var plan = PrepareChecked(archivePath, password, include);
         try
         {
             return TestWithPlan(plan, archivePath, include, password, cancellationToken, onTestedBytes);
@@ -461,20 +557,29 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         IArchiveEntry? current = null;
         string? currentPath = null;
         int checkedFiles = 0;
+        StructureProblems? structure = null;
+        bool structureChecked = false;
         try
         {
             var opened = OpenNamed(archivePath, plan.Options);
             using var archive = opened.Archive;
             var entries = opened.Entries;
+            // 목록 손상(ZIP — W2-08 검증 지적 2차)도 시험 실패로
+            structure = CheckStructureSafe(archivePath, entries.Count);
+            structureChecked = true;
+            if (structure?.Whole is { } whole) throw whole;
             var buffer = new byte[81920];
             long tested = 0;
             for (int index = 0; index < entries.Count; index++)
             {
                 var entry = entries[index];
                 cancellationToken.ThrowIfCancellationRequested();
-                if (entry.IsDirectory) continue;
+                // 목록과 맞지 않는 항목은 폴더로 보여도 문제(이름 끝이 '/' 로 깨진 파일 — I4-1 검증 지적)
+                bool bad = structure is not null && structure.BadEntries.Contains(index);
+                if (entry.IsDirectory && !bad) continue;
                 string path = EntryNames.Nfc(MapEntryKey(archivePath, entry.Key));
                 if (!include(path)) continue;
+                if (bad) throw ZipListDamagedException.Mismatch(path);
                 current = entry;
                 currentPath = path;
                 if (string.IsNullOrEmpty(plan.Options.Password) && entry.Size > 0 && IsEncrypted(entry))
@@ -504,11 +609,178 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService
         catch (Exception ex)
         {
             var translated = ex as ArchiveException ?? TranslateError(ex, archivePath, password, current, currentPath);
-            if (plan.PasswordConfirmed && translated is WrongPasswordException { MayBeCorrupt: true } maybe)
+            if (plan.PasswordConfirmed && translated is WrongPasswordException { IsHeaderEncrypted: false } maybe)
                 translated = new CorruptArchiveException(ex, maybe.EntryPath ?? currentPath);
+            if (translated is not null) translated = PasswordOrDamage(translated, archivePath, structure, structureChecked);
             if (translated is null || ReferenceEquals(translated, ex)) throw;
             throw translated;
         }
+    }
+
+    // ───── W2-08(압축 검사 — I2-7)에서 더한 것 ─────
+
+    TestReport IArchiveTestable.TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken) =>
+        TestArchive(archivePath, password, progress, cancellationToken);
+
+    /// <summary>
+    /// 압축 검사(W2-08): 모든 항목을 끝까지 읽어 보기만 한다(디스크에 쓰지 않음 — 풀기와 같은 준비 <see cref="PrepareExtract"/>·CRC 확인).
+    /// <see cref="TestEntriesSync"/>(첫 문제에서 멈춤)와 달리 항목 하나가 깨져도 다음 항목을 계속 보고 문제를 모아 돌려준다(ZIP 은 항목마다 따로 읽혀 나머지가 멀쩡할 수 있음).
+    /// 열기부터 안 되면 전체 문제 하나. 암호 문제·취소·사용자 환경 문제는 예외. 형식마다 다르게 여는 파생 클래스(7z.dll·raw bzip2·자동 풀림 exe)가 바꾼다.
+    /// </summary>
+    internal virtual TestReport TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken) =>
+        TestArchiveCore(archivePath, password, progress, cancellationToken);
+
+    /// <summary>SharpCompress 로 여는 검사 본체(7z.dll 을 못 쓸 때의 7z·RAR, 자동 풀림 ZIP 도 이 길).</summary>
+    protected TestReport TestArchiveCore(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        var plan = PrepareChecked(archivePath, password, _ => true);
+        try
+        {
+            var first = TestReportWithPlan(plan, archivePath, password, progress, cancellationToken);
+            if (first.Ok || plan.Alternate is null) return first;
+            // 두 암호 후보가 모두 판정을 통과한 드문 경우(B3): 다른 후보로도 보고 문제가 적은 쪽을 믿는다
+            try
+            {
+                var second = TestReportWithPlan(plan.Alternate, archivePath, password, progress, cancellationToken);
+                return second.Problems.Count < first.Problems.Count ? second : first;
+            }
+            catch (ArchivePasswordException)
+            {
+                return first;
+            }
+        }
+        catch (ArchivePasswordException) when (plan.Alternate is not null)
+        {
+            return TestReportWithPlan(plan.Alternate, archivePath, password, progress, cancellationToken);
+        }
+    }
+
+    private TestReport TestReportWithPlan(ExtractPlan plan, string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        // 엔진 예외 → 일집 예외(풀기와 같은 번역). 판정이 암호를 이미 확인했으면 '틀린 암호, 손상일 수도'는 손상.
+        Exception Translate(Exception ex, IArchiveEntry? entry, string? path)
+        {
+            var t = ex as ArchiveException ?? TranslateError(ex, archivePath, password, entry, path) ?? ex;
+            if (plan.PasswordConfirmed && t is WrongPasswordException { IsHeaderEncrypted: false } maybe)
+                t = new CorruptArchiveException(ex, maybe.EntryPath ?? path);
+            return t;
+        }
+
+        IArchive? archive = null;
+        var problemLog = new TestProblemLog(archivePath);   // I4-1: 항목 문제 로그는 처음 20개까지
+        try
+        {
+            List<IArchiveEntry> entries;
+            try
+            {
+                (archive, entries) = OpenNamed(archivePath, plan.Options);   // 목록·풀기와 같은 이름 방식(W2-09)
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                var t = PasswordOrDamage(Translate(ex, null, null), archivePath, null, structureChecked: false);
+                if (!ArchiveTestService.IsArchiveProblem(t)) Rethrow(t, ex);
+                Logger.LogError($"압축 검사 — 열지 못함: {archivePath}", ex);
+                return TestReport.ForArchive(t);
+            }
+
+            // 엔진이 말없이 넘기는 목록 손상(ZIP — W2-08 검증 지적 2차: 깨진 목록에서 엔진이 멈춰 '문제없어요. 파일 0개를 확인했어요.')
+            var structure = CheckStructureSafe(archivePath, entries.Count);
+            // 목록과 맞지 않는 항목은 엔진이 폴더로 봐도 파일 하나로 센다 — 이름 끝 바이트가 '/' 로 깨진 파일이면 폴더로 보여 검사가 건너뛰고
+            // '문제없어요. 파일 N-1개'였다(I4-1 검증 지적)
+            bool Bad(int i) => structure is not null && structure.BadEntries.Contains(i);
+
+            long totalBytes = 0;
+            int totalFiles = 0;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var e = entries[i];
+                if (e.IsDirectory && !Bad(i)) continue;
+                totalBytes += e.Size;
+                totalFiles++;
+            }
+
+            var problems = new List<TestProblem>();
+            int checkedFiles = 0;
+            long done = 0;
+            bool passwordProven = false;
+            WrongPasswordException? pendingWrong = null;
+            var buffer = new byte[81920];
+            for (int index = 0; index < entries.Count; index++)
+            {
+                var entry = entries[index];
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.IsDirectory && !Bad(index)) continue;
+                string path = EntryNames.Nfc(MapEntryKey(archivePath, entry.Key));   // 화면과 같은 NFC 이름(W2-09)
+                if (Bad(index))
+                {
+                    // 목록이 가리키는 자리에 이 파일이 없다 — 읽지 않는다(다른 파일 내용을 이 파일로 확인하지 않게)
+                    var mismatch = ZipListDamagedException.Mismatch(path);
+                    problems.Add(new TestProblem(path, ZipListDamagedException.EntryReason, ErrorCatalog.DetailsOf(mismatch), ProblemKind.Corrupt));
+                    done += Math.Max(0, entry.Size);
+                    continue;
+                }
+                bool encrypted = IsEncrypted(entry);
+                // 암호 항목인데 암호가 없으면 화면이 묻게(풀기와 같은 길)
+                if (string.IsNullOrEmpty(plan.Options.Password) && entry.Size > 0 && encrypted)
+                    throw new PasswordRequiredException(entryPath: path);
+                progress?.Report(new ArchiveProgress { CurrentFile = path, BytesProcessed = done, TotalBytes = totalBytes, FilesProcessed = checkedFiles + problems.Count, TotalFiles = totalFiles });
+                long before = done;
+                try
+                {
+                    var crc = plan.VerifyCrc ? new Crc32() : null;
+                    using (var input = plan.OpenOverride?.Invoke(index, entry) ?? OpenEntryData(archivePath, entry))
+                    {
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            crc?.Update(new ArraySegment<byte>(buffer, 0, read));
+                            done += read;
+                            progress?.Report(new ArchiveProgress { CurrentFile = path, BytesProcessed = Math.Min(done, totalBytes), TotalBytes = totalBytes, FilesProcessed = checkedFiles + problems.Count, TotalFiles = totalFiles });
+                        }
+                    }
+                    if (crc is not null) VerifyCrc(entry, path, (uint)crc.Value, plan.PasswordConfirmed);
+                    checkedFiles++;
+                    if (encrypted && entry.Size > 0) passwordProven = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    done = before + Math.Max(0, entry.Size);
+                    // 목록에서 파일이 빠질 만큼 목록이 깨졌으면 암호 오류도 그 손상 때문으로 본다(IJ3-02 I2-8)
+                    var t = PasswordOrDamage(Translate(ex, entry, path), archivePath, structure, structureChecked: true);
+                    if (t is WrongPasswordException { MayBeCorrupt: true } maybe)
+                    {
+                        // 틀린 암호와 손상을 가를 수 없다 — 같은 암호로 다른 암호 항목이 맞게 읽히면 손상, 아니면 끝에서 암호를 다시 묻는다
+                        pendingWrong ??= maybe;
+                        problems.Add(new TestProblem(path, ArchiveTestService.EntryReason(t), ErrorCatalog.DetailsOf(ex), ProblemKind.WrongPassword));
+                        continue;
+                    }
+                    if (!ArchiveTestService.IsArchiveProblem(t)) Rethrow(t, ex);
+                    problemLog.Entry(path, ex);
+                    problems.Add(new TestProblem(path, ArchiveTestService.EntryReason(t), ErrorCatalog.DetailsOf(ex), ErrorCatalog.Describe(t).Kind));
+                }
+            }
+            if (pendingWrong is not null && !passwordProven && !plan.PasswordConfirmed) throw pendingWrong;
+            if (structure?.Whole is { } whole)
+            {
+                Logger.LogError($"압축 검사 — 목록 손상: {archivePath}", whole);
+                problems.Add(new TestProblem(string.Empty, whole.Message, ErrorCatalog.DetailsOf(whole), ProblemKind.Corrupt));
+            }
+            progress?.Report(new ArchiveProgress { CurrentFile = string.Empty, BytesProcessed = totalBytes, TotalBytes = totalBytes, FilesProcessed = totalFiles, TotalFiles = totalFiles });
+            return new TestReport { CheckedCount = checkedFiles, Problems = problems };
+        }
+        finally
+        {
+            archive?.Dispose();
+            problemLog.Finish();
+        }
+    }
+
+    /// <summary>번역한 예외를 던진다(번역이 없었으면 원래 예외를 호출 위치 그대로).</summary>
+    private static void Rethrow(Exception translated, Exception original)
+    {
+        if (ReferenceEquals(translated, original)) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(original);
+        throw translated;
     }
 
     /// <summary>

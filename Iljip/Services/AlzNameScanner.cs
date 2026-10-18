@@ -15,7 +15,7 @@ namespace Iljip.Services;
 ///   항목마다: 'BLZ\1' 이름길이(2) 속성(1) DOS시각(4) 설명자(1) 미상(1)
 ///             [설명자 윗 4비트 = 크기 칸 바이트 수 n &gt; 0 이면] 방식(1) 미상(1) CRC(4) 압축크기(n) 원래크기(n)
 ///             이름 · [암호 항목(설명자 bit0)이면 12바이트 암호 머리] · 데이터(압축크기)
-///   'CLZ\1' … (끝)
+///   'CLZ\1' [4바이트 칸 …] 'CLZ\2' (끝 — EggDotNet 도 'CLZ\2' 를 끝으로 봄)
 /// </code>
 /// 모르는 서명·말이 안 되는 크기 칸이면 null 을 돌려 호출자가 EggDotNet 값을 그대로 쓰게 한다 — 최악이라도 지금과 같다.
 /// 파일이 중간에 끊긴 경우(받다 만 파일)는 끊기기 전까지 '온전히 읽은' 항목만 돌려준다(<see cref="AlzScan.Complete"/> = false).
@@ -66,7 +66,7 @@ internal static class AlzNameScanner
             {
                 if (fs.Position + 4 > length) return Cut();           // 끝 표시 없이 끝남 = 잘림
                 uint sig = r.ReadUInt32();
-                if (sig == EndMagic) return new AlzScan(entries, Complete: true);
+                if (sig == EndMagic) return EndMarkFollows(fs, r, length) ? new AlzScan(entries, Complete: true) : Cut();
                 if (sig != EntryMagic) return null;                    // 모르는 서명
 
                 if (fs.Position + 9 > length) return Cut();           // 항목 머리 중간에서 끊김
@@ -104,6 +104,24 @@ internal static class AlzNameScanner
             return null;
         }
     }
+
+    /// <summary>
+    /// 'CLZ\1' 뒤에 마지막 끝 표시 'CLZ\2'(0x025A4C43)가 있는가(IJ3-02 (a) — 예전: 'CLZ\1' 만 보고 온전하다고 봐, 'CLZ\2' 안·앞에서 잘린 ALZ 를 '문제없어요').
+    /// unalz·EggDotNet 처럼 4바이트씩 넘기며 찾는다(사이에 낀 칸이 있을 수 있음). 찾으면 true, 찾기 전에 파일이 끝나면 false(잘림).
+    /// <see cref="EndSearchWords"/> 칸 안에 없고 뒤가 더 있으면 모르는 꼬리 — 온전하다고 본다(예전과 같게, 잘못 '잘림'이라 하지 않게).
+    /// </summary>
+    private static bool EndMarkFollows(FileStream fs, BinaryReader r, long length)
+    {
+        for (int i = 0; i < EndSearchWords; i++)
+        {
+            if (fs.Position + 4 > length) return false;
+            if (r.ReadUInt32() == FinalMagic) return true;
+        }
+        return true;
+    }
+
+    private const uint FinalMagic = 0x025A4C43;   // 'CLZ\2'
+    private const int EndSearchWords = 16;
 
     /// <summary>ALZ 파일의 항목 이름 원본 바이트를 파일 순서대로. 끝까지 온전한 ALZ 가 아니면(잘림 포함) null.</summary>
     internal static IReadOnlyList<byte[]>? TryReadNames(string alzPath) =>

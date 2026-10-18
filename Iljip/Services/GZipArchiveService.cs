@@ -90,7 +90,7 @@ public sealed class GZipArchiveService : SharpCompressArchiveServiceBase
             {
                 EndOfStreamException => "끝부분이 잘려 있어요",
                 GZipException g when g.Message.Contains("crc", StringComparison.OrdinalIgnoreCase)
-                                  || g.Message.Contains("mismatch", StringComparison.OrdinalIgnoreCase) => "내용 확인값(CRC·크기)이 맞지 않아요",
+                                  || g.Message.Contains("mismatch", StringComparison.OrdinalIgnoreCase) => "내용 검사값·크기가 원래와 달라요",   // W2-08: 영어 'CRC' 없이
                 _ when ex.Message.Contains("EOF", StringComparison.OrdinalIgnoreCase) => "끝부분이 잘려 있어요",
                 _ => "압축된 데이터가 깨져 있어요",
             };

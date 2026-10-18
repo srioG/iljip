@@ -186,6 +186,23 @@ public sealed class SfxArchiveService : SharpCompressArchiveServiceBase
     }
 
     /// <summary>
+    /// 압축 검사(W2-08 — IJ3-02 에서 다시): 안쪽 압축의 처리기 그대로(ZIP → ZIP 처리기 — 일집·반디집의 CP949 한글 ZipCrypto 암호·AES 인증값·목록 맞춰 보기,
+    /// EGG·ALZ → EGG/ALZ 처리기, 7z·RAR → 7z.dll, 7z.dll 없음 → SharpCompress).
+    /// </summary>
+    internal override TestReport TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        var (kind, offset, _) = Detect(archivePath);
+        if (kind == ArchiveKind.ZipSfx)
+            return _zip.TestArchive(archivePath, password, progress, cancellationToken);
+        if (kind is ArchiveKind.EggSfx or ArchiveKind.AlzSfx)
+            return ((IArchiveTestable)_eggAlz).TestArchive(archivePath, password, progress, cancellationToken);
+        if (kind is (ArchiveKind.SevenZipSfx or ArchiveKind.RarSfx) && EngineSource(archivePath, kind, offset) is { } src)
+            return SevenZipEngine.Test(src, password, progress, cancellationToken);
+        ThrowIfInnerRarTruncated(archivePath, kind, offset);
+        return TestArchiveCore(archivePath, password, progress, cancellationToken);
+    }
+
+    /// <summary>
     /// SharpCompress 로 여는 안쪽 압축: ZIP SFX(늘), 7z·RAR SFX(7z.dll 을 못 쓸 때). 서명(ZIP 은 위치값 기준점)부터 보이는 스트림을
     /// 그 형식으로 연다(스트림은 아카이브가 닫을 때 같이 닫힘).
     /// </summary>

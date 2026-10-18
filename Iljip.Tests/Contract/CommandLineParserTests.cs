@@ -92,12 +92,13 @@ public class CommandLineParserTests
     /// W2-12 에서 '--extract-smart'(알아서 풀기)·'--compress-zip'·'--compress-7z'(창 없이 바로 압축)·'--register-associations'·'--unregister-associations'(파일 연결)를 더해 16개.
     /// 동사 앞 표시('--new-window'·'--elevated')는 키워드가 아니라 <see cref="CommandLineParser.Flags"/>(W2-11 시험은 아래 표시 시험들).
     /// '--list-file'(긴 명령줄 — 해석 전에 펼침)·'--drop-handler'(파일 연결 넣기의 선택 표시)도 동사가 아니다(W2-12).
+    /// W2-08(IJ3-02 에서 다시)에서 '--test'(압축 파일 검사)를 더해 17개.
     /// </summary>
     [Fact]
     public void 키워드_목록은_모두_해석된다()
     {
-        Assert.Equal(16, CommandLineParser.Keywords.Count);
-        Assert.Equal(16, CommandLineParser.Keywords.Distinct().Count());
+        Assert.Equal(17, CommandLineParser.Keywords.Count);
+        Assert.Equal(17, CommandLineParser.Keywords.Distinct().Count());
         Assert.Contains(CommandLineParser.AddToKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.AddToPickKeyword, CommandLineParser.Keywords);
         Assert.Contains(CommandLineParser.CompressToKeyword, CommandLineParser.Keywords);
@@ -111,6 +112,7 @@ public class CommandLineParserTests
         Assert.DoesNotContain("--list-file", CommandLineParser.Keywords);
         Assert.DoesNotContain("--drop-handler", CommandLineParser.Keywords);
         Assert.Empty(CommandLineParser.Flags.Intersect(CommandLineParser.Keywords));
+        Assert.Contains(CommandLineParser.TestKeyword, CommandLineParser.Keywords);
         foreach (var k in CommandLineParser.Keywords)
         {
             var cmd = CommandLineParser.Parse(new[] { k, "a.zip", "dest" });

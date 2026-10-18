@@ -284,7 +284,7 @@ public sealed class CompressFlow
                 DeletePartialOutput(target, before);
                 Logger.LogError($"압축 실패: {target}", ex);
                 outcome.Error = ex;
-                outcome.Reason = ErrorMessages.ToPlainMessage(ex);
+                outcome.Reason = ErrorMessages.ToCompressMessage(ex);   // 엔진 오류에 풀기 문구('…다시 받아서 풀어 보세요')가 나오지 않게(W2-08 검증 지적 2차)
             }
         }
 

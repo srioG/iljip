@@ -61,7 +61,7 @@ public partial class MainViewModel
             }
             string failure = o.Error is NothingToCompressException none
                 ? NothingCompressedMessage(none.Skipped)
-                : $"‘{Path.GetFileName(o.Target)}’을 만들지 못했어요.\n\n{(o.Error is { } ex ? ErrorMessages.ToUserMessage(ex) : o.Reason)}";
+                : $"‘{Path.GetFileName(o.Target)}’을 만들지 못했어요.\n\n{(o.Error is { } ex ? ErrorMessages.ToCompressMessage(ex) : o.Reason)}";   // 압축 실패 문구(W2-08 — 풀기 문구 아님)
             // 만들 곳에 쓸 권한이 없으면 관리자 권한으로 다시 — 같은 원본·같은 만들 곳으로 압축 창부터('--compress-to', 암호 없이 같은 일을 다시 고를 수 있게)
             if (o.Error is null || !OfferElevatedRetry(o.Error, failure, CompressRetryFor(request, request.Sources), null, request.OutputFolder))
                 _ui.ShowError(failure);
@@ -78,7 +78,8 @@ public partial class MainViewModel
         if (notes.Count > 0)
         {
             notes.AddRange(result.Notes);
-            _ui.ShowInfo($"‘{Path.GetFileName(o.ResultPath)}’을 만들었어요.\n\n{string.Join("\n\n", notes)}");
+            string noteText = string.Join("\n\n", notes);
+            _ui.ShowInfo($"‘{Path.GetFileName(o.ResultPath)}’을 만들었어요.\n\n{noteText}");
         }
         if (result.Warnings.Count > 0)
             _ui.ShowWarning(string.Join("\n\n", result.Warnings));

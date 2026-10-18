@@ -14,9 +14,13 @@ namespace Iljip.Services;
 /// 끝 잘림은 형식별 구조 검사(<see cref="ArchiveCompleteness"/> — ISO PVD·UDF AVDP, CAB 전체 크기, LZH 끝 바이트, XZ 꼬리)로 먼저 본다.
 /// xz 는 7z.dll 로만 푼다 — SharpCompress 0.50.5 의 XZStream 은 잘린 xz 에서 끝없이 돈다(실측, 1차 검증 지적 (b)).
 /// </summary>
-public sealed class SevenZipFormatsArchiveService : IArchiveService
+public sealed class SevenZipFormatsArchiveService : IArchiveService, IArchiveTestable
 {
     public IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".zipx", ".iso", ".cab", ".lzh", ".lha", ".wim", ".xz" };
+
+    /// <summary>압축 검사(W2-08): 7z.dll 시험(<see cref="SevenZipEngine.Test"/>) — 디스크에 쓰지 않음.</summary>
+    TestReport IArchiveTestable.TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken) =>
+        SevenZipEngine.Test(CreateSource(archivePath), password, progress, cancellationToken);
 
     internal static SevenZipEngine.Source CreateSource(string archivePath)
     {
@@ -53,7 +57,36 @@ public sealed class SevenZipFormatsArchiveService : IArchiveService
                 ? data => SevenZipEngineServiceBase.NamesFromSharpCompress(
                     options => SharpCompress.Archives.Zip.ZipArchive.OpenArchive(archivePath, options), data)
                 : null,
+            // ZIPX 목록 손상: ZIP 과 같은 목록·로컬 머리 대조(I4-1 검증 지적 — 7z.dll 은 목록 이름이 깨져도 말없이 풀어 '문제없어요'·종료 코드 0 이었다)
+            ListCheck = format == InArchiveFormat.Zip ? items => ZipListCheck(archivePath, items) : null,
         };
+    }
+
+    /// <summary>
+    /// ZIPX 의 목록 손상 검사(<see cref="ZipArchiveService.CheckZipStructure(Stream, int, out IReadOnlyList{ZipDirectory.CentralRecord})"/> — ZIP 과 같은 규칙).
+    /// 7z.dll 항목은 목록 기록 차례라고 보되, 문제없는 기록마다 크기·CRC(폴더는 크기 0)가 7z.dll 항목과 맞을 때만 그 순번을 그대로 쓴다.
+    /// 맞지 않으면 어느 항목이 문제인지 가릴 수 없어 모든 항목을 문제로 본다(풀지 않고 손상으로 알림 — 다른 파일 내용이 그 이름으로 풀리지 않게).
+    /// </summary>
+    internal static SevenZipEngine.ListProblems? ZipListCheck(string archivePath, IReadOnlyList<SevenZipEngine.Item> items)
+    {
+        SharpCompressArchiveServiceBase.StructureProblems? p;
+        IReadOnlyList<ZipDirectory.CentralRecord> records;
+        using (var s = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            p = ZipArchiveService.CheckZipStructure(s, items.Count, out records);
+        if (p is null) return null;
+        bool aligned = true;
+        for (int i = 0; i < Math.Min(items.Count, records.Count) && aligned; i++)
+        {
+            if (p.BadEntries.Contains(i)) continue;
+            var it = items[i];
+            var r = records[i];
+            uint crc = ZipDirectory.U32(r.Raw, 16);
+            aligned = it.Index == i
+                && (it.IsDirectory ? r.UncompressedSize == 0
+                    : it.Size == r.UncompressedSize && (it.Crc == crc || it.Crc == 0 || crc == 0));
+        }
+        if (aligned) return new SevenZipEngine.ListProblems(p.Whole, new HashSet<int>(p.BadEntries));
+        return new SevenZipEngine.ListProblems(p.Whole ?? ZipListDamagedException.Mismatch(null), new HashSet<int>(items.Select(i => i.Index)));
     }
 
     private static InArchiveFormat FormatByExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch

@@ -105,6 +105,15 @@ public interface IUserInteraction
     /// 자동 풀림 exe 를 만들기 직전 '회사 메일은 실행 파일(.exe)을 막는 경우가 많아요'에 쓴다.
     /// </summary>
     ChoiceWithCheck ChooseWithCheck(string message, IReadOnlyList<string> choices, string checkText, int defaultIndex = 0);
+
+    // ───── W2-08(오류 원인 한국어 구분 — I2-8, IJ3-02 에서 다시)에서 더한 것 — 이미 있는 멤버는 그대로 ─────
+
+    /// <summary>
+    /// 문제 창(<see cref="Iljip.Views.ProblemDialog"/>): 큰 글씨(무엇을 하다가·문제 종류), 쉬운 한국어 문구·안내, 접힌 '자세히'(영어 원문 + 복사),
+    /// '로그 폴더 열기', 고를 수 있는 일(<see cref="UserProblem.Actions"/> — 'ZIP 고치기 시도' 등) 버튼. 고른 일의 <see cref="ProblemAction.Id"/>, 그냥 닫으면 null.
+    /// <see cref="ShowError"/> 도 이 창으로 띄운다(문구만 있는 문제).
+    /// </summary>
+    string? ShowProblem(UserProblem problem);
 }
 
 /// <summary><see cref="IUserInteraction.ChooseWithCheck"/> 의 답: 고른 버튼 순번(창을 닫으면 -1)과 확인란을 켰는지.</summary>

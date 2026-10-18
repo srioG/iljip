@@ -67,6 +67,17 @@ public class ReuseDeviceContractTests
         File.WriteAllBytes(whole.Path, bytes[..(bytes.Length - 60_000)]);
         cases.Add(("egg_truncated", whole.Path));
 
+        // 항목 경계(마지막 항목 머리 바로 앞)에서 잘린 egg·alz — 예전엔 EggDotNet 이 뒤쪽 항목을 말없이 빼서 종료 코드 0(파일을 잃음, W2-08 검증 지적 1)
+        foreach (var (kind, magic) in new[] { ("egg", new byte[] { 0xE3, 0x90, 0x85, 0x0A }), ("alz", "BLZ\u0001"u8.ToArray()) })
+        {
+            var built = SyntheticArchives.Build(kind, tmp.Dir("in_boundary_" + kind));
+            var b = File.ReadAllBytes(built.Path);
+            int at = b.AsSpan().LastIndexOf(magic);
+            Assert.True(at > 0, kind + ": 마지막 항목 머리를 찾지 못함");
+            File.WriteAllBytes(built.Path, b[..at]);
+            cases.Add((kind + "_boundary_truncated", built.Path));
+        }
+
         foreach (var (name, path) in cases)
         {
             string dest = tmp.Dir("out_" + name);

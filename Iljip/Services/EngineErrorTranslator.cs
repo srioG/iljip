@@ -69,5 +69,26 @@ internal static class EngineErrorTranslator
         _ => ex.GetType().Namespace?.StartsWith("EggDotNet", StringComparison.Ordinal) == true,
     };
 
+    /// <summary>
+    /// 엔진이 깨진 위치·크기 값으로 파일의 엉뚱한 자리(음수 등)로 옮겨 가다 운영 체제가 '매개 변수가 틀립니다'(87)·'음수 위치'(131)로 거절한 것인가 —
+    /// 사용자 환경 문제가 아니라 압축 손상이다(I4-1 검토: 망가뜨림 시험에서 검사가 '알 수 없는 문제가 생겼어요'로 멈춤). 엔진 코드가 부른 Seek 에서 난 것만.
+    /// </summary>
+    internal static bool IsBadSeek(Exception ex)
+    {
+        if (ex is not IOException || ex.HResult is not (unchecked((int)0x80070057) or unchecked((int)0x80070083))) return false;
+        bool seek = false;
+        foreach (var frame in new System.Diagnostics.StackTrace(ex, false).GetFrames())
+        {
+            var method = frame.GetMethod();
+            if (method is null) continue;
+            if (method.Name is "Seek" or "set_Position") seek = true;
+            string? ns = method.DeclaringType?.Namespace;
+            if (seek && ns is not null && (ns.StartsWith("SharpCompress", StringComparison.Ordinal) || ns.StartsWith("ICSharpCode.SharpZipLib", StringComparison.Ordinal)
+                                           || ns.StartsWith("EggDotNet", StringComparison.Ordinal)))
+                return true;
+        }
+        return false;
+    }
+
     private static bool Has(string s, string part) => s.Contains(part, StringComparison.OrdinalIgnoreCase);
 }

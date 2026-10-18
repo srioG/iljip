@@ -238,8 +238,9 @@ public partial class MainViewModel
                     Logger.LogError($"압축 고치기 실패: {archive}", ex);
                     string failure = $"압축 파일을 고치지 못했어요. 원래 압축 파일은 그대로예요.\n\n{ErrorMessages.ToUserMessage(ex)}";
                     // W2-11(I3-16): 압축 파일이 있는 곳에 쓸 권한이 없으면 관리자 권한으로(넣기는 같은 명령, 그 밖의 고치기는 일집 다시 열기)
+                    // 아니면 문제 창(W2-08 — 원문은 '자세히')
                     if (!OfferElevatedRetry(ex, failure, elevateAs, archive, archive))
-                        _ui.ShowError(failure);
+                        ShowProblem("압축 파일을 고치지 못했어요. 원래 압축 파일은 그대로예요.", ex);
                     StatusText = "오류 발생";
                     if (failed is not null) failed.Value = true;
                     return null;
@@ -271,7 +272,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             Logger.LogError("고친 뒤 목록 다시 읽기 실패: " + archive, ex);
-            _ui.ShowError($"고친 압축 파일의 목록을 다시 읽지 못했어요.\n\n{ErrorMessages.ToUserMessage(ex)}");
+            ShowProblem("고친 압축 파일의 목록을 다시 읽지 못했어요.", ex);
             StatusText = "오류 발생";
         }
     }

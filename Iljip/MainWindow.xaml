@@ -183,6 +183,10 @@
                                 <MenuItem Header="이름 바꾸기 (F2)" Click="RenameSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                                 <MenuItem Header="지우기 (Del)" Click="DeleteSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                                 <Separator />
+                                <!-- W2-08(I2-7·I3-12): 압축 검사(연 압축, 없으면 고르는 창)·깨진 ZIP 고치기(살릴 수 있는 파일만 새 ZIP 으로) -->
+                                <MenuItem Header="시험하기" Command="{Binding TestArchiveCommand}" />
+                                <MenuItem Header="ZIP 고치기..." Command="{Binding RepairZipCommand}" />
+                                <Separator />
                                 <MenuItem Header="설정..." Click="Settings_Click" />
                             </ContextMenu>
                         </Button.ContextMenu>
@@ -294,6 +298,8 @@
                             <!-- W2-06: 열기(I1-3)·압축 고치기(I2-3), IJ3-01: 복사(Ctrl+C — 탐색기에 붙여넣기, I1-4) -->
                             <MenuItem Header="열기" Click="OpenSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                             <MenuItem Header="복사 (Ctrl+C)" Click="CopySelected_Click" IsEnabled="{Binding IsArchiveMode}" />
+                            <!-- W2-08(I2-7): 연 압축 파일 전체를 풀지 않고 검사 -->
+                            <MenuItem Header="시험하기" Command="{Binding TestArchiveCommand}" IsEnabled="{Binding IsArchiveMode}" />
                             <Separator />
                             <MenuItem Header="이름 바꾸기 (F2)" Click="RenameSelected_Click" IsEnabled="{Binding IsArchiveMode}" />
                             <MenuItem Header="지우기 (Del)" Click="DeleteSelected_Click" IsEnabled="{Binding IsArchiveMode}" />

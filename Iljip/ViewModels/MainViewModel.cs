@@ -203,8 +203,9 @@ public partial class MainViewModel : ObservableObject
             catch (Exception ex)
             {
                 Logger.LogError($"열기 실패: {archivePath}", ex);
-                _ui.ShowError($"파일을 열 수 없어요:\n\n{ErrorMessages.ToUserMessage(ex)}");
                 StatusText = "오류 발생";
+                // W2-08: 쉬운 한국어 문제 창(원문은 '자세히') — 손상된 ZIP 이면 'ZIP 고치기 시도'를 고를 수 있다
+                await ShowProblemAsync("파일을 열 수 없어요.", ex, archivePath);
                 return false;
             }
         }
@@ -467,15 +468,15 @@ public partial class MainViewModel : ObservableObject
             {
                 session.Close();
                 Logger.LogError($"압축 해제 실패: {archivePath}", ex);
+                StatusText = "오류 발생";
                 // W2-11(I3-16): 쓸 권한이 없는 곳(Program Files 등)이면 '관리자 권한으로 다시 시도'를 묻는다 — 전체 풀기는 같은 명령('--extract-to 압축 폴더'),
-                // 고른 항목만 풀기는 명령줄로 나타낼 수 없어 '관리자 권한으로 일집 다시 열기'
-                string failure = $"압축 해제 실패:\n\n{ErrorMessages.ToUserMessage(ex)}";
+                // 고른 항목만 풀기는 명령줄로 나타낼 수 없어 '관리자 권한으로 일집 다시 열기'. 아니면 문제 창(W2-08 — 원문은 '자세히', 손상된 ZIP 이면 'ZIP 고치기 시도')
+                string failure = $"압축을 풀지 못했어요.\n\n{ErrorMessages.ToUserMessage(ex)}";
                 var retry = selectedPaths is null
                     ? new ParsedCommand(CommandVerb.ExtractTo, archivePath, destFolder, Array.Empty<string>())
                     : null;
                 if (!OfferElevatedRetry(ex, failure, retry, archivePath, destFolder))
-                    _ui.ShowError(failure);
-                StatusText = "오류 발생";
+                    await ShowProblemAsync("압축을 풀지 못했어요.", ex, archivePath);
                 return false;
             }
             finally

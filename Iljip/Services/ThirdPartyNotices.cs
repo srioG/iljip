@@ -38,7 +38,9 @@ public static class ThirdPartyNotices
         }
         catch (Exception ex)
         {
-            sb.AppendLine("라이선스 파일을 읽지 못했어요: " + ex.Message);
+            // W2-08: 영어 예외 문구를 그대로 보이지 않는다(원문은 로그에)
+            Logger.LogError("라이선스 파일 읽기 실패", ex);
+            sb.AppendLine("라이선스 파일을 읽지 못했어요: " + ErrorCatalog.Describe(ex).Message);
         }
         return sb.ToString();
     }

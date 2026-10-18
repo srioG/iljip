@@ -128,6 +128,34 @@ public class CorruptArchiveException : ArchiveException
 }
 
 /// <summary>
+/// ZIP 의 파일 목록(중앙 디렉터리)이 깨졌다(W2-08 검증 지적 2차): 끝 머리가 말하는 것보다 적은 기록만 읽히거나(SharpCompress 는 깨진 기록에서 말없이 멈춰
+/// 뒤 파일이 목록에서 빠짐), 기록이 가리키는 자리에 그 파일이 없다(다른 파일·데이터 한가운데를 가리킴 — 그대로 풀면 다른 파일 내용이 그 이름으로 풀림).
+/// 풀기는 맞는 파일을 다 푼 뒤 이 예외로 끝나고(목록과 맞지 않는 파일은 풀지 않음), 압축 검사는 문제로 적는다. 손상의 한 종류('ZIP 고치기 시도').
+/// </summary>
+public sealed class ZipListDamagedException : CorruptArchiveException
+{
+    /// <summary>목록에서 파일이 빠졌을 때(압축 전체 문제).</summary>
+    public const string MissingMessage = "압축 파일 안의 파일 목록이 손상돼 일부 파일을 찾지 못했어요.";
+
+    /// <summary>목록과 실제 내용이 맞지 않는 파일을 풀지 않았을 때.</summary>
+    public const string MismatchMessage = "압축 파일 안의 파일 목록이 실제 내용과 맞지 않아 일부 파일을 풀지 않았어요.";
+
+    /// <summary>압축 검사에서 목록과 맞지 않는 파일 하나의 이유(항목 이름은 따로 보임).</summary>
+    public const string EntryReason = "파일 목록이 손상돼 이 파일의 내용을 찾지 못했어요";
+
+    private ZipListDamagedException(string message, string? entryPath)
+        : base(entryPath is null ? message : $"{message} (문제 위치: {entryPath})", null, entryPath)
+    {
+    }
+
+    /// <summary>목록에서 파일이 빠짐.</summary>
+    public static ZipListDamagedException Missing() => new(MissingMessage, null);
+
+    /// <summary>목록과 실제 내용이 맞지 않는 파일(<paramref name="entryPath"/> — 처음 것).</summary>
+    public static ZipListDamagedException Mismatch(string? entryPath) => new(MismatchMessage, entryPath);
+}
+
+/// <summary>
 /// 풀린 내용의 CRC-32 가 압축 파일에 적힌 값과 다르다(B4). 깨진 그 파일은 지우고, 앞서 맞게 끝난 파일은 남긴다.
 /// 암호 항목은 판정이 암호를 충분히 확인했을 때만 이 예외다. 확인이 약하면(ZipCrypto 항목 하나뿐 등) 틀린 암호가 1바이트 검사를
 /// 우연히 통과한 경우일 수 있어 <see cref="WrongPasswordException"/>(손상일 수도)으로 알린다.
@@ -380,4 +408,22 @@ public sealed class SfxTooLargeException : ArchiveException
     internal static string MessageFor(long exeBytes) =>
         $"자동 풀림 exe 가 4GB 를 넘어서(약 {CompressFlow.FormatSize(exeBytes)}) 만들지 않았어요. 4GB 가 넘는 실행 파일은 받는 사람 PC 에서 실행되지 않아요(Windows 제한). " +
         "ZIP으로 만들어 주세요(ZIP 은 크기 제한이 없고, 나눠 만들 수도 있어요).";
+}
+
+// ───── W2-08(압축 검사·오류 원인 구분 — I2-7·I2-8)에서 더한 것 ─────
+
+/// <summary>
+/// 압축 검사(<see cref="ArchiveTestService"/>)에서 문제를 찾았다 — 방금 만든 압축의 시험(<see cref="CreatedArchiveTester"/>)이 알릴 때 쓴다.
+/// 손상의 한 종류(<see cref="CorruptArchiveException"/>)라 원본 지우기는 하지 않는다. 문구는 찾은 문제 요약(쉬운 한국어), 결과 전체는 <see cref="Report"/>.
+/// </summary>
+public sealed class ArchiveTestFailedException : CorruptArchiveException
+{
+    public ArchiveTestFailedException(TestReport report, Exception? inner = null)
+        : base(report.ProblemSummary(), inner, report.Problems.FirstOrDefault(p => p.Entry.Length > 0)?.Entry)
+    {
+        Report = report;
+    }
+
+    /// <summary>검사 결과(문제 목록).</summary>
+    public TestReport Report { get; }
 }

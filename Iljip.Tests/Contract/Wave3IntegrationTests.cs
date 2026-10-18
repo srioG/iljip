@@ -251,8 +251,8 @@ public class Wave3IntegrationTests
         AssertAllMarked(dest, "일집 자동 풀림");
     }
 
-    /// <summary>계약: 7-Zip 이 만든 자동 풀림 exe(픽스처 sfx_default — 7z.dll 길)도 같다.</summary>
-    [Fact]
+    /// <summary>계약: 7-Zip 이 만든 자동 풀림 exe(픽스처 sfx_default — 7z.dll 길)도 같다. 그 픽스처는 git 제외(local/)라 없으면 건너뛴다(I4-1 G2).</summary>
+    [FixtureFact("local/sfx_default.exe")]
     public async Task 다른_프로그램이_만든_자동풀림_exe를_창에서_풀어도_표시가_붙는다()
     {
         var fx = FixtureCatalog.Get("sfx_default");

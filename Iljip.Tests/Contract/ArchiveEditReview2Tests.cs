@@ -147,31 +147,46 @@ public class ArchiveEditReview2Tests
     // ───────────────────────────── 일집이 못 푸는 정상 ZIP ─────────────────────────────
 
     /// <summary>
-    /// SharpZipLib 로 한 번에 흘려 쓴(되감지 않는 스트림) ZipCrypto ZIP — 항목마다 데이터 서술자(bit 3). 반디집은 정상으로 보지만 일집의 풀기 엔진
-    /// (SharpCompress 0.50)은 ZIP 으로 알아보지 못한다('Cannot determine compressed stream type' — 일집 풀기도 실패하는 기존 엔진 한계).
+    /// 구조(머리·목록)는 맞는데 일집이 모르는 압축 방식(97 — WavPack)으로 적힌 ZIP(파일 둘, 암호 없음 — 암호를 알든 모르든 검사가 내용을 풀어 봄).
+    /// 예전 재료(SharpZipLib 로 한 번에 흘려 쓴 ZipCrypto + 데이터 서술자 — 풀기 엔진이 ZIP 으로 알아보지 못했음)는 이제 일집이 풀고 고친다
+    /// (<see cref="StreamedZipHeaders"/>·<c>StreamedEncryptedZipTests</c>) — 그래서 '일집이 못 푸는 정상 ZIP'의 예를 이것으로 바꿨다.
     /// </summary>
-    private static string StreamedZipCrypto(TempDir t, string password)
+    private static string UnknownMethodZip(TempDir t)
     {
-        string arc = t.P("흘려쓴암호.zip");
+        string arc = t.P("모르는방식.zip");
         using (var fs = new FileStream(arc, FileMode.Create))
-        using (var ns = new ForwardOnlyStream(fs))
-        using (var zos = new ICSharpCode.SharpZipLib.Zip.ZipOutputStream(ns))
+        using (var zos = new ICSharpCode.SharpZipLib.Zip.ZipOutputStream(fs))
         {
-            zos.Password = password;
             zos.UseZip64 = ICSharpCode.SharpZipLib.Zip.UseZip64.Off;
             foreach (var (name, text) in new[] { ("가.txt", string.Concat(Enumerable.Repeat("가나다", 300))), ("다.txt", "다") })
             {
-                zos.PutNextEntry(new ICSharpCode.SharpZipLib.Zip.ZipEntry(name) { DateTime = new DateTime(2024, 5, 6, 7, 8, 10), IsUnicodeText = true });
-                zos.Write(System.Text.Encoding.UTF8.GetBytes(text));
+                byte[] data = System.Text.Encoding.UTF8.GetBytes(text);
+                zos.PutNextEntry(new ICSharpCode.SharpZipLib.Zip.ZipEntry(name)
+                {
+                    DateTime = new DateTime(2024, 5, 6, 7, 8, 10), IsUnicodeText = true,
+                    CompressionMethod = ICSharpCode.SharpZipLib.Zip.CompressionMethod.Stored, Size = data.Length,
+                });
+                zos.Write(data);
                 zos.CloseEntry();
             }
         }
+        // 방식 칸만 97 로(로컬 머리 +8, 목록 기록 +10) — 크기·CRC·이름·위치는 그대로라 구조는 맞다
+        byte[] b = File.ReadAllBytes(arc);
+        int eocd = b.Length - 22, p = (int)BitConverter.ToUInt32(b, eocd + 16);
+        for (int n = BitConverter.ToUInt16(b, eocd + 10); n > 0; n--)
+        {
+            BitConverter.GetBytes((ushort)97).CopyTo(b, p + 10);
+            BitConverter.GetBytes((ushort)97).CopyTo(b, (int)BitConverter.ToUInt32(b, p + 42) + 8);
+            p += 46 + BitConverter.ToUInt16(b, p + 28) + BitConverter.ToUInt16(b, p + 30) + BitConverter.ToUInt16(b, p + 32);
+        }
+        File.WriteAllBytes(arc, b);
         return arc;
     }
 
     /// <summary>
     /// 계약: 구조는 맞는데 일집이 풀 수 없는 방식의 ZIP 을 고치려 하면 '원래 압축 파일에 이미 손상된 곳이 있어서…'(사실과 다름 — 검증 지적)가 아니라
-    /// ‘이 압축 파일은 일집이 풀 수 없는 방식으로 만들어져 있어서…고치지 않았어요’로 알린다. 원본은 바이트 그대로, 남는 파일 없음. 반디집은 원본을 정상으로 본다.
+    /// ‘이 압축 파일은 일집이 풀 수 없는 방식으로 만들어져 있어서…고치지 않았어요’로 알린다. 원본은 바이트 그대로, 남는 파일 없음.
+    /// (재료: 모르는 압축 방식 — 예전 재료 '흘려 쓴 ZipCrypto' 는 이제 풀림. 그래서 '반디집은 원본을 정상으로 본다' 대신 일집의 구조 검사가 맞음을 본다)
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -179,10 +194,10 @@ public class ArchiveEditReview2Tests
     public async Task 일집이_못_푸는_정상_ZIP은_손상이라고_하지_않는다(bool withPassword)
     {
         using var t = new TempDir("eunread");
-        string arc = StreamedZipCrypto(t, "pw1234");
-        Assert.All(ZipInspect.Read(arc), e => Assert.True((e.Flags & 8) != 0 && e.Encrypted));   // 재료 확인: 서술자 + 암호
-        Assert.NotNull(await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, t.Dir("풀기"), "pw1234")));   // 재료 확인: 일집 풀기도 실패(기존 엔진 한계)
-        if (BandizipCli.Available) Assert.Equal(0, await BandizipCli.TestAsync(arc, "pw1234"));
+        string arc = UnknownMethodZip(t);
+        Assert.All(ZipInspect.Read(arc), e => Assert.Equal(97, e.Method));   // 재료 확인: 모르는 방식
+        using (var fs = File.OpenRead(arc)) ZipRawRewriter.VerifyStructure(fs);   // 재료 확인: 구조(머리·목록·로컬 기록 자리와 이름)는 맞음
+        Assert.NotNull(await Svc.Catch(() => Svc.For(arc).ExtractAsync(arc, t.Dir("풀기"), "pw1234")));   // 재료 확인: 일집 풀기도 실패
         string sha = TreeAssert.Sha256(arc);
 
         var ex = await Svc.Catch(() => new ZipArchiveEditor().EditAsync(arc, new EditOp[] { new EditOp.Delete(new[] { "다.txt" }) },
@@ -212,10 +227,10 @@ public class ArchiveEditReview2Tests
             keys, keys, null, CancellationToken.None, null));
         Assert.Equal(ArchiveTester.FailedMessage, ok.Message);
 
-        string streamed = StreamedZipCrypto(t, "pw1234");
-        var streamedKeys = ZipInspect.Read(streamed).Select(e => e.Name).ToList();
-        var bad = Assert.Throws<ArchiveEditException>(() => ArchiveTester.TestOrBlameOriginal(new FixedFailTester(ArchiveTester.FailedMessage), streamed, streamed,
-            EditableFormat.Zip, streamedKeys, streamedKeys, "pw1234", CancellationToken.None, null));
+        string unknown = UnknownMethodZip(t);
+        var unknownKeys = ZipInspect.Read(unknown).Select(e => e.Name).ToList();
+        var bad = Assert.Throws<ArchiveEditException>(() => ArchiveTester.TestOrBlameOriginal(new FixedFailTester(ArchiveTester.FailedMessage), unknown, unknown,
+            EditableFormat.Zip, unknownKeys, unknownKeys, "pw1234", CancellationToken.None, null));
         Assert.Equal(ArchiveTester.UnreadableMessage, bad.Message);
     }
 
@@ -227,25 +242,6 @@ public class ArchiveEditReview2Tests
 
         public void Test(string archivePath, EditableFormat format, IReadOnlyCollection<string> expectedKeys, string? password, CancellationToken cancellationToken) =>
             throw new ArchiveEditException(_message);
-    }
-
-    /// <summary>되감지 못하는 쓰기 전용 스트림(SharpZipLib 가 데이터 서술자를 쓰게).</summary>
-    private sealed class ForwardOnlyStream : Stream
-    {
-        private readonly Stream _inner;
-
-        public ForwardOnlyStream(Stream inner) => _inner = inner;
-
-        public override bool CanRead => false;
-        public override bool CanSeek => false;
-        public override bool CanWrite => true;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
-        public override void Flush() => _inner.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
     }
 
     // ───────────────────────────── ZIP 검사 동안의 진행 ─────────────────────────────

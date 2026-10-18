@@ -94,12 +94,22 @@ public partial class App : Application
         {
             Logger.LogError("DispatcherUnhandledException", args.Exception);
 
-            MessageBox.Show(
-                $"예기치 못한 오류가 발생했어요:\n\n{args.Exception.Message}",
-                "일집",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            // W2-08: 영어 예외 문구를 그대로 보이지 않는다 — 쉬운 한국어 문제 창(원문은 '자세히'·로그)
             args.Handled = true;
+            try
+            {
+                new Iljip.Views.WpfUserInteraction().ShowProblem(
+                    ErrorCatalog.Describe(args.Exception) with { Heading = "예기치 못한 문제가 생겼어요." });
+            }
+            catch (Exception shown)
+            {
+                Logger.LogError("문제 창을 띄우지 못함", shown);
+                MessageBox.Show(
+                    $"예기치 못한 문제가 생겼어요.\n\n{ErrorCatalog.Describe(args.Exception).Message}",
+                    "일집",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         };
 
         base.OnStartup(e);
@@ -276,7 +286,8 @@ public partial class App : Application
         catch (Exception ex)
         {
             Logger.LogError(HeadlessFailureLogHead + archivePath, ex);
-            Console.Error.WriteLine(ErrorMessages.ToUserMessage(ex).ReplaceLineEndings(" "));
+            // W2-08: 쉬운 한국어 한 줄만(ErrorCatalog — 영어 원문·안내는 넣지 않음, 원문은 로그에)
+            Console.Error.WriteLine(ErrorCatalog.HeadlessMessage(ex));
             return ErrorMessages.HeadlessExitCode(ex);
         }
     }

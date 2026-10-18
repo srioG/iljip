@@ -69,6 +69,13 @@ public enum CommandVerb
 
     /// <summary>--unregister-associations : 일집이 넣은 파일 연결만 뺀다(기록에 적힌 것만). 자체 프로세스.</summary>
     UnregisterAssociations,
+
+    // ───── W2-08(압축 검사 I2-7 — IJ3-02 에서 다시)에서 더한 것 ─────
+
+    /// <summary>
+    /// --test &lt;압축…&gt; : 압축 파일 검사(W2-08 — I2-7). 풀지 않고 모든 항목의 확인값·크기를 본다. 메인 창 없이 진행 창·결과 창만(창 없이 끝나는 자동화용은 아님).
+    /// </summary>
+    Test,
 }
 
 /// <summary>
@@ -90,7 +97,8 @@ public sealed record ParsedCommand(CommandVerb Verb, string? Archive, string? De
     public bool ShowMainWindow => Verb is not (CommandVerb.ExtractHere or CommandVerb.ExtractToFolder or CommandVerb.ExtractTo or CommandVerb.AddTo
         or CommandVerb.ExtractToFolderIn or CommandVerb.ExtractInto
         or CommandVerb.ExtractSmart or CommandVerb.CompressZip or CommandVerb.Compress7z            // W2-12: 알아서 풀기·창 없이 바로 압축
-        or CommandVerb.RegisterAssociations or CommandVerb.UnregisterAssociations);                // W2-12: 파일 연결(App 이 따로 맡음)
+        or CommandVerb.RegisterAssociations or CommandVerb.UnregisterAssociations                  // W2-12: 파일 연결(App 이 따로 맡음)
+        or CommandVerb.Test);                                                                     // W2-08(IJ3-02): 압축 검사 — 진행 창·결과 창만
 
     /// <summary>
     /// '--new-window' 표시(W2-11, I3-15 '창 두 개로 나란히'): 단일 인스턴스(이미 떠 있는 일집에 넘기기)를 건너뛰고 따로 창을 띄운다.
@@ -168,6 +176,9 @@ public static class CommandLineParser
     /// <summary>'--register-associations' 뒤에 붙이면 zip·7z 드롭 처리기도 등록.</summary>
     public const string DropHandlerOption = "--drop-handler";
 
+    /// <summary>압축 파일 검사(W2-08 — IJ3-02 에서 다시): '--test 압축…' — 메인 창 없이 진행 창·결과 창만.</summary>
+    public const string TestKeyword = "--test";
+
     /// <summary>
     /// 긴 명령줄(W2-12 — 우클릭으로 아주 많이 골랐을 때): 동사 뒤 경로들 대신 '--list-file 목록파일'(UTF-8, 한 줄에 경로 하나).
     /// 동사가 아니라 바꿔 넣기 표시 — <see cref="ExpandListFile"/> 가 해석 전에 그 파일의 줄들로 바꾼다(그래서 <see cref="Keywords"/> 에 없음).
@@ -180,6 +191,7 @@ public static class CommandLineParser
         OpenKeyword, ExtractKeyword, ExtractHereKeyword, ExtractToFolderKeyword, ExtractToKeyword, CompressKeyword, AddToKeyword, AddToPickKeyword,
         CompressToKeyword, ExtractToFolderInKeyword, ExtractIntoKeyword,
         ExtractSmartKeyword, CompressZipKeyword, Compress7zKeyword, RegisterAssociationsKeyword, UnregisterAssociationsKeyword,
+        TestKeyword,
     };
 
     /// <summary>동사 앞에 붙는 표시(W2-11) — 맨 앞에 연달아 올 때만 표시로 본다(순서 무관, 대소문자는 키워드처럼 가림).</summary>
@@ -275,6 +287,10 @@ public static class CommandLineParser
             case CommandVerb.Paths:
                 a.AddRange(cmd.Paths);
                 break;
+            case CommandVerb.Test:
+                a.Add(TestKeyword);
+                a.AddRange(cmd.Archives);
+                break;
         }
         return a;
     }
@@ -332,6 +348,7 @@ public static class CommandLineParser
             ExtractHereKeyword => CommandVerb.ExtractHere,
             ExtractToFolderKeyword => CommandVerb.ExtractToFolder,
             ExtractSmartKeyword => CommandVerb.ExtractSmart,   // W2-12: 알아서 풀기도 압축 여러 개
+            TestKeyword => CommandVerb.Test,   // W2-08: 뒤의 압축 파일을 모두 차례로 검사
             _ => null,
         };
         if (single is { } verb)

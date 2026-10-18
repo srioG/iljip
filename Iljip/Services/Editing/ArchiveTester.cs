@@ -111,8 +111,9 @@ public sealed class ArchiveTester : IArchiveTester
     }
 
     /// <summary>
-    /// ZIP 의 구조(머리·목록)는 맞는데 일집의 풀기 엔진(SharpCompress — 풀기와 같은 길)이 그 내용을 풀 수 없는 방식일 때(W2-06 검증 지적 2차 — 예: 한 번에 흘려 쓴
-    /// ZipCrypto + 데이터 서술자 ZIP 은 SharpCompress 가 ZIP 으로 알아보지 못함, 일집이 모르는 압축 방식). 손상이 아니므로 '손상'이라고 하지 않는다.
+    /// ZIP 의 구조(머리·목록)는 맞는데 일집의 풀기 엔진(SharpCompress — 풀기와 같은 길)이 그 내용을 풀 수 없는 방식일 때(W2-06 검증 지적 2차 — 예: 일집이 모르는 압축 방식.
+    /// 한 번에 흘려 쓴 암호 + 데이터 서술자 ZIP 은 엔진이 ZIP 으로 알아보지 못해 여기 들었으나, 이제 풀기와 같이 고친 모양으로 본다 — <see cref="StreamedZipHeaders"/>).
+    /// 손상이 아니므로 '손상'이라고 하지 않는다.
     /// 일집 풀기도 같은 압축에서 실패하므로 '일집이 풀 수 없는 방식'이라고 알린다.
     /// </summary>
     internal const string UnreadableMessage =
@@ -133,8 +134,9 @@ public sealed class ArchiveTester : IArchiveTester
         bool hasPassword = !string.IsNullOrEmpty(password);
         bool Include(string name) => hasPassword || !encrypted.Contains(EditPlanner<object>.Normalize(name));
 
-        // 구조는 맞는데 풀기 엔진이 ZIP 으로 알아보지 못하면(풀기도 'Cannot determine…' 으로 실패) 손상이 아니라 일집이 못 푸는 방식
-        if (!SharpCompress.Archives.ArchiveFactory.IsArchive(path, out _))
+        // 구조는 맞는데 풀기 엔진이 ZIP 으로 알아보지 못하면(풀기도 'Cannot determine…' 으로 실패) 손상이 아니라 일집이 못 푸는 방식.
+        // 풀기와 같은 모양으로 묻는다 — 흘려 쓴 암호 항목은 고친 모양(풀기는 그 모양을 푼다)
+        if (!StreamedZipHeaders.EngineRecognizes(path))
             throw new ArchiveEditException(UnreadableMessage);
 
         long total = model.Entries.Where(e => !e.IsDirectory && (hasPassword || !e.IsEncrypted)).Sum(e => Math.Max(0, e.UncompressedSize));

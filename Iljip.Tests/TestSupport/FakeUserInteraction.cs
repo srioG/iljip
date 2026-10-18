@@ -12,6 +12,7 @@ namespace Iljip.Tests.TestSupport;
 /// W2-05: 같은 이름 창(<see cref="AskCollision"/> — 넣어 둔 답, 없으면 '이름 바꾸기')·요약 창(<see cref="Summaries"/>)을 더함.
 /// W2-07: 한 화면 압축 창(<see cref="AskCompression"/> — 넣어 둔 답, 없으면 예전 저장 창·옵션 창 답으로)을 더함.
 /// W2-09: 풀기 창(<see cref="AskExtractTarget"/> — 넣어 둔 답 <see cref="ExtractTargetAnswer"/>, 없으면 예전 폴더 고르기 창 답으로)을 더함.
+/// W2-08(IJ3-02 에서 다시): 문제 창(<see cref="ShowProblem"/> — <see cref="Problems"/> 에 기록하고 첫 화면 글은 <see cref="Errors"/> 에도)을 더함.
 /// </summary>
 public sealed class FakeUserInteraction : IUserInteraction
 {
@@ -238,6 +239,25 @@ public sealed class FakeUserInteraction : IUserInteraction
         CheckChoicePrompts.Add((message, choices.ToList(), checkText, defaultIndex));
         int index = Choose(message, choices, defaultIndex);
         return new ChoiceWithCheck(index, CheckAnswer);
+    }
+
+    // ───── W2-08: 문제 창(오류 원인 구분) ─────
+
+    /// <summary>문제 창이 불린 기록(무엇을 하다가·문구·안내·자세히·고를 수 있는 일).</summary>
+    public List<UserProblem> Problems { get; } = new();
+
+    /// <summary>문제 창에서 고를 일(차례로 — <see cref="ProblemAction.Id"/>, null = 그냥 닫기). 비면 null.</summary>
+    public Queue<string?> ProblemActionAnswers { get; } = new();
+
+    /// <summary>
+    /// 문제 창: 기록하고, 첫 화면 글(<see cref="UserProblem.ToDisplayText"/> — '자세히' 원문은 빼고)을 <see cref="Errors"/> 에도 넣는다
+    /// (예전 오류 창 시험이 그대로 문구를 보게). 넣어 둔 답이 있으면 그 일을 고른 것처럼.
+    /// </summary>
+    public string? ShowProblem(UserProblem problem)
+    {
+        Problems.Add(problem);
+        Errors.Add(problem.ToDisplayText());
+        return ProblemActionAnswers.Count > 0 ? ProblemActionAnswers.Dequeue() : null;
     }
 
     private sealed class Session : IProgressSession

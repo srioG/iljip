@@ -27,6 +27,9 @@ public sealed record ZipCentralEntry(
 {
     public bool IsEncrypted => (Flags & 1) != 0;
 
+    /// <summary>목록 기록의 AES 추가 필드(0x9901) 내용 7바이트(판·'AE'·세기·안쪽 방식) 그대로 — 로컬 머리와 맞춰 볼 때(IJ3-02). 없으면 null.</summary>
+    public byte[]? AesBlock { get; init; }
+
     /// <summary>WinZip AES(방식 99). <see cref="AesStrength"/> 1·2·3 = AES-128·192·256, <see cref="AesMethod"/> = 안쪽 압축 방식.</summary>
     public bool IsAes => Method == 99;
 }
@@ -55,6 +58,12 @@ public sealed record ZipPasswordProbeResult(bool AnyEncrypted, bool HasAes, bool
 
     /// <summary>중앙 디렉터리 전체(순서 그대로). 판정할 수 없었으면 비어 있다.</summary>
     public IReadOnlyList<ZipCentralEntry> Entries { get; init; } = Array.Empty<ZipCentralEntry>();
+
+    /// <summary>
+    /// <see cref="PasswordBytes.None"/> 인데 어느 후보가 일부 항목의 확인값과는 맞았다 — 틀린 암호와 항목 손상을 가를 근거가 모자람(I4-1 검토:
+    /// '암호가 맞지 않아요'에 '손상된 경우에도 이렇게 보일 수 있어요'를 붙인다).
+    /// </summary>
+    public bool SomeEntriesMatched { get; init; }
 
     public static ZipPasswordProbeResult Unknown(bool anyEncrypted = false) => new(anyEncrypted, false, false, PasswordBytes.Unknown);
 }
@@ -115,11 +124,35 @@ public static class ZipPasswordProbe
         if (targets.Count == 0)
             return new ZipPasswordProbeResult(false, false, false, PasswordBytes.NotApplicable) { Entries = entries };
 
+        // 목록의 AES 정보가 로컬 머리와 어긋나는 항목(목록 손상 — 그 세기로는 맞는 암호도 틀려 보인다)은 판정에 넣지 않는다. 풀기·검사에서는 구조 검사가
+        // 그 항목을 '목록 손상'으로 알리고 읽지 않는다(IJ3-02 I2-8 — 예전엔 맞는 암호에도 '암호가 맞지 않아요'). 다 빠지면 판정 못 함(엔진에 맡김).
+        var damaged = targets.Where(e => e.IsAes && !LocalAesAgrees(fs, e)).Select(e => e.Index).ToHashSet();
+        if (damaged.Count > 0)
+        {
+            targets = targets.Where(e => !damaged.Contains(e.Index)).ToList();
+            if (targets.Count == 0) return ZipPasswordProbeResult.Unknown(anyEncrypted: true) with { Entries = entries };
+        }
+
+        // 목록 기록에만 암호 표시가 있고 로컬 머리에는 없으면 목록이 깨진 것(데이터는 암호가 없음) — 판정에서 뺀다. 구조 검사가 그 항목을 손상으로 알린다
+        // (I4-1 검토: 예전엔 암호 없는 ZIP 에 암호를 물어 손상을 암호 문제로 보였다)
+        targets = targets.Where(e => LocalFlags(fs, e) is not { } plain || (plain & 0x01) != 0).ToList();
+        if (targets.Count == 0)
+            return new ZipPasswordProbeResult(false, false, false, PasswordBytes.NotApplicable) { Entries = entries };
+
         bool hasAes = targets.Any(e => e.IsAes);
         bool hasZipCrypto = targets.Any(e => !e.IsAes);
 
-        // 강한 암호화(PKWARE SES, 플래그 bit 6)·세기를 모르는 AES·암호 머리보다 짧은 항목(손상)은 판정할 수 없다 — 엔진에 맡긴다.
-        if (!targets.All(IsCheckable))
+        // 강한 암호화(PKWARE SES, 플래그 bit 6)는 판정할 수 없다 — 엔진에 맡긴다. 목록 기록에만 그 표시가 있고 로컬 머리에는 없으면 목록이 깨진 것 —
+        // 판정에서 빼고 나머지로 본다(I4-1 검토: 한 기록의 표시 칸이 깨져 판정을 통째로 못 하면 AES 항목을 엔진이 풀어 틀린 내용이 나왔다)
+        targets = targets.Where(e => (e.Flags & 0x40) == 0 || LocalFlags(fs, e) is not { } lf || (lf & 0x40) != 0).ToList();
+        if (targets.Any(e => (e.Flags & 0x40) != 0))
+            return ZipPasswordProbeResult.Unknown(anyEncrypted: true) with { Entries = entries };
+        if (targets.Count == 0)
+            return ZipPasswordProbeResult.Unknown(anyEncrypted: true) with { Entries = entries };
+        // 세기를 모르는 AES·암호 머리보다 짧은 항목은 목록이 깨진 것 — 판정에서 빼고(구조 검사가 그 항목을 알린다) 나머지로 본다(I4-1 검토:
+        // 예전엔 한 항목 때문에 판정을 통째로 못 해 한글 암호를 엔진에 글자로 넘겨 맞는 암호로도 '암호가 맞지 않아요').
+        targets = targets.Where(IsCheckable).ToList();
+        if (targets.Count == 0)
             return ZipPasswordProbeResult.Unknown(anyEncrypted: true) with { Entries = entries };
 
         if (string.IsNullOrEmpty(password))
@@ -130,11 +163,14 @@ public static class ZipPasswordProbe
         if (cp949 is not null && cp949.AsSpan().SequenceEqual(utf8)) cp949 = null;   // ASCII — 후보가 같음
 
         var checks = BuildChecks(fs, targets);
+        if (checks.Count == 0)
+            return ZipPasswordProbeResult.Unknown(anyEncrypted: true) with { Entries = entries };   // 고른 항목의 로컬 머리를 하나도 못 읽음
         var passing = new List<(PasswordBytes Kind, byte[] Bytes)>();
         if (checks.All(c => c.Passes(utf8))) passing.Add((PasswordBytes.Utf8, utf8));
         if (cp949 is not null && checks.All(c => c.Passes(cp949))) passing.Add((PasswordBytes.Cp949, cp949));
         if (passing.Count == 0)
-            return new ZipPasswordProbeResult(true, hasAes, hasZipCrypto, PasswordBytes.None) { Entries = entries };
+            return PartialMatch(checks, cp949 is null ? new[] { (PasswordBytes.Utf8, utf8) } : new[] { (PasswordBytes.Utf8, utf8), (PasswordBytes.Cp949, cp949) },
+                hasAes, hasZipCrypto, entries);
 
         double bits = checks.Sum(c => c.Bits);
 
@@ -145,7 +181,8 @@ public static class ZipPasswordProbe
         {
             var targetIndexes = targets.Select(e => e.Index).ToHashSet();
             extra = TryBuildChecks(fs, entries.Where(e =>
-                e.IsEncrypted && !IsDirectoryName(e.Name) && !targetIndexes.Contains(e.Index) && IsCheckable(e)));
+                e.IsEncrypted && !IsDirectoryName(e.Name) && !targetIndexes.Contains(e.Index) && !damaged.Contains(e.Index) && IsCheckable(e)
+                && (!e.IsAes || LocalAesAgrees(fs, e))));
         }
         bool PassesExtra(byte[] pw) => extra.Count > 0 && extra.All(c => c.Passes(pw));
 
@@ -174,6 +211,38 @@ public static class ZipPasswordProbe
     /// <summary>이 정도 근거(비트)면 '암호 확인됨'으로 본다 — 틀린 암호가 우연히 통과할 확률 1/65536.</summary>
     private const double ConfirmBits = 16;
 
+    /// <summary>
+    /// 어느 후보도 모든 항목과 맞지 않을 때(I4-1 검토): 한 후보가 맞은 항목들의 근거가, 여러 항목 가운데 몇 개가 우연히 맞을 가능성(조합 수)을 빼고도
+    /// 16비트 이상이면 그 암호가 맞고 맞지 않은 항목은 암호 머리가 깨진 것으로 본다(확인됨 — 풀기·검사는 그 항목만 손상으로 알림).
+    /// 아니면 틀린 암호(어느 후보든 일부 항목과 맞았으면 <see cref="ZipPasswordProbeResult.SomeEntriesMatched"/> — '손상일 수도' 덧말).
+    /// 예전엔 항목 하나의 암호 머리만 깨져도 맞는 암호에 '암호가 맞지 않아요. 다시 넣어 주세요.'가 되풀이됐다.
+    /// </summary>
+    private static ZipPasswordProbeResult PartialMatch(List<PasswordCheck> checks, (PasswordBytes Kind, byte[] Bytes)[] candidates,
+        bool hasAes, bool hasZipCrypto, List<ZipCentralEntry> entries)
+    {
+        (PasswordBytes Kind, byte[] Bytes, double Evidence)? best = null;
+        bool some = false;
+        foreach (var (kind, bytes) in candidates)
+        {
+            var passed = checks.Where(c => c.Passes(bytes)).ToList();
+            if (passed.Count == 0) continue;
+            some = true;
+            double evidence = passed.Sum(c => c.Bits) - Log2Binomial(checks.Count, passed.Count);
+            if (evidence >= ConfirmBits && (best is null || evidence > best.Value.Evidence)) best = (kind, bytes, evidence);
+        }
+        if (best is { } b)
+            return new ZipPasswordProbeResult(true, hasAes, hasZipCrypto, b.Kind) { MatchedPasswordBytes = b.Bytes, Confirmed = true, Entries = entries };
+        return new ZipPasswordProbeResult(true, hasAes, hasZipCrypto, PasswordBytes.None) { Entries = entries, SomeEntriesMatched = some };
+    }
+
+    /// <summary>log2(n 개 중 k 개를 고르는 수).</summary>
+    private static double Log2Binomial(int n, int k)
+    {
+        double s = 0;
+        for (int i = 1; i <= k; i++) s += Math.Log2((double)(n - k + i) / i);
+        return s;
+    }
+
     /// <summary>암호 바이트 하나를 맞춰 보는 검사와 그 검사의 근거 크기(틀린 암호가 통과할 확률 = 2^-Bits).</summary>
     private sealed record PasswordCheck(Func<byte[], bool> Passes, double Bits);
 
@@ -187,7 +256,8 @@ public static class ZipPasswordProbe
     /// <summary>ZipCrypto 항목은 최대 64개, AES 항목은 최대 3개까지 검사를 만든다(로컬 머리에서 암호 머리·salt 를 읽음).</summary>
     private static List<PasswordCheck> BuildChecks(Stream fs, IEnumerable<ZipCentralEntry> list)
     {
-        var items = list.ToList();
+        // 로컬 머리 서명이 깨진 항목은 확인값을 읽을 수 없다 — 빼고 본다(구조 검사가 그 항목을 손상으로 알린다. I4-1 검토: 예전엔 판정을 통째로 못 함)
+        var items = list.Where(e => TryLocalData(fs, e) is not null).ToList();
         var checks = new List<PasswordCheck>();
         foreach (var e in items.Where(e => !e.IsAes).Take(MaxZipCryptoChecks))
         {
@@ -208,6 +278,7 @@ public static class ZipPasswordProbe
             var (dataStart, _) = LocalData(fs, e);
             int strength = e.AesStrength;
             int saltLen = WinZipAes.SaltLength(strength);
+            if (dataStart + saltLen + 2 > fs.Length) continue;   // 끝이 잘림 — 확인값을 읽을 수 없음
             byte[] saltPv = ReadAt(fs, dataStart, saltLen + 2);
             byte[] salt = saltPv[..saltLen], pv = saltPv[saltLen..];
             checks.Add(new PasswordCheck(pw => WinZipAes.PasswordVerifierMatches(pw, salt, pv, strength), 16));
@@ -232,19 +303,24 @@ public static class ZipPasswordProbe
         long len = fs.Length;
         if (len < 22) return null;
 
-        // 첫 머리가 ZIP 로컬 머리(또는 빈 ZIP 의 끝 머리)가 아니면 앞에 다른 것이 붙은 파일(SFX 등)이나 분할 조각
+        // 첫 머리가 ZIP 로컬 머리(또는 빈 ZIP 의 끝 머리)가 아니면 앞에 다른 것이 붙은 파일(SFX 등)이나 분할 조각.
+        // 서명 4바이트 중 한 바이트만 다르면 깨진 첫 머리로 보고 판정한다(I4-1 검토 — 그 항목은 판정에서 빠지고 구조 검사가 알린다)
         uint first = BitConverter.ToUInt32(ReadAt(fs, 0, 4));
-        if (first != 0x04034b50 && first != 0x06054b50) return null;
+        if (first != 0x04034b50 && first != 0x06054b50 && !OneByteOff(first, 0x04034b50)) return null;
 
         int tailLen = (int)Math.Min(len, 22 + 0xFFFF);
         long tailStart = len - tailLen;
         byte[] tail = ReadAt(fs, tailStart, tailLen);
-        int eocd = -1;
+        int eocd = -1, loose = -1;
         for (int i = tailLen - 22; i >= 0; i--)
         {
             if (BitConverter.ToUInt32(tail, i) != 0x06054b50) continue;
+            if (loose < 0) loose = i;
             if (i + 22 + BitConverter.ToUInt16(tail, i + 20) <= tailLen) { eocd = i; break; }
         }
+        // 주석 길이 칸이 깨져 파일 끝을 넘으면 맨 뒤의 끝 머리 서명으로(구조 검사 ZipDirectory.FindEnd(lenient) 와 같게 — I4-1 검토: 그 칸 하나로 판정을 못 해
+        // 맞는 암호로도 '암호가 맞지 않아요'). 목록 자리는 아래에서 서명으로 확인한다.
+        if (eocd < 0) eocd = loose;
         if (eocd < 0) return null;
         long eocdPos = tailStart + eocd;
 
@@ -255,35 +331,51 @@ public static class ZipPasswordProbe
         long cdOffset = BitConverter.ToUInt32(tail, eocd + 16);
         long cdEnd = eocdPos;
 
-        if (disk == 0xFFFF || cdDisk == 0xFFFF || count == 0xFFFF || cdSize == 0xFFFFFFFF || cdOffset == 0xFFFFFFFF)
+        bool zip64Needed = count == 0xFFFF || cdSize == 0xFFFFFFFF || cdOffset == 0xFFFFFFFF;
+        byte[]? locator = (zip64Needed || disk == 0xFFFF || cdDisk == 0xFFFF) && eocdPos >= 20 ? ReadAt(fs, eocdPos - 20, 20) : null;
+        if (locator is not null && BitConverter.ToUInt32(locator, 0) != 0x07064b50) locator = null;
+        if (zip64Needed && locator is null) return null;
+        if (locator is { } loc)
         {
-            // Zip64: 끝 머리 바로 앞의 위치 표(locator) → Zip64 끝 머리
-            if (eocdPos < 20) return null;
-            byte[] loc = ReadAt(fs, eocdPos - 20, 20);
-            if (BitConverter.ToUInt32(loc, 0) != 0x07064b50) return null;
+            // Zip64: 끝 머리 바로 앞의 위치 표(locator) → Zip64 끝 머리(디스크 번호 칸만 가득이고 위치 표가 없으면 그 칸이 깨진 보통 ZIP — 아래에서 보지 않음)
             long z64Pos = (long)BitConverter.ToUInt64(loc, 8);
             if (z64Pos < 0 || z64Pos + 56 > eocdPos) return null;
             byte[] z = ReadAt(fs, z64Pos, 56);
             if (BitConverter.ToUInt32(z, 0) != 0x06064b50) return null;
-            disk = BitConverter.ToUInt32(z, 16);
-            cdDisk = BitConverter.ToUInt32(z, 20);
             count = (long)BitConverter.ToUInt64(z, 32);
             cdSize = (long)BitConverter.ToUInt64(z, 40);
             cdOffset = (long)BitConverter.ToUInt64(z, 48);
             cdEnd = z64Pos;
         }
 
-        if (disk != 0 || cdDisk != 0) return null;                          // 분할(.z01 …)
-        if (cdOffset < 0 || cdSize < 0 || cdOffset + cdSize != cdEnd) return null;   // 위치를 믿을 수 없음
-        if (cdSize > MaxCentralDirectoryBytes || count > cdSize / 46 + 1) return null;
+        // 디스크 번호 칸은 보지 않는다 — 나눔 세트(.z01 …)는 이어 붙인 스트림이 한 디스크로 고쳐 쓴 목록을 주므로(SpannedZipStream) 여기서 0 이 아니면 그 칸이 깨진 것
+        // (I4-1 검토: 그 칸 하나가 깨지면 판정을 못 해 한글 암호를 엔진에 글자로 넘겨 맞는 암호로도 '암호가 맞지 않아요'). 목록 자리는 아래에서 서명으로 확인한다.
+        if (cdOffset < 0 || cdSize < 0) return null;
+        if (cdOffset + cdSize != cdEnd)
+        {
+            // 목록 크기 칸이나 위치 칸 하나만 깨졌을 수 있다 — 다른 칸이 끝 머리 바로 앞까지의 목록 기록을 가리키면 그것으로 읽는다(IJ3-02 I2-8 4차 검증:
+            // 반디집 한글 암호 ZIP 의 목록 크기 칸이 깨지면 판정을 못 해 맞는 암호로도 '암호가 맞지 않아요'). 둘 다 맞지 않으면 위치를 믿을 수 없음.
+            if (cdOffset < cdEnd && CentralSigAt(fs, cdOffset)) cdSize = cdEnd - cdOffset;
+            else if (cdSize <= cdEnd && CentralSigAt(fs, cdEnd - cdSize)) cdOffset = cdEnd - cdSize;
+            else return null;
+        }
+        if (cdSize > MaxCentralDirectoryBytes) return null;
 
+        // 기록은 목록 크기만큼 빈틈없이 읽는다 — 끝 머리의 항목 수 칸은 믿지 않는다(IJ3-02 I2-8: 그 칸만 0 이 되면 암호 항목이 없는 것으로 판정해
+        // 반디집 한글 암호를 엔진에 글자로 넘겨 맞는 암호로도 '암호가 맞지 않아요'). 기록 사이가 어긋나면 판정하지 않는다(엔진에 맡김).
         byte[] cd = ReadAt(fs, cdOffset, (int)cdSize);
-        var list = new List<ZipCentralEntry>((int)Math.Min(count, 100_000));
+        var list = new List<ZipCentralEntry>((int)Math.Min(Math.Max(count, cdSize / 46), 100_000));
         var rawNames = new List<ZipEntryNames.Raw>(list.Capacity);   // W2-09: 이름은 다 읽은 뒤 압축 파일 하나에 한 방식으로 푼다(목록과 같은 이름)
         int p = 0;
-        for (int n = 0; n < count; n++)
+        for (int n = 0; p < cd.Length; n++)
         {
-            if (p + 46 > cd.Length || BitConverter.ToUInt32(cd, p) != 0x02014b50) return null;
+            if (p + 46 > cd.Length || BitConverter.ToUInt32(cd, p) != 0x02014b50)
+            {
+                // 끝 머리의 항목 수만큼 다 읽었으면 뒤에 남은 바이트는 넘긴다(엔진도 항목 수만큼 읽는다 — I4-1 검토: 마지막 기록 안에 바이트가 끼어
+                // 판정을 못 하면 한글 암호를 엔진에 글자로 넘겨 맞는 암호로도 '암호가 맞지 않아요')
+                if (n > 0 && n == count) break;
+                return null;
+            }
             int flags = BitConverter.ToUInt16(cd, p + 8);
             int method = BitConverter.ToUInt16(cd, p + 10);
             ushort time = BitConverter.ToUInt16(cd, p + 12);
@@ -299,6 +391,7 @@ public static class ZipPasswordProbe
             if (next > cd.Length) return null;
 
             int aesVersion = 0, aesStrength = 0, aesMethod = 0;
+            byte[]? aesBlock = ZipArchiveService.AesBlockOf(cd, extraAt, extraLen);
             for (int x = extraAt; x + 4 <= extraAt + extraLen;)
             {
                 int id = BitConverter.ToUInt16(cd, x), size = BitConverter.ToUInt16(cd, x + 2);
@@ -324,13 +417,44 @@ public static class ZipPasswordProbe
             if (diskStart != 0 || offset < 0 || csize < 0 || usize < 0) return null;
 
             rawNames.Add(ZipEntryNames.Read(cd, p, flags, nameLen, extraLen, commentLen));
-            list.Add(new ZipCentralEntry(n, string.Empty, flags, method, time, crc, csize, usize, offset, aesVersion, aesStrength, aesMethod));
+            list.Add(new ZipCentralEntry(n, string.Empty, flags, method, time, crc, csize, usize, offset, aesVersion, aesStrength, aesMethod) { AesBlock = aesBlock });
             p = next;
         }
-        int commentLength = BitConverter.ToUInt16(tail, eocd + 20);
+        int commentLength = Math.Min(BitConverter.ToUInt16(tail, eocd + 20), tail.Length - eocd - 22);   // 깨진 주석 길이 칸은 파일 끝까지만
         var names = ZipEntryNames.Decode(rawNames, tail.AsSpan(eocd + 22, commentLength).ToArray());
         for (int i = 0; i < list.Count; i++) list[i] = list[i] with { Name = names[i] };
         return list;
+    }
+
+    /// <summary>목록의 AES 정보가 로컬 머리의 것과 맞는가(<see cref="ZipArchiveService.AesAgrees"/> — 로컬 머리를 못 읽으면 맞는 것으로).</summary>
+    private static bool LocalAesAgrees(Stream fs, ZipCentralEntry e)
+    {
+        if (e.LocalHeaderOffset < 0 || e.LocalHeaderOffset + 30 > fs.Length) return true;
+        byte[] h = ReadAt(fs, e.LocalHeaderOffset, 30);
+        if (BitConverter.ToUInt32(h, 0) != 0x04034b50) return true;
+        int nameLen = BitConverter.ToUInt16(h, 26), extraLen = BitConverter.ToUInt16(h, 28);
+        long extraAt = e.LocalHeaderOffset + 30 + nameLen;
+        if (extraLen == 0 || extraAt + extraLen > fs.Length) return true;
+        byte[] extra = ReadAt(fs, extraAt, extraLen);
+        return ZipArchiveService.AesAgrees(e.AesBlock, ZipArchiveService.AesBlockOf(extra, 0, extraLen), e.IsAes);
+    }
+
+    /// <summary>로컬 머리의 표시 칸(서명이 맞을 때만 — 아니면 null).</summary>
+    private static int? LocalFlags(Stream fs, ZipCentralEntry e)
+    {
+        if (e.LocalHeaderOffset < 0 || e.LocalHeaderOffset + 30 > fs.Length) return null;
+        byte[] h = ReadAt(fs, e.LocalHeaderOffset, 30);
+        return BitConverter.ToUInt32(h, 0) == 0x04034b50 ? BitConverter.ToUInt16(h, 6) : null;
+    }
+
+    /// <summary><see cref="LocalData"/> — 로컬 머리를 읽을 수 없거나(파일 밖·서명이 다름) 데이터가 파일 밖이면 null.</summary>
+    private static (long DataStart, ushort LocalTime)? TryLocalData(Stream fs, ZipCentralEntry e)
+    {
+        if (e.LocalHeaderOffset < 0 || e.LocalHeaderOffset + 30 > fs.Length) return null;
+        byte[] h = ReadAt(fs, e.LocalHeaderOffset, 30);
+        if (BitConverter.ToUInt32(h, 0) != 0x04034b50) return null;
+        long dataStart = e.LocalHeaderOffset + 30 + BitConverter.ToUInt16(h, 26) + BitConverter.ToUInt16(h, 28);
+        return dataStart + 12 <= fs.Length ? (dataStart, BitConverter.ToUInt16(h, 10)) : null;
     }
 
     /// <summary>항목 데이터가 시작하는 위치와 로컬 머리의 DOS 시각.</summary>
@@ -342,6 +466,19 @@ public static class ZipPasswordProbe
         int nameLen = BitConverter.ToUInt16(h, 26), extraLen = BitConverter.ToUInt16(h, 28);
         return (e.LocalHeaderOffset + 30 + nameLen + extraLen, BitConverter.ToUInt16(h, 10));
     }
+
+    /// <summary>두 4바이트 값이 정확히 한 바이트만 다른가.</summary>
+    private static bool OneByteOff(uint a, uint b)
+    {
+        int diff = 0;
+        for (int k = 0; k < 4; k++)
+            if ((byte)(a >> (8 * k)) != (byte)(b >> (8 * k))) diff++;
+        return diff == 1;
+    }
+
+    /// <summary><paramref name="at"/> 에 목록 기록 서명('PK\x01\x02')이 있는가.</summary>
+    private static bool CentralSigAt(Stream s, long at) =>
+        at >= 0 && at + 4 <= s.Length && BitConverter.ToUInt32(ReadAt(s, at, 4)) == 0x02014b50;
 
     internal static byte[] ReadAt(Stream s, long position, int count)
     {

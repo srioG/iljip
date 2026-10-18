@@ -192,13 +192,62 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
         target.Commit();
     }
 
+    /// <summary>
+    /// 압축 검사(W2-08): 컨테이너로 열리면 베이스(항목마다 끝까지 읽기), 아니면 raw bzip2 를 끝까지 풀어 보기만 한다(디스크에 쓰지 않음 — 블록 확인값은 해제기가 봄).
+    /// 예전 '만든 압축 시험'은 숨김 임시 폴더에 풀어 보고 지웠다(W2-07).
+    /// </summary>
+    internal override TestReport TestArchive(string archivePath, string? password, IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+    {
+        if (OpensAsContainer(archivePath)) return TestArchiveCore(archivePath, password, progress, cancellationToken);
+        if (!HasBzip2Signature(archivePath))
+            throw new InvalidDataException("이 파일은 올바른 BZIP2(.bz2) 형식이 아니거나 손상되었습니다.");
+
+        string entryName = ArchiveNaming.SingleStreamName(archivePath);
+        long written = 0;
+        try
+        {
+            using var input = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920);
+            using var bz = BZip2Stream.Create(input, CompressionMode.Decompress, decompressConcatenated: true);
+            var buffer = new byte[81920];
+            int read;
+            while ((read = bz.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                written += read;
+                progress?.Report(new ArchiveProgress { CurrentFile = entryName, BytesProcessed = written, TotalBytes = 0, TotalFiles = 1 });
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && !ErrorCatalog.IsEnvironmentProblem(ex))
+        {
+            Logger.LogError($"압축 검사 — bzip2 문제: {archivePath}", ex);
+            // 해제기 문구만으로는 잘림과 손상이 안 갈려 끝 표시를 직접 본다(압축된 TAR 와 같은 방법)
+            bool complete;
+            try
+            {
+                using var fs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                complete = ArchiveCompleteness.Bzip2HasEndMarker(fs);
+            }
+            catch (Exception probe) when (probe is IOException or UnauthorizedAccessException)
+            {
+                complete = true;
+            }
+            var reason = complete ? new CorruptArchiveException(ex, entryName) : CorruptArchiveException.Truncated(ex, entryName);
+            return new TestReport { Problems = new[] { new TestProblem(entryName, ArchiveTestService.EntryReason(reason), ErrorCatalog.DetailsOf(ex), ErrorCatalog.Describe(reason).Kind) } };
+        }
+        progress?.Report(new ArchiveProgress { CurrentFile = string.Empty, BytesProcessed = written, TotalBytes = written, FilesProcessed = 1, TotalFiles = 1 });
+        return new TestReport { CheckedCount = 1 };
+    }
+
     private static long SafeFileLength(string path)
     {
         try { return new FileInfo(path).Length; }
         catch { return -1; }
     }
 
-    /// <summary>파일 선두가 raw bzip2 매직 시그니처("BZh")인지 확인. 읽기 실패 시 false.</summary>
+    /// <summary>
+    /// 파일 선두가 raw bzip2 매직 시그니처("BZh")인지 확인. 읽기 실패 시 false — 단 사용자 환경 문제(다른 프로그램이 잠금·권한·없는 파일 등)는
+    /// 그대로 던진다(W2-08 검증 지적 2차: 잠긴 .bz2 를 '형식이 아니거나 손상'으로 알림 — 다른 형식은 모두 '다른 프로그램이 씀').
+    /// </summary>
     private static bool HasBzip2Signature(string path)
     {
         try
@@ -208,6 +257,7 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             int read = fs.Read(sig, 0, 3);
             return read == 3 && sig[0] == (byte)'B' && sig[1] == (byte)'Z' && sig[2] == (byte)'h';
         }
+        catch (Exception ex) when (ErrorCatalog.IsEnvironmentProblem(ex)) { throw; }
         catch { return false; }
     }
 
@@ -216,6 +266,7 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
     /// 열리면 true(베이스 경로로 처리), 못 열면 false(raw bzip2 단일 스트림 경로).
     /// 이 판별을 '실제 해제 시도'와 분리함으로써, 컨테이너로 일단 열린 뒤의 해제 도중 오류를
     /// raw 폴백이 잘못 흡수하지 않도록 한다(원오류는 베이스에서 그대로 전파).
+    /// 파일을 열지 못한 사용자 환경 문제(다른 프로그램이 잠금·권한·없는 파일 등)는 삼키지 않고 그대로 던진다(W2-08 검증 지적 2차).
     /// </summary>
     private static bool OpensAsContainer(string archivePath)
     {
@@ -226,6 +277,7 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
             return true;
         }
         catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ErrorCatalog.IsEnvironmentProblem(ex)) { throw; }
         catch { return false; }
     }
 

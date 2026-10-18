@@ -220,23 +220,30 @@ public class LocatorTests
             Assert.DoesNotContain("not an archive", m, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("not archive", m, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("unsupported archive", m, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(ex.Message, m);   // 일집 예외는 문구 그대로
+            // 일집 예외는 문구 그대로 — 검사값 불일치만 W2-08 부터 '검사값' 말로(설계 문구, 영어 'CRC' 가 화면에 보이지 않게)
+            Assert.Equal(ex is ChecksumMismatchException c ? ErrorCatalog.ChecksumMessage(c.EntryPath) : ex.Message, m);
         }
         // 미지원 형식만 종료 코드 2(재사용장치가 '압축 아님'으로 분류 — stderr 는 App 이 영어로 따로 씀)
         Assert.Equal(2, ErrorMessages.HeadlessExitCode(new UnsupportedFormatException(".zst")));
         Assert.Equal(1, ErrorMessages.HeadlessExitCode(new CorruptArchiveException()));
     }
 
-    /// <summary>일반 예외의 쉬운 문구.</summary>
+    /// <summary>
+    /// 일반 예외의 쉬운 문구. W2-08: 공간 부족·모르는 오류 문구를 설계 표대로('저장할 공간이 부족해요.'·'알 수 없는 문제가 생겼어요.') 바꾸고,
+    /// 모르는 오류의 영어 원문은 화면 문구에 붙이지 않는다(예전 '알 수 없는 오류가 났어요: boom' — 원문은 '자세히'·로그에만).
+    /// </summary>
     [Fact]
     public void 일반_예외도_쉬운_문구로_바꾼다()
     {
         Assert.Equal("취소했어요.", ErrorMessages.ToUserMessage(new OperationCanceledException()));
-        Assert.Equal("디스크 공간이 모자라요.", ErrorMessages.ToUserMessage(new IOException("full", unchecked((int)0x80070070))));
+        Assert.Equal("저장할 공간이 부족해요.", ErrorMessages.ToUserMessage(new IOException("full", unchecked((int)0x80070070))));
         Assert.StartsWith("위험한 경로가 들어 있어", ErrorMessages.ToUserMessage(new InvalidDataException(ErrorMessages.UnsafePathPrefix + "../x")));
         Assert.Contains(@"C:\잠긴 폴더", ErrorMessages.ToUserMessage(new UnauthorizedAccessException(@"Access to the path 'C:\잠긴 폴더' is denied.")));
         Assert.Equal("이미 한국어 문구", ErrorMessages.ToUserMessage(new InvalidDataException("이미 한국어 문구")));
-        Assert.StartsWith("알 수 없는 오류가 났어요", ErrorMessages.ToUserMessage(new InvalidOperationException("boom")));
+        var boom = new InvalidOperationException("boom");
+        Assert.Equal("알 수 없는 문제가 생겼어요.", ErrorMessages.ToUserMessage(boom));
+        Assert.DoesNotContain("boom", ErrorMessages.ToUserMessage(boom));
+        Assert.Contains("boom", ErrorCatalog.Describe(boom).Details);   // 원문은 '자세히' 아래에
     }
 
     /// <summary>풀린 파일 옮기기(임시 폴더 → 대상)도 같은 이름이 있으면 '이름 (1)'로 비켜 간다.</summary>
@@ -293,7 +300,7 @@ public class LocatorTests
             ex = Record.Exception(() => OutputFiles.MoveNew(s1, Path.Combine(dest, "a.txt")));
         sw.Stop();
         Assert.IsAssignableFrom<IOException>(ex);
-        Assert.Contains("다른 프로그램이 파일을 쓰고 있어요", ErrorMessages.ToUserMessage(ex!));
+        Assert.Contains("다른 프로그램(보안 프로그램 포함)이 파일을 쓰고 있어요", ErrorMessages.ToUserMessage(ex!));   // W2-08 설계 문구
         Assert.True(sw.ElapsedMilliseconds >= OutputFiles.MoveLockDelayMs, "다시 해 보지 않고 바로 포기함");
         Assert.True(File.Exists(s1));
         Assert.False(File.Exists(Path.Combine(dest, "a.txt")));
@@ -311,13 +318,14 @@ public class LocatorTests
         Assert.Equal($"같은 이름의 파일이나 폴더가 이미 있어 만들 수 없어요: {path}", ErrorMessages.ToUserMessage(exists));
 
         var locked = new IOException($"The process cannot access the file '{path}\\견적서.xlsx' because it is being used by another process.", unchecked((int)0x80070020));
-        Assert.Equal($"다른 프로그램이 파일을 쓰고 있어요. 그 프로그램을 닫고 다시 해 보세요: {path}\\견적서.xlsx", ErrorMessages.ToUserMessage(locked));
+        // W2-08 설계 문구('보안 프로그램 포함', '잠시 뒤 다시') + 그 파일
+        Assert.Equal($"다른 프로그램(보안 프로그램 포함)이 파일을 쓰고 있어요. 잠시 뒤 다시 해 주세요. (파일: {path}\\견적서.xlsx)", ErrorMessages.ToUserMessage(locked));
 
         Assert.Equal($"파일이나 폴더를 찾을 수 없어요: {path}", ErrorMessages.ToUserMessage(new DirectoryNotFoundException($"Could not find a part of the path '{path}'.")));
-        Assert.Equal("이 폴더에 쓸 권한이 없어요.", ErrorMessages.ToUserMessage(new UnauthorizedAccessException("Access is denied.")));
+        Assert.Equal("이 위치에 쓸 권한이 없어요.", ErrorMessages.ToUserMessage(new UnauthorizedAccessException("Access is denied.")));   // W2-08 설계 문구
 
-        // 알 수 없는 영어 문구는 '알 수 없는 오류'로 시작한다(한글 경로가 들어 있어도)
-        Assert.StartsWith("알 수 없는 오류가 났어요: ", ErrorMessages.ToUserMessage(new IOException($"Something odd at '{path}'.")));
+        // 알 수 없는 영어 문구는 '알 수 없는 문제가 생겼어요.'(한글 경로가 들어 있어도) — W2-08 부터 영어 원문은 붙이지 않는다
+        Assert.Equal("알 수 없는 문제가 생겼어요.", ErrorMessages.ToUserMessage(new IOException($"Something odd at '{path}'.")));
         // 서비스가 쓴 한국어 문구(따옴표 안 이름이 있어도)는 그대로
         Assert.Equal("'가.txt' 를 옮기지 못했어요", ErrorMessages.ToUserMessage(new IOException("'가.txt' 를 옮기지 못했어요")));
         Assert.Equal("고유한 출력 경로를 만들 수 없습니다: C:\\가\\나.txt", ErrorMessages.ToUserMessage(new IOException("고유한 출력 경로를 만들 수 없습니다: C:\\가\\나.txt")));

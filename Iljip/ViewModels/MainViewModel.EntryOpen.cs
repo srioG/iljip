@@ -89,7 +89,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             Logger.LogError("임시 폴더를 만들지 못함", ex);
-            _ui.ShowError($"파일을 열 수 없어요:\n\n{ErrorMessages.ToUserMessage(ex)}");
+            ShowProblem("파일을 열 수 없어요.", ex);
             return false;
         }
 
@@ -127,7 +127,7 @@ public partial class MainViewModel
         {
             Logger.LogError("기본 프로그램으로 열기 실패: " + path, ex);
             string head = ex is Win32Exception { NativeErrorCode: ErrorNoAssociation } ? $"'{name}'을(를) 열 프로그램을 찾지 못했어요." : $"'{name}'을(를) 열지 못했어요.";
-            _ui.ShowError($"{head}\n\n{ErrorMessages.ToUserMessage(ex)}");
+            ShowProblem(head, ex);
             StatusText = "오류 발생";
             return false;
         }
@@ -188,7 +188,8 @@ public partial class MainViewModel
                 {
                     session.Close();
                     Logger.LogError($"{errorHead}: {archive} → {KeysForLog(keys)}", ex);
-                    _ui.ShowError($"{errorHead}:\n\n{ErrorMessages.ToUserMessage(ex)}");
+                    // W2-08(IJ3-02): 문제 창 — 원문은 '자세히', 손상된 ZIP 이면 'ZIP 고치기 시도'
+                    await ShowProblemAsync($"{errorHead}.", ex, archive);
                     return UseOutcome.Failed;
                 }
                 if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
@@ -213,7 +214,7 @@ public partial class MainViewModel
                 {
                     session.Close();
                     Logger.LogError($"{errorHead}(꺼낸 뒤): {archive} → {KeysForLog(keys)}", ex);
-                    _ui.ShowError($"{errorHead}:\n\n{ErrorMessages.ToUserMessage(ex)}");
+                    ShowProblem($"{errorHead}.", ex);
                     return UseOutcome.Failed;
                 }
             }
@@ -460,7 +461,7 @@ public partial class MainViewModel
             catch (Exception ex)
             {
                 Logger.LogError("다시 넣을 파일 복사 실패: " + entry.TempPath, ex);
-                _ui.ShowError($"고친 파일을 읽지 못해 압축 파일에 넣지 못했어요.\n\n{ErrorMessages.ToUserMessage(ex)}");
+                ShowProblem("고친 파일을 읽지 못해 압축 파일에 넣지 못했어요.", ex);
                 return (null, true);
             }
             var ops = new EditOp[] { new EditOp.Add(new[] { snapshot }, folder, AsName: leaf, ReplaceExisting: true) };
@@ -516,7 +517,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             Logger.LogError("바뀐 파일 저장 실패: " + dest, ex);
-            _ui.ShowError($"바뀐 파일을 저장하지 못했어요.\n\n{ErrorMessages.ToUserMessage(ex)}");
+            ShowProblem("바뀐 파일을 저장하지 못했어요.", ex);
             return null;
         }
     }

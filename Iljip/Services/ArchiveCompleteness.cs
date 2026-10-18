@@ -419,6 +419,275 @@ internal static class ArchiveCompleteness
         return false;
     }
 
+    // ───────────────────────────── EGG·ALZ(W2-08 검증 지적) ─────────────────────────────
+
+    /// <summary>EGG·ALZ 구조를 끝 표시까지 따라간 결과.</summary>
+    internal enum EggAlzWalk { Complete, Truncated, Unknown }
+
+    private const uint EggMagic = 0x41474745;      // 'EGGA'
+    private const uint EggEnd = 0x08E28222;        // 머리 끝·파일 머리 끝·보관 끝(같은 값)
+    private const uint EggFile = 0x0A8590E3;
+    private const uint EggFilename = 0x0A8591AC;
+    private const uint EggComment = 0x04C63672;
+    private const uint EggWinInfo = 0x2C86950B;
+    private const uint EggPosixInfo = 0x1EE922E5;
+    private const uint EggEncrypt = 0x08D1470F;
+    private const uint EggDummy = 0x07463307;
+    private const uint EggBlock = 0x02B50C13;
+    private const uint EggSplit = 0x24F5A262;
+    private const uint EggSolid = 0x24E5A060;
+
+    /// <summary>
+    /// EGG·ALZ 가 끝 표시까지 온전한가(W2-08 검증 지적). EggDotNet 은 항목 머리와 머리 사이(또는 머리 안의 서명 자리)에서 잘린 파일을 오류 없이
+    /// '읽은 데까지만' 보여 줘서, 압축 검사가 '문제없어요', 창 없이 풀기가 종료 코드 0 으로 끝나며 뒤쪽 파일을 조용히 잃었다.
+    /// 잘렸으면 <see cref="CorruptArchiveException.Truncated"/>(분할 EGG 면 마지막 조각의 <see cref="VolumeIncompleteException"/>),
+    /// 온전하거나 판단할 수 없으면(모르는 머리·분할 ALZ·조각을 못 찾음) null. 예외는 내지 않는다.
+    /// <list type="bullet">
+    /// <item>EGG: EggDotNet 이 읽는 그대로 머리(분할·솔리드 머리)·파일 머리(이름·윈도/POSIX 정보·암호·주석·더미)·블록(머리 18바이트 + 압축 크기)을 따라가
+    ///   보관 끝(0x08E28222)을 만나야 온전하다. 분할이면 조각들의 본문(머리 뒤)을 이어 붙여 본다.</item>
+    /// <item>ALZ: <see cref="AlzNameScanner.TryScan"/> 이 끝 표시('CLZ')까지 읽었는가. 끝 표시 앞에서 끝나면 항목 경계에서 끊겼어도 잘림이다
+    ///   (끝 표시만 빠진 것과 뒤 항목이 통째로 빠진 것을 바이트로는 가를 수 없어, 조용히 잃지 않는 쪽을 고름).</item>
+    /// </list>
+    /// </summary>
+    /// <param name="offset">압축이 시작하는 위치(알집 자동 풀림 exe 안이면 그 위치, 보통 0).</param>
+    public static ArchiveException? CheckEggAlz(string archivePath, long offset = 0)
+    {
+        try
+        {
+            byte[] sig;
+            using (var fs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                sig = ReadAt(fs, offset, 4);
+            if (sig.Length < 4) return null;   // 서명도 없으면 EggDotNet 이 손상으로 알린다
+            uint magic = BinaryPrimitives.ReadUInt32LittleEndian(sig);
+            if (magic == 0x015A4C41)   // 'ALZ\1'
+            {
+                var scan = AlzNameScanner.TryScan(archivePath, offset);
+                return scan is { Complete: false } ? CorruptArchiveException.Truncated() : null;
+            }
+            if (magic != EggMagic) return null;
+            return CheckEgg(archivePath, offset);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;   // 읽기 문제는 여기서 판단하지 않는다(엔진이 같은 파일을 다시 연다)
+        }
+    }
+
+    private static ArchiveException? CheckEgg(string archivePath, long offset)
+    {
+        var segments = new List<(FileStream Stream, long Start, long Length, string Name)>();
+        try
+        {
+            var first = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var head = ParseEggHeader(first, offset);
+            if (head is null)
+            {
+                first.Dispose();
+                return CorruptArchiveException.Truncated();   // 머리 끝 표시도 없이 끝남
+            }
+            segments.Add((first, head.Value.End, first.Length - head.Value.End, Path.GetFileName(archivePath)));
+            if (head.Value.Split)
+            {
+                // 분할 EGG: EggDotNet 과 같이 첫 조각(앞 ID = 0)부터 '다음 ID' 를 따라 같은 폴더의 .egg 를 잇는다(자동 풀림 exe 는 분할을 찾지 않음)
+                if (offset != 0 || head.Value.Prev != 0) return null;
+                var others = new List<(string Path, long End, int Id, int Next)>();
+                foreach (var sibling in EggAlzArchiveService.SplitVolumeCandidates(Path.GetFullPath(archivePath)))
+                {
+                    try
+                    {
+                        using var fs = new FileStream(sibling, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                        if (ParseEggHeader(fs, 0) is { Split: true } h) others.Add((sibling, h.End, h.HeaderId, h.Next));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // 잠긴 형제 파일은 조각일 리 없다(EggDotNet 처럼 건너뜀)
+                    }
+                }
+                int next = head.Value.Next;
+                for (int guard = 0; next != 0 && guard < 10_000; guard++)
+                {
+                    int want = next;
+                    var v = others.FirstOrDefault(o => o.Id == want);
+                    if (v.Path is null) return null;   // 조각이 없음 — EggDotNet 이 '조각 없음'으로 알린다
+                    var fs = new FileStream(v.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    segments.Add((fs, v.End, Math.Max(0, fs.Length - v.End), Path.GetFileName(v.Path)));
+                    others.Remove(v);
+                    next = v.Next;
+                }
+                if (next != 0) return null;
+            }
+
+            var body = new SegmentReader(segments.Select(s => ((Stream)s.Stream, s.Start, s.Length)).ToList());
+            return WalkEggBody(body) switch
+            {
+                EggAlzWalk.Truncated => segments.Count > 1 ? new VolumeIncompleteException(segments[^1].Name) : CorruptArchiveException.Truncated(),
+                _ => null,
+            };
+        }
+        finally
+        {
+            foreach (var s in segments) s.Stream.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// EGG 머리('EGGA' 자리부터): 머리 끝 위치·머리 ID·분할이면 앞/다음 ID. EggDotNet 처럼 분할(11바이트)·솔리드(3바이트) 머리를 건너뛰고
+    /// 그 밖의 값은 4바이트씩 넘기며 머리 끝(0x08E28222)을 찾는다. 서명이 아니거나 머리 끝 없이 끝나면 null.
+    /// </summary>
+    private static (long End, int HeaderId, bool Split, int Prev, int Next)? ParseEggHeader(Stream s, long start)
+    {
+        var h = ReadAt(s, start, 14);
+        if (h.Length < 14 || BinaryPrimitives.ReadUInt32LittleEndian(h) != EggMagic) return null;
+        int headerId = BinaryPrimitives.ReadInt32LittleEndian(h.AsSpan(6, 4));
+        long pos = start + 14, len = s.Length;
+        bool split = false;
+        int prev = 0, next = 0;
+        while (pos + 4 <= len)
+        {
+            uint v = BinaryPrimitives.ReadUInt32LittleEndian(ReadAt(s, pos, 4));
+            pos += 4;
+            if (v == EggEnd) return (pos, headerId, split, prev, next);
+            if (v == EggSplit)
+            {
+                var sp = ReadAt(s, pos, 11);
+                if (sp.Length < 11) return null;
+                prev = BinaryPrimitives.ReadInt32LittleEndian(sp.AsSpan(3, 4));
+                next = BinaryPrimitives.ReadInt32LittleEndian(sp.AsSpan(7, 4));
+                split = true;
+                pos += 11;
+            }
+            else if (v == EggSolid)
+            {
+                pos += 3;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// EGG 본문(머리 뒤)을 EggDotNet 이 읽는 그대로 따라가 보관 끝(맨 바깥의 0x08E28222)을 만나면 온전. 그 전에 바이트가 모자라면(머리·블록이
+    /// 중간에 끊기거나 항목 경계에서 끝남) 잘림. 모르는 서명·말이 안 되는 블록 머리면 판단하지 않는다(EggDotNet 과 다르게 읽을 수 있어서).
+    /// </summary>
+    private static EggAlzWalk WalkEggBody(SegmentReader r)
+    {
+        long len = r.Length, pos = 0;
+        bool inFile = false;   // 파일 머리의 추가 필드를 읽는 중(파일 머리 끝 0x08E28222 까지)
+        for (long guard = 0; guard < 100_000_000; guard++)
+        {
+            if (pos + 4 > len) return EggAlzWalk.Truncated;
+            uint magic = BinaryPrimitives.ReadUInt32LittleEndian(r.Read(pos, 4));
+            pos += 4;
+            long skip;
+            if (inFile)
+            {
+                switch (magic)
+                {
+                    case EggEnd:
+                        inFile = false;
+                        continue;
+                    case EggFilename:
+                    {
+                        var f = r.Read(pos, 3);
+                        if (f.Length < 3) return EggAlzWalk.Truncated;
+                        int flags = f[0];
+                        skip = 3 + ((flags & 0x08) != 0 ? 2 : 0) + ((flags & 0x10) != 0 ? 4 : 0) + BinaryPrimitives.ReadUInt16LittleEndian(f.AsSpan(1, 2));
+                        break;
+                    }
+                    case EggWinInfo:
+                        skip = 12;   // 플래그·크기 3 + FILETIME 8 + 속성 1(EggDotNet 이 늘 12바이트로 읽음)
+                        break;
+                    case EggPosixInfo:
+                        skip = 23;
+                        break;
+                    case EggComment:
+                    case EggEncrypt:
+                    case EggDummy:
+                        skip = ExtraFieldLength(r, pos);
+                        if (skip < 0) return EggAlzWalk.Truncated;
+                        break;
+                    default:
+                        return EggAlzWalk.Unknown;
+                }
+            }
+            else
+            {
+                switch (magic)
+                {
+                    case EggEnd:
+                        return EggAlzWalk.Complete;   // 보관 끝
+                    case EggFile:
+                        skip = 12;                     // 파일 ID 4 + 원래 크기 8
+                        inFile = true;
+                        break;
+                    case EggBlock:
+                    {
+                        var b = r.Read(pos, 18);       // 방식 1·힌트 1·원래 크기 4·압축 크기 4·CRC 4·블록 머리 끝 4
+                        if (b.Length < 18) return EggAlzWalk.Truncated;
+                        if (BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(14, 4)) != EggEnd) return EggAlzWalk.Unknown;
+                        skip = 18 + BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(6, 4));
+                        break;
+                    }
+                    case EggComment:
+                    case EggDummy:
+                        skip = ExtraFieldLength(r, pos);
+                        if (skip < 0) return EggAlzWalk.Truncated;
+                        break;
+                    default:
+                        return EggAlzWalk.Unknown;
+                }
+            }
+            if (pos + skip > len) return EggAlzWalk.Truncated;
+            pos += skip;
+        }
+        return EggAlzWalk.Unknown;
+    }
+
+    /// <summary>EGG 추가 필드(플래그 1 + 크기 2 + 내용)의 길이 — 플래그·크기도 못 읽으면 -1.</summary>
+    private static long ExtraFieldLength(SegmentReader r, long pos)
+    {
+        var f = r.Read(pos, 3);
+        return f.Length < 3 ? -1 : 3 + BinaryPrimitives.ReadUInt16LittleEndian(f.AsSpan(1, 2));
+    }
+
+    /// <summary>여러 스트림의 구간을 이어 붙인 것처럼 읽는다(분할 EGG 본문 — 조각마다 머리 뒤부터).</summary>
+    private sealed class SegmentReader
+    {
+        private readonly List<(Stream Stream, long Start, long Length)> _parts;
+
+        public SegmentReader(List<(Stream Stream, long Start, long Length)> parts)
+        {
+            _parts = parts;
+            Length = parts.Sum(p => Math.Max(0, p.Length));
+        }
+
+        public long Length { get; }
+
+        /// <summary><paramref name="pos"/>(이은 위치)부터 최대 <paramref name="count"/> 바이트(끝이면 짧게).</summary>
+        public byte[] Read(long pos, int count)
+        {
+            var result = new byte[Math.Max(0, (int)Math.Min(count, Length - pos))];
+            int got = 0;
+            long cursor = 0;
+            foreach (var (stream, start, length) in _parts)
+            {
+                if (got == result.Length) break;
+                long at = pos + got;
+                if (at >= cursor + length)
+                {
+                    cursor += length;
+                    continue;
+                }
+                int want = (int)Math.Min(result.Length - got, cursor + length - at);
+                var piece = ReadAt(stream, start + (at - cursor), want);
+                piece.CopyTo(result, got);
+                got += piece.Length;
+                if (piece.Length < want) break;
+                cursor += length;
+            }
+            return got == result.Length ? result : result[..got];
+        }
+    }
+
     // ───────────────────────────── 도우미 ─────────────────────────────
 
     private static bool ReadVint(byte[] b, ref int p, out ulong value)

@@ -36,6 +36,15 @@ internal static class ExtractionVerifier
     public static Problem Check(InArchiveFormat format, SevenZipEngine.Item item, string stagedPath, bool finished)
     {
         long len = File.Exists(stagedPath) ? new FileInfo(stagedPath).Length : -1;
+        return Check(format, item, len, () => Crc32Of(stagedPath), () => Crc16Arc(stagedPath), finished);
+    }
+
+    /// <summary>
+    /// 같은 규칙을 이미 센 길이·확인값으로 본다(W2-08 압축 검사 — 디스크에 쓰지 않고 <see cref="MeasuringStream"/> 로 셈).
+    /// <paramref name="len"/> 이 -1 이면 '파일 없음'. 확인값은 필요할 때만 부른다.
+    /// </summary>
+    internal static Problem Check(InArchiveFormat format, SevenZipEngine.Item item, long len, Func<uint> crc32, Func<uint> crc16, bool finished)
+    {
         if (len < 0)
         {
             // 크기 0 항목은 7z.dll 이 파일을 만들지 않을 수 있다(옮길 때 빈 파일을 만든다). LZH 의 빈 -lh7- 항목은 실패로 알려 와도 맞다(실측).
@@ -47,7 +56,7 @@ internal static class ExtractionVerifier
         if (len != item.Size && !(sizeUnknown && finished)) return finished ? Problem.SizeMismatch : Problem.EngineFailed;
 
         if (format == InArchiveFormat.Lzh)
-            return Crc16Arc(stagedPath) == (item.Crc & 0xFFFF) ? Problem.None : finished ? Problem.ChecksumMismatch : Problem.EngineFailed;
+            return crc16() == (item.Crc & 0xFFFF) ? Problem.None : finished ? Problem.ChecksumMismatch : Problem.EngineFailed;
 
         if (finished) return Problem.None;
 
@@ -60,7 +69,7 @@ internal static class ExtractionVerifier
             case InArchiveFormat.Rar when !item.Encrypted:
                 // 확인값이 없는 항목(크기 > 0 인데 0 — ZIP AES 의 AE-2 등)은 가릴 수 없어 실패를 믿는다
                 if (item.Crc == 0 && item.Size > 0) return Problem.EngineFailed;
-                if (Crc32Of(stagedPath) == item.Crc) return Problem.None;
+                if (crc32() == item.Crc) return Problem.None;
                 // 암호 없는 ZIP·RAR 항목이 끝까지 나왔는데 확인값만 다르다 = 그 파일의 데이터 손상(main 의 ZIP·RAR 'CRC 오류' 계약과 같게).
                 // 암호 항목은 틀린 암호일 수 있어, 7z 는 기록된 문구(손상)대로 엔진 실패로 둔다.
                 return !item.Encrypted && format is InArchiveFormat.Zip or InArchiveFormat.Rar4 or InArchiveFormat.Rar

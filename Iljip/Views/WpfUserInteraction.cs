@@ -56,7 +56,9 @@ public sealed class WpfUserInteraction : IUserInteraction
         return dlg.ShowDialog() == true ? dlg.Password ?? string.Empty : null;
     }
 
-    public void ShowError(string message) => ShowMessage(message, MessageBoxImage.Error);
+    /// <summary>오류 창 — W2-08 부터 문제 창(<see cref="ShowProblem"/>, '로그 폴더 열기' 포함)으로 띄운다.</summary>
+    public void ShowError(string message) =>
+        ShowProblem(new UserProblem { Kind = ProblemKind.Other, Title = "문제가 생겼어요", Message = message });
 
     public void ShowWarning(string message) => ShowMessage(message, MessageBoxImage.Warning);
 
@@ -230,6 +232,18 @@ public sealed class WpfUserInteraction : IUserInteraction
         var dlg = new ExtractOptionsDialog(new Iljip.ViewModels.ExtractOptionsViewModel(request));
         Prepare(dlg);
         return dlg.ShowDialog() == true ? dlg.Result : null;
+    }
+
+    /// <summary>문제 창(W2-08, I2-8). 다른 스레드에서 불리면 UI 스레드로 넘긴다. 고른 일의 이름(없으면 null).</summary>
+    public string? ShowProblem(UserProblem problem)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => ShowProblem(problem));
+        var dlg = new ProblemDialog(problem);
+        Prepare(dlg);
+        dlg.ShowDialog();
+        return dlg.ChosenAction;
     }
 
     private sealed class Session : IProgressSession
