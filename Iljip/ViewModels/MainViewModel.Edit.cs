@@ -184,8 +184,9 @@ public partial class MainViewModel
     /// 권한 오류일 때 관리자 권한으로 다시 할 같은 명령(W2-11, I3-16 — '--add-to 압축 경로…'). null 이면 명령줄로 나타낼 수 없는 고치기라
     /// '관리자 권한으로 일집 다시 열기'(그 압축을 관리자 일집에서 엶)만 권한다.
     /// </param>
+    /// <param name="usedPassword">됐으면 쓴 암호(없으면 null)를 담는다 — 메모리에만(5차 통합 점검: 다음 시작 넣기가 같은 압축의 둘째 파일에 암호를 다시 묻지 않게).</param>
     private Task<EditResult?> RunEditAsync(string archive, IReadOnlyList<EditOp> ops, string title, string? knownPassword = null, StrongBox<bool>? failed = null,
-        ParsedCommand? elevateAs = null) =>
+        ParsedCommand? elevateAs = null, StrongBox<string?>? usedPassword = null) =>
         InCommandGateAsync(async () =>
         {
             var editor = ArchiveServiceLocator.EditorFor(archive);
@@ -206,6 +207,7 @@ public partial class MainViewModel
                 {
                     var result = await editor.EditAsync(archive, ops, password, session.Progress, session.CancellationToken);
                     session.Close();
+                    if (usedPassword is not null) usedPassword.Value = password;   // 5차 통합 점검: 다음 시작 넣기가 같은 압축의 다음 파일에 다시 묻지 않게
                     if (current && !string.IsNullOrEmpty(password)) _archivePassword = password;
                     if (!string.IsNullOrEmpty(password))
                         foreach (var ws in AllWorkspaces().Where(w => string.Equals(w.ArchivePath, Path.GetFullPath(archive), StringComparison.OrdinalIgnoreCase)))

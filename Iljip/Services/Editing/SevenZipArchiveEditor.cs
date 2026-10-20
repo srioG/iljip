@@ -114,7 +114,7 @@ public sealed class SevenZipArchiveEditor : IArchiveEditor
             if (!SourceFileOpener.TryOpenRead(a.SourcePath, out var probe, out var reason))
             {
                 skipped.Add(new SkippedSource(a.SourcePath, reason!));
-                a.Removed = true;
+                planner.Drop(a);   // 5차 통합 점검: '덮어쓰기'로 대신한 원래 항목은 되살림(못 넣은 파일 때문에 원래 항목을 잃지 않게)
                 continue;
             }
             using (probe) lengths[a.TempKey] = probe!.Length;
@@ -157,7 +157,7 @@ public sealed class SevenZipArchiveEditor : IArchiveEditor
                 dropped[ex.SourcePath] = ex.Reason;
                 skipped.Add(new SkippedSource(ex.SourcePath, ex.Reason));
                 foreach (var a in planner.AddedFiles.Where(a => string.Equals(a.SourcePath, ex.SourcePath, StringComparison.OrdinalIgnoreCase)).ToList())
-                    a.Removed = true;
+                    planner.Drop(a);
                 if (!planner.HasChanges) throw new ArchiveEditException(EditSupport.NothingToAddMessage, ex);
             }
         }

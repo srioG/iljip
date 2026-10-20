@@ -35,6 +35,24 @@ internal sealed class EditPlanner<TSource>
         public long Size { get; init; }
         public DateTime? Modified { get; init; }
         public bool Removed { get; set; }
+
+        /// <summary>
+        /// '덮어쓰기'로 이 파일이 대신한 원래 항목(앞서 넣기로 한 파일을 대신했으면 그 파일이 대신했던 원래 항목)을 되살리는 일 — 원본을 읽지 못해 이 파일을 빼면(<see cref="Drop"/>) 되살린다
+        /// (5차 통합 점검: 예전엔 원래 항목은 지운 채 새 파일만 빠져, 압축에서 그 항목이 사라졌다).
+        /// </summary>
+        internal List<Action> UndoReplace { get; } = new();
+    }
+
+    /// <summary>
+    /// 넣기로 한 파일을 뺀다(원본을 읽지 못함 — 다른 프로그램이 혼자 잡음 등). 그 파일이 '덮어쓰기'로 대신한 원래 항목은 되살린다 —
+    /// 못 넣은 파일 때문에 압축의 원래 항목까지 잃지 않게(5차 통합 점검 — 다음 시작 [압축에 넣기]·일반 넣기의 [덮어쓰기] 모두).
+    /// </summary>
+    public void Drop(AddedFile file)
+    {
+        if (file.Removed) return;
+        file.Removed = true;
+        foreach (var undo in file.UndoReplace) undo();
+        file.UndoReplace.Clear();
     }
 
     private readonly List<Item> _items;
@@ -210,6 +228,7 @@ internal sealed class EditPlanner<TSource>
     public bool AddFile(string sourcePath, string tempKey, string desiredKey, long size, DateTime? modified, int remaining, ICollisionResolver? resolver)
     {
         string key = Normalize(desiredKey);
+        Action? undo = null;
         if (FindFile(key) is { } existing)
         {
             var question = new CollisionQuestion(key, existing.Size, existing.Modified ?? DateTime.MinValue, size, modified, Math.Max(0, remaining));
@@ -222,7 +241,7 @@ internal sealed class EditPlanner<TSource>
                     CollisionSkipped++;
                     return false;
                 case CollisionChoice.Overwrite:
-                    existing.Remove();
+                    undo = existing.Remove();
                     break;
                 default:
                     key = UniqueKey(key);
@@ -233,7 +252,9 @@ internal sealed class EditPlanner<TSource>
         {
             key = UniqueKey(key);   // 같은 이름의 폴더 자리에는 파일을 둘 수 없다 — 비켜 넣는다
         }
-        _added.Add(new AddedFile { SourcePath = sourcePath, TempKey = tempKey, Key = key, Size = size, Modified = modified });
+        var file = new AddedFile { SourcePath = sourcePath, TempKey = tempKey, Key = key, Size = size, Modified = modified };
+        if (undo is not null) file.UndoReplace.Add(undo);
+        _added.Add(file);
         return true;
     }
 
@@ -287,7 +308,8 @@ internal sealed class EditPlanner<TSource>
 
     // ───────────────────────────── 찾기 ─────────────────────────────
 
-    private sealed record Existing(long Size, DateTime? Modified, Action Remove);
+    /// <summary>같은 이름 파일(원래 항목 또는 앞서 넣기로 한 파일). <see cref="Remove"/> 는 지우고, 원래 항목을 되살리는 일을 돌려준다(<see cref="AddedFile.UndoReplace"/>).</summary>
+    private sealed record Existing(long Size, DateTime? Modified, Func<Action> Remove);
 
     private Existing? FindFile(string key)
     {
@@ -295,11 +317,20 @@ internal sealed class EditPlanner<TSource>
         if (item is not null)
             return new Existing(item.Size, item.Modified, () =>
             {
-                foreach (var same in _items.Where(i => !i.Removed && !i.IsDirectory && string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)))
-                    same.Removed = true;
+                var removed = _items.Where(i => !i.Removed && !i.IsDirectory && string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)).ToList();
+                foreach (var same in removed) same.Removed = true;
+                return () => { foreach (var same in removed) same.Removed = false; };
             });
         var added = _added.FirstOrDefault(a => !a.Removed && string.Equals(a.Key, key, StringComparison.OrdinalIgnoreCase));
-        return added is null ? null : new Existing(added.Size, added.Modified, () => added.Removed = true);
+        // 앞서 넣기로 한 파일 자체는 되살리지 않는다(예전 그대로) — 이미 빼서 임시 압축·길이 확인을 지나므로 나중에 넣을 수 없다
+        // (ZIP 은 임시 압축에서 못 찾고 7Z 는 길이를 모름). 대신 그 파일이 덮어쓰기로 대신했던 원래 항목은 새 파일이 이어받아, 새 파일을 빼면 되살린다.
+        return added is null ? null : new Existing(added.Size, added.Modified, () =>
+        {
+            added.Removed = true;
+            var inherited = added.UndoReplace.ToList();
+            added.UndoReplace.Clear();
+            return () => { foreach (var undo in inherited) undo(); };
+        });
     }
 
     private bool FileExists(string key) => FindFile(key) is not null;

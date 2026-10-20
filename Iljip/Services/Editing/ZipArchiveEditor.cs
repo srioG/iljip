@@ -143,7 +143,7 @@ public sealed class ZipArchiveEditor : IArchiveEditor
                 catch (NothingToCompressException ex)
                 {
                     skipped.AddRange(ex.Skipped);
-                    foreach (var a in addedFiles) a.Removed = true;
+                    foreach (var a in addedFiles) planner.Drop(a);   // 5차 통합 점검: '덮어쓰기'로 대신한 원래 항목은 되살림
                     if (!planner.HasChanges) throw new ArchiveEditException(EditSupport.NothingToAddMessage, ex);
                 }
                 tracker.EndPhase(addBytes);
@@ -152,10 +152,12 @@ public sealed class ZipArchiveEditor : IArchiveEditor
                     using var s = new FileStream(addsTemp, FileMode.Open, FileAccess.Read, FileShare.Read);
                     addEntries = ZipRawRewriter.Read(s).Entries.Where(e => !e.IsDirectory).ToDictionary(e => e.Key, StringComparer.Ordinal);
                 }
-                // 읽다 막혀 빠진 원본은 계획에서도 뺀다
+                // 읽다 막혀 빠진 원본은 계획에서도 뺀다 — 5차 통합 점검: 그 파일이 '덮어쓰기'로 대신한 원래 항목은 되살린다(예전엔 원래 항목만 지워진 채 바꿨다)
                 foreach (var a in addedFiles)
-                    if (addEntries is null || !addEntries.ContainsKey(a.TempKey)) a.Removed = true;
+                    if (addEntries is null || !addEntries.ContainsKey(a.TempKey)) planner.Drop(a);
                 addedFiles = planner.AddedFiles.ToList();
+                keptItems = planner.Kept.ToList();
+                if (!planner.HasChanges) throw new ArchiveEditException(EditSupport.NothingToAddMessage);
             }
 
             // 2) 새 압축: 남길 항목(원래 차례) → 새 폴더 → 새 파일 → 중앙 디렉터리

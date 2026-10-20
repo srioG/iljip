@@ -136,6 +136,7 @@ public sealed class CollisionCancelledException : OperationCanceledException
 /// - 건너뛴·덮어쓴·이름을 바꾼 수를 센다(풀고 나서 압축 파일 지우기는 건너뛴 것이 0일 때만 — I2-5).
 /// - I5-B(최종 감사 IA-SELFNAME): 풀고 있는 압축 파일(과 그 조각 — <see cref="ArchiveVolumes.AllParts"/>)은 묻지도 덮지도 않고 늘 '이름 (1)' 로 비켜 쓴다
 ///   (이중 압축 첨부 '첨부.7z' 안의 '첨부.7z' — 예전엔 [덮어쓰기]·설정 덮어쓰기가 바깥 압축을 안쪽 것으로 바꿨다). 비켜 쓴 것은 <see cref="Notes"/> 로 알린다.
+///   5차 통합 점검: 여러 개 풀기는 같이 푸는 다른 압축(과 조각)도 같이 지킨다(<see cref="Begin(ICollisionResolver, IEnumerable{string})"/>).
 /// - I5-B: 알릴 것(<see cref="ExtractionNotes"/> — 비켜 쓴 자기 이름·다른 프로그램이 쓰는 중이라 건너뛴 파일·내용 없이 만든 링크)을 모은다.
 /// </summary>
 public sealed class ExtractionScope : IDisposable
@@ -151,12 +152,13 @@ public sealed class ExtractionScope : IDisposable
     private int _renamed;
     private bool _disposed;
 
-    private ExtractionScope(ICollisionResolver resolver, ExtractionScope? previous, string? sourceArchive)
+    private ExtractionScope(ICollisionResolver resolver, ExtractionScope? previous, IEnumerable<string?> sourceArchives)
     {
         Resolver = resolver;
         _previous = previous;
-        if (!string.IsNullOrEmpty(sourceArchive))
+        foreach (var sourceArchive in sourceArchives)
         {
+            if (string.IsNullOrEmpty(sourceArchive)) continue;
             _protected.Add(Normalize(sourceArchive));
             try
             {
@@ -176,9 +178,15 @@ public sealed class ExtractionScope : IDisposable
     /// <param name="sourceArchive">
     /// 지금 풀고 있는 압축 파일(I5-B) — 그 파일과 같은 세트의 조각은 같은 이름 항목이 나와도 덮지 않고 '이름 (1)' 로 비켜 쓴다(묻지 않음). 모르면 null.
     /// </param>
-    public static ExtractionScope Begin(ICollisionResolver resolver, string? sourceArchive = null)
+    public static ExtractionScope Begin(ICollisionResolver resolver, string? sourceArchive = null) => Begin(resolver, new[] { sourceArchive });
+
+    /// <summary>
+    /// 범위를 연다 — 지킬 압축이 여럿(5차 통합 점검: 여러 개 풀기는 지금 푸는 압축과 <b>같이 푸는 다른 압축 전부</b> — 한 압축 안의 같은 이름 항목이
+    /// 아직 안 푼(또는 이미 푼) 다른 압축을 덮어 그 압축이 안쪽 것으로 바뀌거나, '다 푼 뒤 휴지통으로'가 바뀐 것을 보내지 않게). 그 조각도 모두.
+    /// </summary>
+    public static ExtractionScope Begin(ICollisionResolver resolver, IEnumerable<string?> sourceArchives)
     {
-        var scope = new ExtractionScope(resolver, CurrentValue.Value, sourceArchive);
+        var scope = new ExtractionScope(resolver, CurrentValue.Value, sourceArchives);
         CurrentValue.Value = scope;
         return scope;
     }

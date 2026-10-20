@@ -159,7 +159,7 @@ public class HeadlessNoticeTests
     }
 
     /// <summary>Iljip.exe 를 실행하고 (종료 코드, 표준 출력+오류 — 재사용장치처럼 UTF-8 → CP949 순으로 읽음). 창 없이 풀기 판정이 아니면 띄우지 않는다.</summary>
-    private static async Task<(int Code, string Output)> RunIljip(string[] args)
+    internal static async Task<(int Code, string Output)> RunIljip(string[] args)
     {
         Assert.True(StartupDecision.IsHeadlessExtract(args), "창 없이 풀기 판정이 아님 — 창이 뜰 수 있어 실행하지 않음: " + string.Join(" ", args));
         var psi = new ProcessStartInfo(IljipExe.Path!)

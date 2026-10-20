@@ -256,8 +256,10 @@ public sealed class BatchExtractor
         byte[]? internetMark = ZoneIdentifier.ReadIfEnabled(archive, KeepInternetMark);
         while (true)
         {
-            // I5-B: 풀고 있는 압축 파일(과 조각)을 범위에 알려, 안에 같은 이름 항목이 있어도 덮지 않고 '이름 (1)' 로 비켜 쓰게
-            using var scope = ExtractionScope.Begin(_resolver, archive);
+            // I5-B: 풀고 있는 압축 파일(과 조각)을 범위에 알려, 안에 같은 이름 항목이 있어도 덮지 않고 '이름 (1)' 로 비켜 쓰게.
+            // 5차 통합 점검: 같이 푸는 다른 압축(아직 안 푼 것·이미 푼 것 — 돌아가는 중에 더해진 것 포함)도 — 예전엔 가.zip 안의 '나.zip' 이 같이 풀 나.zip 을 덮어
+            // 나.zip 자리에서 안쪽 내용이 풀렸고, '다 푼 뒤 휴지통으로'면 원래 나.zip 은 덮여 사라졌다
+            using var scope = ExtractionScope.Begin(_resolver, BatchArchives(archive));
             try
             {
                 if (dest is null)
@@ -346,6 +348,15 @@ public sealed class BatchExtractor
                 return (new ArchiveOutcome(archive, dest, false, 0, ErrorMessages.ToPlainMessage(ex), ex), false, null);
             }
         }
+    }
+
+    /// <summary>지킬 압축: 지금 푸는 것 먼저, 그다음 이 묶음의 다른 압축 전부(지금까지 들어온 것).</summary>
+    private List<string?> BatchArchives(string current)
+    {
+        var all = new List<string?> { current };
+        lock (_gate)
+            all.AddRange(_queue.Where(a => !string.Equals(a, current, StringComparison.OrdinalIgnoreCase)));
+        return all;
     }
 
     /// <summary>
