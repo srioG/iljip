@@ -405,13 +405,16 @@ public sealed class FakeFileChangeSource : IFileChangeSource
         return sub;
     }
 
-    /// <summary>그 파일이 바뀌었다고 알린다(감시 중인 것만). 알린 수를 돌려준다.</summary>
+    /// <summary>
+    /// 그 파일이 바뀌었다고 알린다(감시 중인 것만). 알린 수를 돌려준다.
+    /// I5-A: 진짜 감시(<see cref="FileChangeSource"/>)처럼 <b>같은 폴더</b>를 감시하는 것에 알린다 — 편집기가 이름을 바꾼 새 이름(같은 순번 폴더)으로 알려도 닿는다.
+    /// </summary>
     public int Raise(string filePath)
     {
-        string full = Path.GetFullPath(filePath);
+        string folder = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
         List<Action> targets;
         lock (_gate)
-            targets = _subs.Where(s => !s.Sub.Disposed && string.Equals(s.Path, full, StringComparison.OrdinalIgnoreCase)).Select(s => s.OnChanged).ToList();
+            targets = _subs.Where(s => !s.Sub.Disposed && string.Equals(Path.GetDirectoryName(s.Path), folder, StringComparison.OrdinalIgnoreCase)).Select(s => s.OnChanged).ToList();
         foreach (var t in targets) t();
         return targets.Count;
     }

@@ -86,7 +86,9 @@ public partial class App : Application
         // IJ3-01(W2-04 보관본에서): 지난번에 남은 임시 사본(꺼진 일집의 안의 파일 열기·끌어내기, 오래된 미리 보기·목록 캐시·다른 이름으로 저장·긴 명령줄 목록,
         // 24시간 지난 Ctrl+C 사본) 청소 — 뒤에서(시작을 늦추지 않게, TempJanitor). 창 없이 풀기(위 분기)에서는 하지 않는다.
         // 청소를 시작한 뒤 생긴 폴더·다른 일집이 잡은 폴더는 건드리지 않는다.
-        _ = Task.Run(() => TempJanitor.CleanupStale(SystemClock.Instance));
+        // I5-A: 꺼진 일집이 남긴 '압축에 아직 넣지 않은 고친 파일'(일집을 닫은 뒤 다른 프로그램에서 저장한 것)은 지우지 않고 모아 — 메인 창을 띄운 뒤 묻는다(OfferLeftoversAsync)
+        var leftovers = new List<LeftoverFile>();
+        var janitor = Task.Run(() => TempJanitor.CleanupStale(SystemClock.Instance, leftovers));
 
         // 전역 예외 처리: 예외를 파일 로그에 남긴 뒤 사용자에게 안내하고 앱을 계속 실행한다.
         // (로깅은 Logger.LogError가 담당. 정식 배포 시 구조적 로깅으로 교체 가능.)
@@ -146,6 +148,24 @@ public partial class App : Application
 
         _mainWindowShown = true;
         win.Show();
+        if (win.DataContext is MainViewModel leftoverVm) _ = OfferLeftoversAsync(leftoverVm, janitor, leftovers);
+    }
+
+    /// <summary>
+    /// I5-A: 시작 청소가 끝나면(뒤에서) 남긴 '압축에 아직 넣지 않은 고친 파일'을 묻는다 — [압축에 넣기][폴더 열기][버리기][나중에](<see cref="MainViewModel.OfferLeftoverChangesAsync"/>).
+    /// 메인 창 없이 우클릭 풀기로 시작했으면 묻지 않는다(다음 일반 시작 때 다시 찾음).
+    /// </summary>
+    private static async Task OfferLeftoversAsync(MainViewModel vm, Task janitor, List<LeftoverFile> leftovers)
+    {
+        try
+        {
+            await janitor;
+            if (leftovers.Count > 0) await vm.OfferLeftoverChangesAsync(leftovers.ToList());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("넣지 않은 고친 파일 알림 실패", ex);
+        }
     }
 
     // ===== 메인 창 없이 우클릭 풀기(W2-05, I1-6) — 언제 끝낼지 =====

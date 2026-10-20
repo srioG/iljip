@@ -368,25 +368,29 @@ public partial class MainViewModel
     /// </summary>
     private async Task<bool> AskAndReinsertAsync(OpenedEntry entry, ReinsertMoment moment)
     {
-        string name = entry.Name;
         string? archive = entry.ArchivePath;
         bool editable = archive is not null && File.Exists(archive) && ArchiveServiceLocator.CanEdit(archive);
         string notEditable = NotEditableShortFor(archive);
-        string subject = $"‘{name}’{Josa.IGa(name)}";
         while (true)
         {
-            // 물어보는 내용의 표 — [넣지 않기]면 이 내용만 넘긴다(묻는 동안 또 저장한 내용은 다시 묻게)
+            // 물어보는 내용의 표 — [넣지 않기]면 이 내용만 넘긴다(묻는 동안 또 저장한 내용은 다시 묻게). 이름을 바꿨으면 새 이름을 따라간 뒤(I5-A)
             var asked = await Task.Run(entry.Stamp);
+            string name = entry.Name;
+            string subject = SubjectOf(entry);
+            // I5-A: 편집기가 이름을 바꿨어도 압축에는 원래 항목 이름으로 넣는다(그 자리를 바꿔 넣기 — 압축의 다른 항목·이름은 그대로)
+            string renamed = entry.IsRenamed && editable ? $" 압축 파일에는 원래 이름(‘{entry.ExtractedName}’) 그대로 넣어요." : string.Empty;
+            // I5-A: 닫을 때 그 파일을 아직 다른 프로그램이 잡고 있으면 — 닫은 뒤 거기서 또 저장한 내용은 바로 들어가지 않음을 함께 알린다
+            string stillOpen = moment == ReinsertMoment.Exiting && await Task.Run(entry.IsHeldByOtherProgram) ? "\n\n" + StillOpenNote : string.Empty;
             string message = moment switch
             {
                 ReinsertMoment.Changed => editable
-                    ? $"{subject} 바뀌었어요. 압축 파일에 다시 넣을까요?"
+                    ? $"{subject} 바뀌었어요. 압축 파일에 다시 넣을까요?{renamed}"
                     : $"{subject} 바뀌었어요. {notEditable} 바뀐 파일을 다른 곳에 저장할까요?",
-                ReinsertMoment.Exiting => editable
-                    ? $"{subject} 바뀌었는데 압축 파일에 아직 넣지 않았어요. 일집을 닫으면 바뀐 내용이 없어져요. 압축 파일에 넣을까요?"
-                    : $"{subject} 바뀌었는데 아직 저장하지 않았어요. 일집을 닫으면 바뀐 내용이 없어져요. 다른 곳에 저장할까요?",
+                ReinsertMoment.Exiting => (editable
+                    ? $"{subject} 바뀌었는데 압축 파일에 아직 넣지 않았어요. 일집을 닫으면 바뀐 내용이 없어져요. 압축 파일에 넣을까요?{renamed}"
+                    : $"{subject} 바뀌었는데 아직 저장하지 않았어요. 일집을 닫으면 바뀐 내용이 없어져요. 다른 곳에 저장할까요?") + stillOpen,
                 _ => editable
-                    ? $"{subject} 바뀌었는데 압축 파일에 아직 넣지 않았어요. 지금 넣을까요?"
+                    ? $"{subject} 바뀌었는데 압축 파일에 아직 넣지 않았어요. 지금 넣을까요?{renamed}"
                     : $"{subject} 바뀌었는데 아직 저장하지 않았어요. 다른 곳에 저장할까요?",
             };
             string doIt = editable ? "넣기" : "다른 곳에 저장";
@@ -413,7 +417,13 @@ public partial class MainViewModel
                 return true;
             }
             if (moment == ReinsertMoment.Exiting)
-                return pick == 1;   // [넣지 않기(닫기)]면 닫고, [취소]·창 닫기면 닫지 않음
+            {
+                // [넣지 않기(닫기)]면 물어본 내용은 넘긴 것으로(I5-A — 닫은 뒤 남긴 파일을 다음 시작 때 '넣지 않은 고친 파일'로 다시 알리지 않게) 닫고,
+                // [취소]·창 닫기면 닫지 않음
+                if (pick != 1) return false;
+                entry.Rebase(asked);
+                return true;
+            }
             if (pick == 2)
             {
                 entry.Rebase(asked);   // 물어본 내용은 넣지 않음 — 또 고치면 다시 묻는다
@@ -426,6 +436,21 @@ public partial class MainViewModel
             return true;
         }
     }
+
+    /// <summary>
+    /// 질문의 주어: ‘보고서.txt’가 — 편집기가 이름을 바꿨으면 ‘새 이름.pdf’(압축 안 이름 ‘한글 이름.pdf’)가(I5-A).
+    /// </summary>
+    internal static string SubjectOf(OpenedEntry entry) => DisplayNameOf(entry) + Josa.IGa(entry.Name);
+
+    /// <summary>‘보고서.txt’ — 이름을 바꿨으면 ‘새 이름.pdf’(압축 안 이름 ‘한글 이름.pdf’)(I5-A).</summary>
+    internal static string DisplayNameOf(OpenedEntry entry) => DisplayName(entry.Name, entry.IsRenamed ? entry.ExtractedName : null);
+
+    internal static string DisplayName(string name, string? originalName) =>
+        originalName is null ? $"‘{name}’" : $"‘{name}’(압축 안 이름 ‘{originalName}’)";
+
+    /// <summary>닫을 때 그 파일이 아직 다른 프로그램에 열려 있을 때 덧붙이는 말(I5-A).</summary>
+    internal const string StillOpenNote =
+        "이 파일은 아직 다른 프로그램에서 열려 있어요. 일집을 닫은 뒤 그 프로그램에서 또 저장한 내용은 압축 파일에 바로 들어가지 않아요(지우지 않고 남겨 두었다가 다음에 일집을 켤 때 넣을지 물어볼게요).";
 
     /// <summary>
     /// '이 형식은 고칠 수 없어요.'(ArchiveNotEditableException 문구의 앞 문장) — 7z 인데 이 PC 에서 7z.dll 을 못 불러오면 '이 PC에서는 7Z 파일을 고칠 수 없어요.'.
@@ -446,9 +471,7 @@ public partial class MainViewModel
     private async Task<(ContentStamp? Inserted, bool Failed)> ReinsertAsync(OpenedEntry entry)
     {
         string archive = entry.ArchivePath!;
-        string key = EditPlanner<object>.Normalize(entry.EntryKey);
-        string folder = EditPlanner<object>.ParentOf(key);
-        string leaf = folder.Length == 0 ? key : key[(folder.Length + 1)..];
+        var (folder, leaf) = SplitEntryKey(entry.EntryKey);   // I5-A: 이름을 바꿨어도 압축 안 원래 이름으로
         string snapshotDir = Path.GetDirectoryName(entry.TempPath)! + ReinsertSuffix;
         string snapshot = Path.Combine(snapshotDir, Path.GetFileName(entry.TempPath));
         try
@@ -475,6 +498,14 @@ public partial class MainViewModel
         {
             TempFolders.DeleteBestEffort(snapshotDir);
         }
+    }
+
+    /// <summary>압축 안 경로 → (부모 폴더 열쇠, 마지막 이름) — 다시 넣기는 늘 이 자리·이 이름(바꿔 넣기).</summary>
+    internal static (string Folder, string Leaf) SplitEntryKey(string entryKey)
+    {
+        string key = EditPlanner<object>.Normalize(entryKey);
+        string folder = EditPlanner<object>.ParentOf(key);
+        return (folder, folder.Length == 0 ? key : key[(folder.Length + 1)..]);
     }
 
     /// <summary>다시 넣기에 실패했을 때: ‘…’을(를) 압축 파일에 넣지 못했어요. 고친 내용을 잃지 않게 다른 곳에 저장할까요? — 저장했으면 그 표.</summary>
@@ -558,23 +589,43 @@ public partial class MainViewModel
     /// [취소]하거나 넣다가 실패하면 false(닫지 않음). 다 끝났으면 true.
     /// 다른 흐름이 '다시 넣을까요?'를 묻거나 다시 넣는 중인 파일이 있으면 닫지 않는다(false — ‘…’를 압축 파일에 다시 넣는 일이 아직 끝나지 않았어요…).
     /// 진행 창은 모달이 아니라 넣는 중에도 메인 창을 닫을 수 있는데, 그대로 닫으면 작업 폴더(고친 파일·넣을 사본)가 지워지고 앱이 끝나 넣기도 끊긴다(W2-06 검증 지적 2차).
+    /// I5-A(X3-F1·I3-3-close): 고친 것은 없어도 연 파일을 다른 프로그램이 아직 열어 두고 있으면(Light PDF·워드·엑셀·한글은 연 동안 파일을 잡음) 한 번 알린다 —
+    /// ‘압축 속에서 연 파일 N개가 아직 다른 프로그램에서 열려 있어요 … 일집을 닫을까요?’ [닫기][취소]. 일집을 닫은 뒤 거기서 저장한 내용은 압축에 바로 들어가지 않지만
+    /// 지워지지도 않는다(닫을 때 그 순번 폴더를 남기고 다음 시작 때 청소가 알림 — <see cref="ArchiveWorkspace.Dispose"/>·<see cref="TempJanitor"/>).
+    /// 위 '고친 파일' 질문을 이미 받은 파일은 그 질문에 같은 말을 덧붙였으므로 다시 세지 않는다. 파일을 잡지 않는 프로그램(메모장 등)은 알 수 없어 묻지 않는다.
     /// </summary>
     public async Task<bool> ConfirmExitAsync()
     {
         if (AskingEntry() is { } busy) return RefuseExitWhileAsking(busy);
+        var asked = new HashSet<OpenedEntry>(ReferenceEqualityComparer.Instance);
         foreach (var e in await PendingChangesAsync(AllWorkspaces()))
         {
             if (!BeginAsking(e)) return RefuseExitWhileAsking(e);
             try
             {
                 if (!await AskAndReinsertAsync(e, ReinsertMoment.Exiting)) return false;
+                asked.Add(e);
             }
             finally
             {
                 EndAsking(e);
             }
         }
-        return true;
+        var all = AllWorkspaces().SelectMany(w => w.OpenedEntries).Where(e => !asked.Contains(e)).ToList();
+        var stillOpen = await Task.Run(() => all.Where(e => e.IsHeldByOtherProgram()).ToList());
+        if (stillOpen.Count == 0) return true;
+        int pick = _ui.Choose(StillOpenOnExitMessage(stillOpen), new[] { "닫기", "취소" }, defaultIndex: 0);
+        return pick == 0;   // [취소]·창 닫기면 닫지 않음
+    }
+
+    /// <summary>닫을 때 '아직 다른 프로그램에서 열려 있는 파일' 알림(I5-A) — 이름은 다섯 개까지.</summary>
+    internal static string StillOpenOnExitMessage(IReadOnlyList<OpenedEntry> entries)
+    {
+        var lines = entries.Take(5).Select(e => $"- {DisplayNameOf(e)}" + (e.ArchivePath is { } a ? $" — {Path.GetFileName(a)}" : string.Empty)).ToList();
+        if (entries.Count > 5) lines.Add($"외 {entries.Count - 5}개");
+        return $"압축 속에서 연 파일 {entries.Count}개가 아직 다른 프로그램에서 열려 있어요.\n{string.Join("\n", lines)}\n\n" +
+               "일집을 닫은 뒤 그 프로그램에서 저장한 내용은 압축 파일에 바로 들어가지 않아요. " +
+               "고친 파일은 지우지 않고 남겨 두었다가 다음에 일집을 켤 때 압축 파일에 넣을지 물어볼게요.\n\n일집을 닫을까요?";
     }
 
     /// <summary>지금 묻거나 다시 넣는 중인 파일 하나(없으면 null).</summary>
@@ -597,6 +648,8 @@ public partial class MainViewModel
     /// <summary>
     /// 일집을 닫을 때(창이 닫힘): 감시를 멈추고 작업 폴더를 모두 지운다(다른 프로그램이 잡은 파일은 남김 — 예외 없음).
     /// IJ3-01: 남은 끌기의 임시 폴더도 지우고, Ctrl+C 사본은 마지막 것만 남긴다(아직 클립보드에 있을 수 있음 — 일집을 꺼도 붙여넣기 되게, 24시간 뒤 청소).
+    /// I5-A: 다른 프로그램이 아직 잡고 있는 연 파일·넣지도 넘기지도 않은 고친 파일은 그 순번 폴더째 남기고 연 파일 목록도 남긴다(<see cref="ArchiveWorkspace.Dispose"/>) —
+    /// 다음 시작 때 청소가 보고 그 뒤 고쳐 저장했으면 알린다(<see cref="OfferLeftoverChangesAsync"/>).
     /// </summary>
     public void Shutdown()
     {

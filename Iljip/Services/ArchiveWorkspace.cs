@@ -11,7 +11,10 @@ namespace Iljip.Services;
 /// 폴더 안 <c>owner.lock</c> 을 앱이 끝날 때까지 혼자 열어 두어(FileShare.None) '살아 있음'을 표시한다 — 다른 일집의 청소(TempJanitor — W2-04)가 지우지 않게.
 /// 같은 항목을 다시 열면 순번 하위 폴더(1, 2, …)를 새로 쓴다 — 앞서 연 파일을 다른 프로그램(워드 등)이 잠그고 있어도 겹치지 않는다.
 /// <see cref="Dispose"/>(앱 종료 — 압축을 바꾸거나 닫아도 앱을 닫을 때까지 둠, 그 압축을 다시 열면 다시 씀)에서 폴더를 지운다.
-/// 다른 프로그램이 아직 잡고 있는 파일은 남기고(예외 없음), 다음 시작 때 청소가 다시 지운다.
+/// 다른 프로그램이 아직 잡고 있는 파일은 남기고(예외 없음), 다음 시작 때 청소가 다시 본다.
+/// I5-A: <c>owner.lock</c> 안에 '연 파일 목록'(<see cref="WorkspaceManifest"/> — 압축 안 경로·지금 이름·기준 크기·시각·SHA-256)을 적어 둔다(열 때·다시 넣거나 넘길 때·이름이 바뀔 때).
+/// 일집을 닫을 때 아직 다른 프로그램이 잡고 있는 파일(또는 넣지도 넘기지도 않은 고친 파일)의 순번 폴더는 통째로 남기고 이 목록도 남긴다 —
+/// 일집을 닫은 뒤 그 프로그램에서 저장한 내용을 다음 시작 때 청소(<see cref="TempJanitor"/>)가 말없이 지우지 않고 알리게(X3-F1·I3-3-close).
 /// </summary>
 public sealed class ArchiveWorkspace : IDisposable
 {
@@ -81,6 +84,13 @@ public sealed class ArchiveWorkspace : IDisposable
                 {
                     Directory.CreateDirectory(dir);
                     var fs = new FileStream(Path.Combine(dir, LockFileName), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    // I5-A: 꺼진 일집이 '연 파일 목록'을 남긴 폴더(닫은 뒤 다른 프로그램에서 저장했을 수 있는 파일)는 다시 쓰지 않는다 — 찌꺼기 지우기로
+                    // 고친 파일이 사라지지 않게. 청소(TempJanitor)가 보고 바뀐 것이 없으면 지우고, 있으면 알린다. 이 압축은 옆 이름 폴더를 쓴다.
+                    if (WorkspaceManifest.TryRead(fs) is { Entries.Count: > 0 })
+                    {
+                        fs.Dispose();
+                        break;
+                    }
                     var ws = new ArchiveWorkspace(full, key, dir, fs);
                     ws.RemoveLeftovers();
                     return ws;
@@ -127,25 +137,81 @@ public sealed class ArchiveWorkspace : IDisposable
     public OpenedEntry Record(string entryKey, string tempPath)
     {
         var e = OpenedEntry.Capture(entryKey, tempPath, ArchivePath);
-        lock (_gate) _opened.Add(e);
+        e.BaselineChanged = _ => WriteManifest();   // I5-A: 다시 넣음·넘김·이름 바뀜 → 목록 다시 적기
+        lock (_gate)
+        {
+            _opened.Add(e);
+            WriteManifestLocked(_lock, _opened);
+        }
         return e;
     }
 
     /// <summary>연 파일 중 다른 프로그램에서 고쳐 저장한 것.</summary>
     public IReadOnlyList<OpenedEntry> ModifiedEntries() => OpenedEntries.Where(e => e.IsModified()).ToList();
 
-    /// <summary>잠금을 놓고 폴더를 지운다(다른 프로그램이 잡은 파일은 남김 — 예외 없음). 여러 번 불러도 된다.</summary>
+    /// <summary>'연 파일 목록'을 <c>owner.lock</c> 에 다시 적는다(I5-A — 실패는 조용히: 목록은 덤, 없으면 예전처럼 청소).</summary>
+    private void WriteManifest()
+    {
+        lock (_gate) WriteManifestLocked(_lock, _opened);
+    }
+
+    private void WriteManifestLocked(FileStream? fs, IReadOnlyCollection<OpenedEntry> entries)
+    {
+        if (fs is null) return;
+        try
+        {
+            byte[] bytes = WorkspaceManifest.Serialize(FullPath, ArchivePath, entries);
+            fs.SetLength(0);
+            fs.Position = 0;
+            fs.Write(bytes, 0, bytes.Length);
+            fs.Flush();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("연 파일 목록을 적지 못함(작업 폴더: " + FullPath + ")", ex);
+        }
+    }
+
+    /// <summary>
+    /// 잠금을 놓고 폴더를 지운다(다른 프로그램이 잡은 파일은 남김 — 예외 없음). 여러 번 불러도 된다.
+    /// I5-A: 연 파일 중 다른 프로그램이 아직 잡고 있는 것(Light PDF·워드·엑셀 — 일집을 닫은 뒤 거기서 저장할 수 있음)과
+    /// 고쳐 놓고 넣지도 넘기지도 않은 것(닫기 질문을 거치지 않고 끝날 때 — 로그오프 등)은 그 순번 폴더를 통째로 남기고(편집기의 자동 저장·잠금 파일 포함)
+    /// <c>owner.lock</c> 에 목록을 남긴다 — 다음 시작 때 청소가 보고, 일집을 닫은 뒤 바뀌었으면 지우지 않고 알린다.
+    /// </summary>
     public void Dispose()
     {
         FileStream? fs;
+        List<OpenedEntry> entries;
         lock (_gate)
         {
             fs = _lock;
             _lock = null;
+            entries = _opened.ToList();
         }
         if (fs is null) return;
+        var keep = new List<string>();
+        foreach (var e in entries)
+        {
+            try
+            {
+                e.FollowRename();
+                string path = e.TempPath;
+                if (!File.Exists(path)) continue;
+                if (FileInUse.IsHeld(path) || e.IsModified()) keep.Add(Path.GetFullPath(Path.GetDirectoryName(path)!));
+            }
+            catch
+            {
+                // 판단 못 함 — 지우는 쪽으로(예전과 같음)
+            }
+        }
+        if (keep.Count > 0) WriteManifestLocked(fs, entries);
         try { fs.Dispose(); } catch { /* 무시 */ }
-        TempFolders.DeleteBestEffort(FullPath);
+        if (keep.Count == 0)
+        {
+            TempFolders.DeleteBestEffort(FullPath);
+            return;
+        }
+        TempFolders.DeleteAllBut(FullPath, keep, LockFileName);
     }
 
     private void RemoveLeftovers()
@@ -170,13 +236,20 @@ public sealed class ArchiveWorkspace : IDisposable
 /// <summary>
 /// 압축 안에서 꺼내 기본 프로그램으로 연 파일 하나(W2-04). 처음 크기·수정 시각·SHA-256 을 적어 두고, 고쳐 저장했는지 본다
 /// (일집을 닫으면 임시 폴더가 지워지므로 — 닫을 때 알려 주기, W2-06 의 고친 파일 감시).
+/// I5-A: 편집기가 그 파일의 이름을 바꾸면(Light PDF 탭 '이름 바꾸기' — 같은 순번 폴더 안에서) 새 이름을 따라간다(<see cref="FollowRename"/>) —
+/// 예전엔 원래 경로에 파일이 없으면 '지워짐(잃을 것 없음)'으로 보아, 이름을 바꾸기 전·후에 저장한 내용을 묻지도 않고 닫을 때 지웠다(X3-F2).
+/// 다시 넣을 때 압축 안 이름은 늘 원래 항목 이름(<see cref="EntryKey"/>)이다.
 /// </summary>
 public sealed class OpenedEntry
 {
+    private readonly object _followGate = new();
+    private volatile string _path;
+
     private OpenedEntry(string entryKey, string tempPath, string? archivePath, long size, DateTime writeUtc, string? sha)
     {
         EntryKey = entryKey;
-        TempPath = tempPath;
+        ExtractedPath = tempPath;
+        _path = tempPath;
         ArchivePath = archivePath;
         InitialSize = size;
         InitialWriteUtc = writeUtc;
@@ -186,8 +259,20 @@ public sealed class OpenedEntry
     /// <summary>압축 안 경로('/' 구분).</summary>
     public string EntryKey { get; }
 
-    /// <summary>꺼낸 임시 파일.</summary>
-    public string TempPath { get; }
+    /// <summary>꺼낸 임시 파일 — 지금 이름(편집기가 같은 폴더에서 이름을 바꿨으면 새 이름, I5-A).</summary>
+    public string TempPath => _path;
+
+    /// <summary>처음 꺼낸 자리(이름을 바꾸기 전 — I5-A).</summary>
+    public string ExtractedPath { get; }
+
+    /// <summary>처음 꺼낸 이름(압축 안 이름 — Windows 에 못 쓰는 글자는 바꾼 것).</summary>
+    public string ExtractedName => Path.GetFileName(ExtractedPath);
+
+    /// <summary>편집기가 이름을 바꿨는가(지금 이름이 처음 꺼낸 이름과 다름).</summary>
+    public bool IsRenamed => !string.Equals(_path, ExtractedPath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>기준(다시 넣은·넘긴 내용)이나 지금 이름이 바뀌었을 때(작업 폴더가 '연 파일 목록'을 다시 적음 — I5-A).</summary>
+    internal Action<OpenedEntry>? BaselineChanged { get; set; }
 
     /// <summary>이 파일을 꺼낸 압축 파일(전체 경로 — W2-06 다시 넣기가 씀). 모르면 null.</summary>
     public string? ArchivePath { get; }
@@ -228,14 +313,86 @@ public sealed class OpenedEntry
         InitialWriteUtc = stamp.WriteUtc;
         InitialSha256 = stamp.Sha256;
         Postponed = false;
+        BaselineChanged?.Invoke(this);
     }
 
     /// <summary>지금 내용의 표(크기·수정 시각을 먼저 재고 그다음 SHA-256 — 그 사이에 바뀌면 SHA 가 새 내용이라 나중 비교가 맞게 됨). 파일 전체를 읽는다.</summary>
     public ContentStamp Stamp()
     {
-        var fi = new FileInfo(TempPath);
+        FollowRename();
+        string path = TempPath;
+        var fi = new FileInfo(path);
         bool exists = fi.Exists;
-        return new ContentStamp(exists ? fi.Length : -1, exists ? fi.LastWriteTimeUtc : default, TrySha(TempPath));
+        return new ContentStamp(exists ? fi.Length : -1, exists ? fi.LastWriteTimeUtc : default, TrySha(path));
+    }
+
+    /// <summary>
+    /// 지금 이름의 파일이 없으면(편집기가 이름을 바꿈) 같은 폴더에서 새 이름을 찾아 따라간다(I5-A). 따라갔으면 true.
+    /// 처음 꺼낸 이름이 다시 있으면(이름을 되돌림·오피스의 '임시 파일에 써서 바꿔 저장' 도중) 그쪽. 아니면 같은 확장자인 파일 중 편집기 임시·잠금·숨김 파일
+    /// (<see cref="IsEditorScratch"/>)이 아닌 것의 가장 최근 것 — 순번 폴더에는 열어 준 파일 하나만 꺼내므로 그것이 이름을 바꾼 그 파일이다.
+    /// 찾지 못하면(정말 지움) 그대로(<see cref="IsModified"/> 는 '잃을 것 없음').
+    /// </summary>
+    public bool FollowRename()
+    {
+        lock (_followGate)
+        {
+            string now = _path;
+            if (File.Exists(now)) return false;
+            string? next = File.Exists(ExtractedPath)
+                ? ExtractedPath
+                : FindRenamed(Path.GetDirectoryName(now)!, ExtractedPath);
+            if (next is null || string.Equals(next, now, StringComparison.OrdinalIgnoreCase)) return false;
+            _path = next;
+        }
+        BaselineChanged?.Invoke(this);
+        return true;
+    }
+
+    /// <summary>
+    /// <paramref name="folder"/> 에서 <paramref name="originalPath"/> 의 새 이름을 찾는다(I5-A — 일집이 꺼진 동안 이름을 바꾼 것을 청소가 찾을 때도).
+    /// 같은 확장자이고 편집기 임시·잠금·숨김 파일이 아닌 것 중 가장 최근에 쓴 것. 없으면 null.
+    /// </summary>
+    internal static string? FindRenamed(string folder, string originalPath)
+    {
+        string ext = Path.GetExtension(originalPath);
+        try
+        {
+            return new DirectoryInfo(folder).EnumerateFiles()
+                .Where(f => !IsEditorScratch(f) && string.Equals(f.Extension, ext, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .Select(f => f.FullName)
+                .FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 편집기가 옆에 만드는 임시·잠금·숨김 파일인가(이름을 바꾼 '그 파일'로 보지 않음): '~'·'.~' 로 시작(오피스 소유자 파일 ~$·저장 임시 ~WRL·리브레오피스 .~lock·일집 덮어쓰기 임시),
+    /// '.tmp'·'.autosave' 로 끝남(Light PDF 저장·자동 저장 임시), 숨김·시스템 속성.
+    /// </summary>
+    internal static bool IsEditorScratch(FileInfo f)
+    {
+        string n = f.Name;
+        if (n.StartsWith('~') || n.StartsWith(".~", StringComparison.Ordinal)) return true;
+        if (n.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) || n.EndsWith(".autosave", StringComparison.OrdinalIgnoreCase)) return true;
+        try
+        {
+            return (f.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    /// <summary>다른 프로그램이 지금 이 파일을 열어 두었는가(I5-A — 일집을 닫기 전에 알림·닫을 때 남기기). 이름을 바꿨으면 새 이름으로 본다.</summary>
+    public bool IsHeldByOtherProgram()
+    {
+        FollowRename();
+        return FileInUse.IsHeld(TempPath);
     }
 
     /// <summary>
@@ -249,12 +406,14 @@ public sealed class OpenedEntry
         ContentStamp? last = null;
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            var before = new FileInfo(TempPath);
-            if (!before.Exists) throw new FileNotFoundException("고친 파일을 찾지 못했어요.", TempPath);
+            FollowRename();
+            string path = TempPath;
+            var before = new FileInfo(path);
+            if (!before.Exists) throw new FileNotFoundException("고친 파일을 찾지 못했어요.", path);
             long size = before.Length;
             DateTime written = before.LastWriteTimeUtc;
             string sha;
-            using (var src = new FileStream(TempPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16))
+            using (var src = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16))
             using (var dst = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
             using (var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
             {
@@ -272,7 +431,7 @@ public sealed class OpenedEntry
             }
             try { File.SetLastWriteTimeUtc(destination, written); } catch { /* 시각 맞추기 실패는 무시 */ }
             last = new ContentStamp(size, written, sha);
-            var after = new FileInfo(TempPath);
+            var after = new FileInfo(path);
             if (after.Exists && after.Length == before.Length && after.LastWriteTimeUtc == written) return last;
         }
         return last!;
@@ -281,15 +440,18 @@ public sealed class OpenedEntry
     /// <summary>
     /// 고쳐 저장했는가: 파일이 있고 크기나 수정 시각이 달라졌으며 내용(SHA-256)도 다를 때. 지워졌으면 아니오(잃을 것이 없음).
     /// 다른 프로그램이 혼자 잡고 있어 내용을 못 읽으면 크기·시각만으로 판단한다(알리는 쪽으로).
+    /// I5-A: 편집기가 이름을 바꿨으면 새 이름의 파일로 본다(<see cref="FollowRename"/> — 이름 바꾸기는 지우기가 아님).
     /// </summary>
     public bool IsModified()
     {
         try
         {
-            var fi = new FileInfo(TempPath);
+            FollowRename();
+            string path = TempPath;
+            var fi = new FileInfo(path);
             if (!fi.Exists) return false;
             if (fi.Length == InitialSize && fi.LastWriteTimeUtc == InitialWriteUtc) return false;
-            string? now = TrySha(TempPath);
+            string? now = TrySha(path);
             return now is null || InitialSha256 is null || !string.Equals(now, InitialSha256, StringComparison.Ordinal);
         }
         catch
@@ -301,7 +463,7 @@ public sealed class OpenedEntry
     /// <summary>시험용: SHA-256 을 잴 때 그 파일 경로로 부른다(어느 스레드에서 재는지 본다). 평소에는 null.</summary>
     internal static volatile Action<string>? HashingObserverForTests;
 
-    private static string? TrySha(string path)
+    internal static string? TrySha(string path)
     {
         HashingObserverForTests?.Invoke(path);
         try
@@ -366,4 +528,204 @@ internal static class TempFolders
         }
         return !Directory.Exists(dir);
     }
+
+    /// <summary>
+    /// <paramref name="root"/> 안을 지우되 <paramref name="keepDirs"/>(그 폴더 통째로 — 위 폴더는 길로 남김)와 맨 위의 <paramref name="keepFile"/> 은 남긴다(I5-A —
+    /// 일집을 닫을 때 다른 프로그램이 잡은 파일의 순번 폴더·연 파일 목록). 예외 없음.
+    /// </summary>
+    internal static void DeleteAllBut(string root, IReadOnlyCollection<string> keepDirs, string keepFile)
+    {
+        string Norm(string p) => Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar);
+        var keep = keepDirs.Select(Norm).ToList();
+        bool IsKept(string d) => keep.Any(k => string.Equals(k, d, StringComparison.OrdinalIgnoreCase));
+        bool HoldsKept(string d) => keep.Any(k => k.StartsWith(d + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+
+        void Walk(string dir, bool top)
+        {
+            List<string> files, dirs;
+            try
+            {
+                files = Directory.EnumerateFiles(dir).ToList();
+                dirs = Directory.EnumerateDirectories(dir).Select(Norm).ToList();
+            }
+            catch
+            {
+                return;
+            }
+            foreach (var f in files)
+            {
+                if (top && string.Equals(Path.GetFileName(f), keepFile, StringComparison.OrdinalIgnoreCase)) continue;
+                try
+                {
+                    File.SetAttributes(f, FileAttributes.Normal);
+                    File.Delete(f);
+                }
+                catch
+                {
+                    // 다른 프로그램이 잡고 있음 — 남긴다
+                }
+            }
+            foreach (var d in dirs)
+            {
+                if (IsKept(d)) continue;
+                if (HoldsKept(d)) Walk(d, top: false);
+                else DeleteBestEffort(d);
+            }
+        }
+
+        Walk(Norm(root), top: true);
+    }
+
+    /// <summary>폴더 안에 <paramref name="exceptFile"/>(맨 위) 말고 파일이 하나도 없는가(I5-A — 남긴 순번 폴더를 다 처리했으면 작업 폴더째 지움).</summary>
+    internal static bool HasNoFilesBut(string root, string exceptFile)
+    {
+        try
+        {
+            string top = Path.GetFullPath(Path.Combine(root, exceptFile));
+            return !Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Any(f => !string.Equals(Path.GetFullPath(f), top, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+/// <summary>다른 프로그램이 파일을 열어 두었는지(I5-A).</summary>
+internal static class FileInUse
+{
+    private const int ErrorSharingViolation = unchecked((int)0x80070020);
+    private const int ErrorLockViolation = unchecked((int)0x80070021);
+
+    /// <summary>
+    /// 혼자 열기(공유 없음)를 해 본다 — 공유·잠금 위반이면 누군가 열어 두었음(Light PDF·워드·엑셀·한글은 연 동안 파일을 잡는다. 메모장처럼 읽고 바로 놓는 프로그램은 알 수 없음).
+    /// 없거나 다른 이유로 못 열면 아니오. 연 것은 바로 놓는다.
+    /// </summary>
+    internal static bool IsHeld(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+            return false;
+        }
+        catch (IOException ex) when (ex.HResult is ErrorSharingViolation or ErrorLockViolation)
+        {
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+/// <summary>
+/// 작업 폴더의 '연 파일 목록'(I5-A): <c>owner.lock</c> 안에 JSON 으로(새 파일을 만들지 않음 — 잠금을 쥔 동안 일집만 씀). 일집을 닫은 뒤에도 남은 순번 폴더가 있으면
+/// 그대로 남아, 다음 시작 때 청소(<see cref="TempJanitor"/>)가 압축 경로·압축 안 경로·기준 내용으로 '일집을 닫은 뒤 바뀌었는지' 본다. 경로는 작업 폴더 기준 상대 경로.
+/// </summary>
+internal static class WorkspaceManifest
+{
+    /// <summary>목록이라는 표지(빈 잠금 파일·다른 내용과 가름).</summary>
+    internal const string Marker = "iljip-open-v1";
+
+    internal sealed record Entry(string Key, string Extracted, string Current, long Size, long WriteTicks, string? Sha);
+
+    internal sealed record Data(string Marker, string Archive, List<Entry> Entries);
+
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new() { WriteIndented = false };
+
+    internal static byte[] Serialize(string root, string archive, IEnumerable<OpenedEntry> entries)
+    {
+        var list = entries.Select(e => new Entry(e.EntryKey, Path.GetRelativePath(root, e.ExtractedPath), Path.GetRelativePath(root, e.TempPath),
+            e.InitialSize, e.InitialWriteUtc.Ticks, e.InitialSha256)).ToList();
+        return System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new Data(Marker, archive, list), Json);
+    }
+
+    /// <summary>열어 둔 잠금 파일에서 읽는다(처음부터 — 목록이 아니거나 비었으면 null). 위치는 처음으로 돌려 둔다.</summary>
+    internal static Data? TryRead(FileStream fs)
+    {
+        try
+        {
+            if (fs.Length == 0 || fs.Length > 4 << 20) return null;
+            fs.Position = 0;
+            var bytes = new byte[fs.Length];
+            fs.ReadExactly(bytes);
+            fs.Position = 0;
+            return Parse(bytes);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>꺼진 일집의 잠금 파일에서 읽는다(없거나 못 읽으면 null).</summary>
+    internal static Data? TryRead(string lockPath)
+    {
+        try
+        {
+            var fi = new FileInfo(lockPath);
+            if (!fi.Exists || fi.Length == 0 || fi.Length > 4 << 20) return null;
+            using var fs = new FileStream(lockPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var bytes = new byte[fs.Length];
+            fs.ReadExactly(bytes);
+            return Parse(bytes);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Data? Parse(byte[] bytes)
+    {
+        var d = System.Text.Json.JsonSerializer.Deserialize<Data>(bytes, Json);
+        return d is { Marker: Marker, Archive: not null, Entries: not null } ? d : null;
+    }
+
+    /// <summary>
+    /// 그 항목의 지금 파일(작업 폴더 안 — 밖을 가리키면 null): 적어 둔 지금 이름 → 처음 꺼낸 이름 → 같은 폴더에서 이름을 바꾼 것(<see cref="OpenedEntry.FindRenamed"/>). 없으면 null.
+    /// </summary>
+    internal static string? ResolveFile(string root, Entry e)
+    {
+        string? Inside(string rel)
+        {
+            try
+            {
+                string full = Path.GetFullPath(Path.Combine(root, rel));
+                return full.StartsWith(Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? full : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        string? current = Inside(e.Current), extracted = Inside(e.Extracted);
+        if (current is null || extracted is null) return null;
+        if (File.Exists(current)) return current;
+        if (File.Exists(extracted)) return extracted;
+        string? folder = Path.GetDirectoryName(current);
+        return folder is not null && Directory.Exists(folder) ? OpenedEntry.FindRenamed(folder, extracted) : null;
+    }
+}
+
+/// <summary>
+/// 꺼진 일집이 남긴, 압축 파일에 아직 넣지 않은 고친 파일 하나(I5-A — 다음 시작 때 청소가 찾아 알림: [압축에 넣기][폴더 열기][버리기][나중에]).
+/// </summary>
+/// <param name="WorkspaceDir">남은 작업 폴더(<c>temp\open\key16</c>).</param>
+/// <param name="ArchivePath">그 파일을 꺼낸 압축 파일.</param>
+/// <param name="EntryKey">압축 안 원래 경로(넣을 때 이 이름으로).</param>
+/// <param name="FilePath">고친 파일(이름을 바꿨으면 새 이름).</param>
+/// <param name="ExtractedName">처음 꺼낸 이름.</param>
+public sealed record LeftoverFile(string WorkspaceDir, string ArchivePath, string EntryKey, string FilePath, string ExtractedName)
+{
+    /// <summary>지금 이름.</summary>
+    public string Name => Path.GetFileName(FilePath);
+
+    /// <summary>편집기가 이름을 바꿨는가.</summary>
+    public bool IsRenamed => !string.Equals(Name, ExtractedName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>그 파일이 든 순번 폴더.</summary>
+    public string SlotDir => Path.GetDirectoryName(FilePath)!;
 }
