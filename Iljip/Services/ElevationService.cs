@@ -64,7 +64,8 @@ public static class ElevationService
     {
         for (int depth = 0; ex is not null && depth < 10; depth++, ex = ex.InnerException)
         {
-            if (ex is ArchiveException or ReadOnlyTargetException) return false;
+            // I5-B: 다른 프로그램이 열어 둔 파일(TargetInUseException)도 권한 문제가 아니다 — 관리자 권한으로 다시 해도 같다
+            if (ex is ArchiveException or ReadOnlyTargetException or TargetInUseException) return false;
             if (ex is UnauthorizedAccessException) return true;
             if (ex.HResult == EAccessDenied) return true;
             if (ex is Win32Exception { NativeErrorCode: ErrorAccessDenied }) return true;

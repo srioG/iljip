@@ -95,9 +95,34 @@
   목록이 없으면 맨 앞부터 끝이 데이터로 확인된 사슬만 '원래 몇 개였는지 확실하지 않아요 — M개를 살렸어요'·믿기 어려운 조각은 'K개'로 수만, 확인 못 한 항목·0바이트 '살리기' 없음)
 - **I5-A(2026-10-20 — 감사 X3)**: 압축 속에서 연 파일을 편집기에서 **이름을 바꿔도**(Light PDF 탭 '이름 바꾸기') 따라가 묻고 압축에는 원래 이름으로 넣음, 연 파일을 다른 프로그램이 아직 잡은 채 일집을 닫으면
   '아직 열려 있어요' 알림 [닫기][취소], 닫은 뒤(또는 일집이 갑자기 꺼진 뒤) 저장한 파일은 **지우지 않고** 다음 시작 때 '압축에 아직 넣지 않은 고친 파일이 있어요' [압축에 넣기][폴더 열기][버리기][나중에]
+- **I5-B(2026-10-20 — 최종 감사 안전·정직 5건)**: 풀기가 **풀고 있는 압축 파일(과 그 조각)을 덮지 않음**(같은 이름 항목은 '이름 (1)'로 비켜 풀고 알림 — 같은 이름 창에서 덮어쓰기를 골라도),
+  덮어쓸 파일을 다른 프로그램(엑셀 등)이 열어 두었으면 **그 파일만 건너뛰고 나머지는 다 풀고** '다른 프로그램이 쓰는 중이라 못 바꾼 파일 N개' 알림(관리자 권유 없음 — 진짜 권한 문제만),
+  ZIP·TAR·GZ·BZ2 의 [바꾸기]는 옆 임시 파일에 다 쓴 뒤에만 바꿔 넣음(**취소·실패면 기존 파일 그대로**), tar 링크는 내용 없이(0바이트) 만들고 결과 창·여러 개 풀기 요약·검사 결과에 알림
+  (링크 되살리기는 안 함 — 결정), 창 없이 풀기(`--extract-to`)에 없는 경로·폴더·빈 인자를 주면 창 없이 한국어 한 줄·종료 1(예전엔 창이 떠서 끝나지 않음), 링크가 든 tar 는 표준 오류 한 줄·종료 1
 - C++ 셸 확장 메뉴: (W2-12 부터) '일집 ▶'(하위 메뉴)·'일집 열기'·오른쪽 끌기 메뉴·드롭 처리기. 예전 5개 메뉴("일집으로 열기" / "여기에 풀기 (일집)" / "\"이름\"\ 에 풀기 (일집)" / "압축 풀기... (일집)" / "일집으로 압축")는 DLL 에만 남고 매니페스트에서는 뺐다
 
-## 현재 진행 단계 (2026-10-20 I5-A 작업 후 — 커밋 전)
+## 현재 진행 단계 (2026-10-20 I5-B 작업 후 — 커밋 전)
+
+**I5-B(최종 감사 안전·정직 5건 — 압축 자신 덮어쓰기·[바꾸기] 취소·창 없이 풀기 인자·tar 링크·열린 파일 덮어쓰기) 작업 끝 — 커밋 전**
+(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함. 출발점 main 7e0903d = I5-A 커밋). 최종 감사의 지적 다섯을 고쳤다(아래 변경 이력 'I5-B').
+① **IA-SELFNAME**: '여기에 풀기'(우클릭·일집 창·여러 개)가 압축 안의 같은 이름 항목(예: `첨부.zip` 안의 `첨부.zip`)으로 **풀고 있는 압축 파일 자신·그 조각**을 덮지 않는다 —
+그 항목만 '첨부 (1).zip'로 비켜 풀고 결과 창에 알린다(같은 이름 창에서 덮어쓰기를 골라도, 설정이 '같은 이름이면 덮어쓰기'여도). '다 푼 뒤 압축 파일을 휴지통으로'는 원래 압축(바이트 그대로)을 보내고 안쪽 것은 '첨부 (1).zip'로 남는다
+(예전 7z 는 바깥 압축이 안쪽 것으로 바뀐 뒤 그것이 휴지통으로 가서 안쪽 압축을 잃었다). 링크를 내용 없이 만들었거나 잠긴 파일을 건너뛴 압축은 휴지통으로 보내지 않는다(압축 파일에만 온전한 것이 있음).
+② **IB-zip-replace-cancel-deletes-old**: ZIP(그리고 같은 길의 TAR·GZ·BZ2)을 [바꾸기]로 만들 때 옆 임시 파일(`.~이름.8글자.tmp`)에 다 쓴 뒤에만 바꿔 넣는다 — 취소·쓰기 실패면 기존 파일 바이트 그대로, 임시 파일 0개.
+③ **IX-F5**: `--extract-to` 에 없는 경로·폴더·빈 문자열(또는 인자 모자람)을 주면 **창 없이** 쉬운 한국어 한 줄(표준 오류)·종료 코드 1·오류 로그 `Headless extract failed: <경로>` + 이유(예전엔 일집 창과 '문제가 생겼어요' 창이 떠서 끝나지 않음).
+④ **IX-F2**: tar 하드·심볼릭 링크는 예전처럼 내용 없는 파일로 만들되(되살리기는 결정 기록대로 제외) 결과 창·여러 개 풀기 요약·검사 결과에 '링크 N개는 내용 없이(0바이트) 만들었어요…'를 알린다.
+창 없이 풀기는 표준 오류 한 줄 + **종료 코드 1**(★ 결정 — 아래 '일집-dist 재배포' 절 I5-B 줄: 재사용장치가 반디집으로 다시 풀어 링크를 살림).
+⑤ **IA-OPENFILE-OVERWRITE**: 덮어쓸 파일을 다른 프로그램(엑셀 등)이 열어 두었으면 그 파일만 건너뛰고(원래 파일 그대로) 나머지는 다 풀고 '다른 프로그램이 쓰는 중이라 못 바꾼 파일 N개(이름)'를 알린다 —
+관리자 권한으로 다시 하자는 권유는 진짜 권한 문제(접근 거부)일 때만.
+**I5-B 새 파일 4개**: `Iljip/Services/ExtractionNotes.cs`, 시험 `Iljip.Tests/Contract/ExtractSafetyNoticeTests.cs`(22)·`Iljip.Tests/Contract/CompressReplaceTests.cs`(16)·`Iljip.Tests/Contract/HeadlessNoticeTests.cs`(3 — 실제 exe 2).
+고친 파일 18개: `Iljip/App.xaml.cs`·`Iljip/Services/ArchiveTestService.cs`·`Iljip/Services/BatchExtractor.cs`·`Iljip/Services/BZip2ArchiveService.cs`·`Iljip/Services/CollisionResolver.cs`·`Iljip/Services/CompressedTarArchiveService.cs`·
+`Iljip/Services/ElevationService.cs`·`Iljip/Services/GZipArchiveService.cs`·`Iljip/Services/OutputFiles.cs`·`Iljip/Services/SharpCompressArchiveServiceBase.cs`·`Iljip/Services/StartupDecision.cs`·`Iljip/Services/TarArchiveService.cs`·
+`Iljip/Services/ZipArchiveService.cs`·`Iljip/ViewModels/MainViewModel.cs`·`Iljip/ViewModels/MainViewModel.CommandLine.cs`·`Iljip/ViewModels/MainViewModel.Test.cs`, 시험 `Iljip.Tests/Contract/CollisionTests.cs`·`Iljip.Tests/Contract/StartupDecisionTests.cs`
+(+ 문서 셋 이 파일·`Iljip.Tests/README.md`·`Iljip.Tests/MANUAL_CHECKLIST.md`).
+**기대를 바꾼 기존 시험 둘(요청된 동작 바뀜 — 약하게 한 것 아님)**: `StartupDecisionTests` — '없는 압축'·빈 폴더·인자 둘을 '창 없이 풀기가 아님'으로 보던 줄을 '창 없이 풀기(그리고 `HeadlessArgumentProblem` 한 줄)'로(IX-F5 가 바로 이 판정을 바꾸라는 지적),
+`CollisionTests.덮어쓸_파일이_잠겨_있으면_…` — 예전 '한국어 오류로 멈춤'을 '그 파일만 건너뛰고 나머지는 다 풂·건너뜀 1·알림에 이름·남은 임시 파일 0'으로(IA-OPENFILE-OVERWRITE 가 바로 이 동작을 바꾸라는 지적 — 잠긴 파일 그대로·남은 것 없음은 그대로 확인).
+계약 테스트: 전체 2960 — 통과 2960·건너뜀 0·**실패 0**(Debug 52분 30초 — 2919 + I5-B 41). 전체 시험 전후 `%LOCALAPPDATA%\Iljip\logs` 그대로. **설치·등록·재배포는 하지 않았다**(`D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음). 사람이 볼 것: MANUAL_CHECKLIST 26절.
+아래는 그 전(I5-A — 이제 main 7e0903d 로 커밋됨) 기록 — '커밋 전'은 그때 기준.
 
 **I5-A(압축 속에서 연 파일 — 이름 바꾸기·일집 먼저 닫기에도 고친 내용을 잃지 않게) 작업 끝 — 커밋 전**(커밋은 오케스트레이터 몫 — `git add`·`commit`·`stash` 안 함. 출발점 main f61b472).
 감사 X3 의 지적 셋(X3-F2 이름을 바꾸면 놓침·X3-F1 연 채로 일집을 닫으면 그 뒤 저장이 다음 시작 청소로 말없이 지워짐·I3-3 닫기)을 고쳤다(아래 변경 이력 'I5-A').
@@ -325,6 +350,16 @@ stash 두 개 `iljip-wave2-W2-04-failed`·`iljip-wave1-W1-B-failed` 는 손대�
 - **4차 판 + I4-1·흘려 쓴 암호 ZIP(2026-10-18 들임)에서 재사용장치에 더 바뀌는 점**: 종료 코드 약속은 같다(`ReuseDeviceContractTests` — 이 판 계약 테스트 통과). 창 없이 풀기 실패의 표준 오류 한 줄은
   I4-1 의 `ErrorCatalog.HeadlessMessage` 쉬운 한국어(위 4차 판 줄의 받다 만 `.zip` '알 수 없는 오류가 났어요: Failed to locate the Zip Header' 같은 영어 섞인 문구 대신), 0 으로만 채운 1,000바이트 넘는 `.zip` 은 종료 0·0개 대신 손상(재사용장치는 `.zip` 을 넘기지 않음),
   흘려 쓴 암호 ZIP(서술자)은 맞는 암호면 풀림. 오류 로그 줄 `Headless extract failed: <경로>` 와 로그 위치는 4차 판 그대로. 재배포 전 실제 exe 로 8절을 다시 볼 것.
+- **I5-B 판(2026-10-20 — 최종 감사 IX-F5·IX-F2)에서 재사용장치에 더 바뀌는 점**: 종료 코드 0·1·2 의 뜻은 그대로다(새 코드 없음 — `ReuseDeviceContractTests` 통과, '압축 아님' 표지 없음).
+  - 창 없이 풀기 판정은 **첫 인자가 `--extract-to` 인가**만 본다(예전엔 둘째 인자가 있는 파일이어야 해서, 없는 경로면 일집 창과 '문제가 생겼어요' 창이 떠서 끝나지 않았음 — 재사용장치라면 사용자 화면에 창 + 제한 시간 1800초까지 그 첨부에서 멈춤).
+    이제 인자 문제는 창 없이 표준 오류 한국어 한 줄·**종료 1**·오류 로그 `Headless extract failed: <준 경로>` + 다음 줄에 그 한 줄:
+    없는 압축 '풀 압축 파일을 찾을 수 없어요: <경로>', 폴더 '풀 압축 파일 대신 폴더를 받았어요: <경로>', 빈 문자열·인자 모자람 '창 없이 풀기에는 압축 파일과 풀 폴더를 모두 주어야 해요. (Iljip.exe --extract-to <압축 파일> <풀 폴더>)'.
+    풀 폴더를 만들지 않는다. 재사용장치는 있는 첨부와 `mkdtemp` 폴더만 넘기므로 평소엔 해당 없음(첨부가 그 사이 지워졌을 때 — 이제 반디집으로 넘어가 반디집이 실패를 알림).
+  - **링크가 든 tar(하드·심볼릭)**: 파일은 예전처럼 다 풀고(링크는 0바이트 파일 — 일집은 링크를 되살리지 않음, 결정) 표준 오류 한 줄 '링크 N개는 내용 없이(0바이트) 만들었어요(b.txt → a.txt). 일집은 링크를 되살리지 않아요.'·
+    오류 로그 `Headless extract failed: <경로>` + 그 한 줄, **종료 1**. ★ **결정 — 0 이 아니라 1**: 0 이면 재사용장치가 0바이트 파일을 그대로 가져가 말없는 손실(감사 재현), 2 는 'Unsupported archive type' 줄과 짝이라 쓸 수 없고,
+    새 코드(3 등)는 재사용장치가 모르는 값이라 1(그 밖의 실패)과 같게 다뤄진다 — 1 이면 재사용장치가 반디집으로 다시 풀어 링크를 살린다(감사 실측: `bz x` 는 하드 링크 b.txt 를 a.txt 내용 12바이트로 풂). 링크 대상이 압축 밖이면(끊긴 심볼릭) 반디집도 실패해 재사용장치가 원본을 보관.
+    재사용장치는 tar 를 일집에 넘기지 않아(egg·alz·7z·rar) 지금은 해당 없음 — 7z.dll 로 푸는 형식(RAR5·7z)의 링크는 이 알림 범위 밖(남긴 한계).
+  - 그 밖(같은 이름 비켜 풀기·잠긴 파일 건너뛰기)은 화면 흐름 몫 — 창 없이 풀기는 결과 폴더(`mkdtemp`, 빈 폴더)가 비어 있어 해당 없음. 창 없이 풀기는 여전히 설정·같은 이름 범위·휴지통을 쓰지 않는다(소스 계약 그대로).
 - **진짜 egg 지켜보기 계획(재배포 뒤 1~2주)**: 진짜 알집 egg 견본이 없어 egg 는 합성 파일로만 시험했다(크기·CRC 확인이 진짜 파일에서 어긋날 위험 — 위 '위험'). 그래서 재배포한 뒤 **반디집을 지우지 않고 1~2주**
   (egg 첨부 5~10개 — 6월 배치 로그로는 2주에 1~2개) 지켜본다: 재사용장치 화면의 '(Iljip 해제 실패: … → Bandizip 폴백)' 줄 + 일주일에 한 번 오류 로그 명령(MANUAL_CHECKLIST 8절 끝).
   암호 egg 실패는 정상(창 없이는 암호를 못 넣음 — 반디집이 풂). 그 밖의 이유가 2주 동안 없으면 반디집을 지울지 정한다(사람). 있으면 그 egg 를 보관해 다음 판에서 고친다.
@@ -522,6 +557,13 @@ dotnet run --project Iljip
       편집기가 그 새 파일을 잡고 있으면 '잡힌 파일' 판단은 원래 파일만 봐서 못 지킴). 따라갈 후보를 '원래 파일이 없을 때'에서 '순번 폴더에 새로 생긴 같은 확장자 파일'로 넓힐지·묻는 문구를 정할 것
 - [ ] (I5-A 남김) 파일을 잡지 않는 편집기(메모장 등)는 닫을 때 '아직 열려 있어요'를 알 수 없음 — 고치지 않은 채 일집을 닫으면 순번 폴더를 지움(그 뒤 편집기 저장은 실패로 드러남 — 말없이 잃지는 않음). 메모장 실제 동작은 25절에서 확인
 - [ ] (I5-A 남김) 다음 시작 알림은 메인 창이 뜨는 시작에서만 — 창 없이 풀기(재사용장치)·우클릭 풀기만 쓰는 날은 묻지 않고 파일은 남겨 둠([나중에]·[폴더 열기]도 남김 — 오래 쌓이면 사람이 [버리기]). 자동으로 지우는 기한은 두지 않음(결정 — 고친 내용을 말없이 지우지 않게)
+- [x] **I5-B**: 최종 감사 안전·정직 5건 — 풀고 있는 압축 자신·조각 덮어쓰기 막기(IA-SELFNAME)·ZIP·TAR·GZ·BZ2 [바꾸기] 취소·실패에 기존 파일 지키기(IB-zip-replace-cancel-deletes-old)·
+  창 없이 풀기의 없는 경로·폴더·빈 인자(IX-F5)·tar 링크 알림(IX-F2)·열린 파일은 건너뛰고 계속(IA-OPENFILE-OVERWRITE) — 아래 변경 이력 'I5-B'
+- [ ] I5-B 남은 확인: MANUAL_CHECKLIST 26절(진짜 엑셀로 연 파일 위에 풀기·이중 압축 첨부 여기에 풀기·[바꾸기] 중 취소의 진짜 창 모양, 창 없이 풀기 없는 경로를 진짜 Release exe 로)
+- [ ] (I5-B 남김) 링크 알림은 **풀기(일집 창·우클릭·여러 개·창 없이)와 검사**에만 — 압축 속 링크 항목 하나를 두 번 눌러 열기·끌어 꺼내기·Ctrl+C 는 예전처럼 0바이트 파일을 말없이 만든다(드묾 — 링크가 든 tar 를 일집 창에서 항목째 꺼낼 때만).
+  7z.dll 로 푸는 형식(RAR·7z 등)의 링크 항목은 알림 범위 밖(SharpCompress 로 푸는 tar·tgz·tbz2·txz 만 — 감사 지적 범위. 7z.dll 이 링크를 어떻게 푸는지는 확인 안 함). 링크 되살리기·같은 압축 안 대상 내용 복사는 하지 않음(결정 기록 IX-5·B-041 '제외' 그대로)
+- [ ] (I5-B 남김) '다른 프로그램이 쓰는 중' 판정은 덮어쓰기 실패 뒤 그 파일을 혼자 열어 보는 것(공유·잠금 위반 0x80070020·21) — 그 사이 다른 프로그램이 파일을 놓으면 예전 오류(멈춤 + 문구)로 남음(드묾, 데이터 손실 아님).
+  `ExtractionScope.Begin` 에 선택 인자(풀고 있는 압축)를 더해 이진 모양이 바뀜 — 저장소 밖에서 예전 Iljip.dll 로 빌드한 하네스는 다시 빌드해야 함(제품·시험 영향 없음)
 - [ ] 탐색기 우클릭 'zip에 추가 (일집)': C++ 셸 확장에 메뉴를 더해 `Iljip.exe --add-to <압축> <고른 파일…>` 을 부르게(명령줄 쪽은 W2-06 에서 끝, 재배포 범위).
       '기존 zip 고르기' 메뉴는 `Iljip.exe --add-to-pick <고른 파일…>`(일집이 압축 고르기 창을 띄움 — W2-06 검증 지적에서 명령줄 끝).
       (W2-12) zip·7z 아이콘 위에 끌어 놓기(드롭 처리기 — `--add-to`)는 들어감. 우클릭 'zip에 추가' 메뉴 자체는 아직(I1-2 범위 밖으로 둠)
@@ -1597,6 +1639,56 @@ dotnet run --project Iljip
   관련 묶음(EntryReinsert·EntryOpen·EntryWorkspace·Wave2/3/4·StartScreen·InternetMark·UiStringAudit·DragOut·ClipboardCopy·MainWindowEditUi) 328개 따로도 통과. 빌드 경고 0(본체).
   전체 시험 전후 `%LOCALAPPDATA%\Iljip\logs` 네 파일(10/12·10/15·10/16·10/18) 크기·시각 그대로, `%LOCALAPPDATA%\Iljip\temp\open` 없음(시험이 사용자 임시 폴더를 쓰지 않음).
   `D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음. 저장소 밖에 둔 것(지워도 됨): 스크래치의 f61b472 사본·X3 재검 하네스.
+- **2026-10-20 I5-B — 최종 감사 안전·정직 5건(IA-SELFNAME·IB-zip-replace-cancel-deletes-old·IX-F5·IX-F2·IA-OPENFILE-OVERWRITE, 커밋 전, 설치·배포 안 함)** — 출발점 main 7e0903d(I5-A 커밋).
+  감사 재현(고치기 전 — 감사 하네스·스크립트 그대로, 스크래치 사본): IA self — 7z '여기에 풀기' + 덮어쓰기면 바깥 `첨부.7z`(348B)가 안쪽 것(164B)으로 바뀌고 '성공', selfvm — 설정 덮어쓰기 + '다 푼 뒤 휴지통'이면 방금 풀어 낸 안쪽 압축이 휴지통으로
+  (결과 폴더에 설명.txt 만), zip 은 멈추고 '관리자 권한으로 다시 시도'를 권함, openxl — 엑셀로 연 `견적서 1.xlsx` 위에 풀면 나머지(메모.txt·빈파일.txt)를 안 풀고 멈추며 관리자 권유,
+  IB i21_cancel — zip_aes·plain·store·zipcrypto [바꾸기] 중 700ms 취소면 'old intact: MISSING'(기존 zip 도 새 zip 도 없음), IX sec1 — 하드 링크 tar 는 a.txt 12B·b.txt 0B·종료 0, 검사 '문제없어요. 파일 2개를 확인했어요.',
+  IX-F5 — `--extract-to <없는 경로>` 는 일집 창 + '문제가 생겼어요' 창(재사용장치 제한 시간 1800초).
+  ① **자기 압축 지키기(IA-SELFNAME)**: `ExtractionScope.Begin(resolver, sourceArchive)`(선택 인자 — 화면의 두 풀기 길 `BatchExtractor.ExtractOneAsync`·`MainViewModel.ExtractToFolderCoreAsync` 가 넘김)가
+  풀고 있는 압축의 전체 경로와 조각 전부(`ArchiveVolumes.AllParts` — `.7z.002`·`.z01`·`.part2.rar` 등)를 '지킬 경로'로 둔다. `Decide` 는 그 경로면 묻지도 설정을 보지도 않고 **늘 '이름 (1)'**(Rename)
+  — 직접 쓰기(`OutputFiles.OpenTarget`)·임시 폴더 옮기기(`MoveResolved` — 7z.dll·압축된 TAR) 둘 다 같은 판정을 거치므로 형식과 상관없음. 비켜 쓴 것은 `ExtractionNotes.SelfRenamed` 에 적고 결과 창에
+  '풀고 있는 압축 파일과 이름이 같은 파일 1개는 그 압축 파일을 덮지 않게 이름을 바꿔 풀었어요(원래 압축 파일은 그대로예요):\n- 첨부.7z → 첨부 (1).7z'. ★ **결정 — 묻지 않고 비켜 쓴다**: 덮어쓰기를 고를 수 있게 두면
+  7z 는 풀고 있는 압축이 안쪽 것과 바뀌고 zip 은 일집 자신이 읽는 중인 파일이라 멈추며 맞지 않는 관리자 권유까지 하므로, 그 항목은 같은 이름 창도 띄우지 않는다(다른 같은 이름 항목은 예전처럼 묻고 고른 대로).
+  ② **[바꾸기]는 다 쓴 뒤에만(IB)**: 새 `OutputFiles.WriteReplacing(target, write)` — 대상이 없으면 예전처럼 바로 쓰고, 있으면 옆 임시 파일(`TempSibling` — `.~이름.8글자.tmp`, 숨김)에 다 쓴 뒤
+  `ReplaceExisting`(잠깐 잠김은 다시 — 예전 규칙)으로 바꿔 넣는다. 취소·실패면 임시 파일만 지우고(finally) 기존 파일은 손대지 않음 — `CompressFlow` 의 '시작 전과 달라진 파일 지우기'도 기존 파일이 그대로라 지우지 않는다.
+  나누지 않는 ZIP(`ZipArchiveService`)·TAR(`TarArchiveService`)·GZ·BZ2(`GZipArchiveService`·`BZip2ArchiveService`)에 같은 포장(감사는 ZIP 만 짚었지만 TAR·GZ·BZ2 도 같은 길로 바로 써서 같은 손실 — 함께 고침).
+  7z·나눔·자동 풀림은 원래 임시 파일이라 그대로. 기존 파일을 원본 폴더 안에 두고 [바꾸기]해도 새 압축에 기존 압축을 담지 않게 ZIP·TAR 의 '자기 자신 건너뛰기'에 원래 경로도 넣음(`alsoSkip`).
+  ③ **창 없이 풀기 인자(IX-F5)**: `StartupDecision.IsHeadlessExtract` 는 이제 **첫 인자가 `--extract-to`** 인가만 본다(둘째가 있는 파일인지 안 봄 — `fileExists` 매개변수는 부르는 모양 그대로 두려고 남기고 안 씀).
+  새 `StartupDecision.HeadlessArgumentProblem(args)` — 압축·풀 폴더가 비었거나 없음 → '창 없이 풀기에는 압축 파일과 풀 폴더를 모두 주어야 해요. (Iljip.exe --extract-to <압축 파일> <풀 폴더>)',
+  폴더 → '풀 압축 파일 대신 폴더를 받았어요: <경로>', 없는 파일 → '풀 압축 파일을 찾을 수 없어요: <경로>'. `App.RunHeadlessExtractAsync` 가 맨 앞에서 보고 문제면 오류 로그
+  `Headless extract failed: <준 경로>` + 다음 줄 그 문구, 표준 오류 한 줄, **종료 1**(풀 폴더를 만들기 전 — 아무것도 안 남김). 재사용장치 약속('압축 아님' 표지 없음 → 반디집으로)과 맞음.
+  ④ **tar 링크 알림(IX-F2)**: `SharpCompressArchiveServiceBase.IsEmptyLink`(항목의 `LinkTarget` 이 있고 폴더가 아니며 크기 0)인 항목을 내용 없이 만든 뒤 `ExtractionNotes.Current` 에 적는다
+  (tar·그리고 압축된 TAR 의 안쪽 tar 길 — 덮어쓰기로 정했다가 잠겨 건너뛴 항목은 안 적음). 화면: 하나 풀기면 알림 창 '‘링크묶음.tar’을 풀었어요.\n\n링크 1개는 내용 없이(0바이트) 만들었어요. 일집은 링크를 되살리지 않아요:\n- b.txt (원래 파일: a.txt)',
+  여러 개면 요약 창 알림 줄에 '‘이름’: …'. 검사(`TestReport.Notes` — 새 속성): 손상이 없어도 '압축 파일은 멀쩡해요(파일 N개 확인). 다만 알아 둘 것이 있어요.' + '링크 N개는 일집으로 풀면 내용 없이(0바이트) 만들어져요.
+  일집은 링크를 되살리지 않아요(압축 파일이 손상된 것은 아니에요):' + 이름 스물까지(알림 창 — 상태 줄 '시험 완료: 손상 없음 — 알림 있음'). 압축된 TAR 의 흘려 읽는 검사(`CompressedTarArchiveService.TestStreaming`)도 같은 줄.
+  창 없이 풀기: `ExtractionNotes.Begin()`(같은 이름 범위·설정 없이 알림만 모음 — 소스 계약의 금지 낱말 없음)으로 감싸 풀고, 링크가 있으면 오류 로그 + 표준 오류 한 줄
+  '링크 1개는 내용 없이(0바이트) 만들었어요(b.txt → a.txt). 일집은 링크를 되살리지 않아요.'(셋까지 '외 N개') + **종료 1**(풀린 파일은 그대로 둠). ★ 종료 코드 결정은 위 '일집-dist 재배포' 절 I5-B 줄(0 은 말없는 손실, 2 는 'Unsupported' 짝, 새 코드는 재사용장치가 1 과 같게 봄 → 1).
+  링크를 내용 없이 만든 압축은 '다 푼 뒤 압축 파일을 휴지통으로'를 하지 않는다(`ExtractionScope.KeepArchiveCount` = 건너뜀 + 링크 — 압축 파일에만 온전한 것이 있음).
+  ⑤ **열린 파일은 건너뛰고 계속(IA-OPENFILE-OVERWRITE)**: `ReplaceExisting` 이 다시 해 봐도 못 바꾸면 원래 파일을 혼자 열어 보고(`IsOpenElsewhere` — `FileShare.None`, 공유·잠금 위반 0x80070020·21 이면 다른 프로그램이 엶)
+  새 `TargetInUseException`('‘x’ 파일을 다른 프로그램이 쓰고 있어 바꾸지 못했어요. 그 프로그램을 닫고 다시 해 주세요.')을 던진다. 풀기 범위 안이면 `MoveResolved`·`OutputTarget.Commit`(이제 `string?` — 건너뛰면 null)이
+  받아 임시 파일을 지우고 `ExtractionScope.NoteInUseSkipped`(덮어씀 −1·건너뜀 +1·`ExtractionNotes.InUse`)로 그 파일만 건너뛴다 — 원래 파일 바이트 그대로, 나머지는 다 풂, 결과 창 '다른 프로그램이 쓰는 중이라 못 바꾼 파일 1개
+  (원래 파일 그대로예요 — 그 프로그램을 닫고 다시 풀어 주세요):\n- 견적서 1.xlsx'. `ElevationService.IsAccessDenied` 는 `TargetInUseException` 을 권한 문제로 보지 않음(관리자 권유 없음 — 권하는 것은 진짜 접근 거부뿐, 읽기 전용 파일·압축 문제·다른 프로그램이 쓰는 중은 권하지 않음).
+  건너뛴 파일이 있으면 휴지통으로 보내지 않음(예전 '건너뜀' 규칙). 화면 밖(압축 만들기 [바꾸기] 등)에서는 그 예외가 그대로 실패 이유(쉬운 한국어)가 된다.
+  알림 모음: 새 `Iljip/Services/ExtractionNotes.cs`(AsyncLocal — 화면은 `ExtractionScope.Notes`, 창 없이 풀기는 `ExtractionNotes.Begin()`, 아무도 안 열었으면 적지 않음). `BatchExtractor.ArchiveOutcome.Notice`(새) →
+  `RunExtractBatchAsync` 가 하나면 알림 창, 여럿이면 요약 창 알림 줄. `ExtractToFolderCoreAsync`(일집 창 풀기)도 끝에 알림 창.
+  시험: 새 `Contract/ExtractSafetyNoticeTests.cs` 22 — 이중 압축 여기에 풀기(zip·7z — 바깥 SHA 그대로·안쪽 '첨부 (1)'·알림), 같은 이름 창에서 [덮어쓰기]·모두에 적용을 골라도(zip·7z — 자기 이름은 묻지 않고 다른 같은 이름은 덮어씀),
+  우클릭 + 설정 덮어쓰기·휴지통(zip·7z — 휴지통엔 바깥 원래 바이트, 오류·관리자 권유 없음), 나눠진 7z 조각 이름(`자료.7z.002`), 일집 창 같은 폴더 풀기, 잠긴 파일 건너뛰기(zip·7z·rar·tar·egg — `FileShare.None` 과 엑셀처럼
+  쓰기 핸들 + 읽기 공유, 원래 바이트 그대로·나머지 다 풂·건너뜀 1·알림·남은 임시 0), 우클릭 풀기에서 잠긴 파일(zip·7z — 관리자 권유 없음·휴지통 안 감), 열린 파일은 권한 오류 아님, tar·tgz 링크 알림·링크 없으면 알림 없음,
+  검사 링크 알림(tar·tgz), 우클릭 결과·여러 개 요약에 링크 알림(휴지통 안 감). 새 `Contract/CompressReplaceTests.cs` 16 — ZIP(보통·AES·ZipCrypto·저장만)·TAR·GZ·BZ2 × 취소·쓰기 실패(가짜 진행 창이 쓴 바이트가 처음 0을 넘을 때
+  [취소]하거나 '디스크 공간이 모자라요' 0x80070070 을 던짐 — 실제 디스크를 채우지 않음): 기존 SHA 그대로·만든 곳 파일은 기존 하나뿐(숨김 임시 0), 실패 이유 한국어. [바꾸기]가 끝까지 되면 새 내용·임시 0·원본 폴더 안 기존 압축은 안 담음(ZIP·TAR).
+  새 `Contract/HeadlessNoticeTests.cs` 3 — 판정(순수), 실제 exe 7가지(없는 zip·egg·폴더·빈 압축·빈 폴더·인자 둘·하나 → 창 없이 종료 1·한국어 한 줄 그대로·'압축 아님' 표지 없음·풀 폴더 안 만듦·
+  시험 로그 폴더에 `Headless extract failed:` + 다음 줄 이유), 실제 exe tar·tgz 링크 → 종료 1·그 한 줄, 보통 tar → 종료 0·표준 오류 없음(시험은 띄우기 전에 `IsHeadlessExtract` 로 창 없는 길인지 먼저 확인, 60초에 끔).
+  **고치기 전 코드에서 실패 확인**: 위 새 시험은 새 API(`ExtractionNotes`·`Begin(…, 압축)` 등)를 써서 예전 코드에서 빌드되지 않으므로, 같은 약속을 **예전 API 만으로** 쓴 재현 시험 10개(B1 zip·7z, B2, B3, B4 검사·실제 exe, B5 zip·7z·tar·egg)를
+  저장소 밖 7e0903d 사본에서 돌려 **10개 모두 실패**(B1 바깥 SHA 다름, B2 '기존 zip 이 사라짐', B3 판정 false, B4 검사 '문제없어요' 포함·exe '종료 코드 0, stderr=''', B5 잠긴 파일에서 멈춤), 같은 파일을 고친 코드에 넣어 10개 모두 통과한 뒤 저장소에서 뺌.
+  **감사 다시(저장소 밖 하네스 사본 — 원본 감사 폴더는 손대지 않음)**: I-A self(zip·7z — 바깥 그대로·'첨부 (1)')·selfvm(휴지통엔 바깥 원래 것, 안쪽 '자료 (1)' 남음, 알림 창)·openxl(엑셀처럼 잡은 파일만 그대로, 빈파일.txt·하위\메모.txt 풀림, 관리자 권유 없음) —
+  7z.dll 길과 SharpCompress 길 둘 다. I-B i21_cancel(zip_aes·plain·store·zipcrypto — 'old intact: True', 남은 것 기존 파일 하나), I-X sec1(하드 링크 tar 종료 1·한 줄, 결과 폴더 밖 쓰기 0)·검사('압축 파일은 멀쩡해요… 다만 알아 둘 것이 있어요.' + 링크 줄).
+  스크래치 **Release 사본**(`ILJIP_TEST_APPDATA` 스크래치, 120초 제한)으로 B3 7가지 모두 종료 1·2~3.5초·한국어 한 줄·표지 없음, B4 GNU·PAX tar·GNU tgz 종료 1·a.txt 12B·b.txt 0B·로그 두 줄.
+  **기대를 바꾼 기존 시험 둘**(위 '현재 진행 단계' — 지적이 바꾸라고 한 바로 그 동작): `StartupDecisionTests`(창 없이 풀기 판정 — 이름 `창_없이_풀기_판정은_첫_인자로_하고_elevated가_앞에_붙으면_아니다`, '일반 동사' 목록에서 없는 압축 줄 뺌),
+  `CollisionTests.덮어쓸_파일이_잠겨_있으면_그_파일만_건너뛰고_원본은_그대로`(예전 이름 `…_한국어_오류이고_원본은_그대로` — 잠긴 파일 바이트 그대로·남은 임시 0 은 그대로 확인하고, 멈춤 대신 나머지 풀림·건너뜀 1·알림에 이름을 확인).
+  남긴 한계(minor): 링크 알림은 풀기·검사에만(항목 열기·끌기·Ctrl+C 는 말없이 0바이트), 7z.dll 형식의 링크는 범위 밖, 잠김 판정 순간 파일이 풀리면 예전 오류, `ExtractionScope.Begin` 이진 모양 바뀜(저장소 밖 예전 하네스는 다시 빌드) — '향후 작업' I5-B 줄.
+  계약 테스트: 전체 2919 → 2960(+41) — 통과 2960·건너뜀 0·**실패 0**(Debug 52분 30초, 2026-10-20 15:01 — 이 PC 남은 메모리 0.8GB 안팎이라 I5-A 때보다 느림). `ReuseDeviceContractTests` 포함 전부 통과(재사용장치 약속 회귀 0). 빌드 경고 0(본체 Debug 다시 빌드).
+  전체 시험 전후 `%LOCALAPPDATA%\Iljip\logs` 두 파일(10/12 624,749·10/16 397,374) 크기·시각 그대로, `%LOCALAPPDATA%\Iljip\temp\open` 없음.
+  `D:\Python\일집-dist` 그대로, `Iljip\bin` 에 exe 없음, 셸 확장·파일 연결·레지스트리 손대지 않음. 저장소 밖에 둔 것(지워도 됨): 스크래치 `i5b\`(7e0903d 사본·재현 시험·감사 하네스 사본·Release 사본).
 
 ## 사용자 선호
 

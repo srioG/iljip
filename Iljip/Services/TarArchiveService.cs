@@ -31,8 +31,9 @@ public sealed class TarArchiveService : SharpCompressArchiveServiceBase
             // 빼기 목록(W2-07, I3-6)에 걸리는 것은 여기서 빠지고 결과의 ExcludedPaths 로 알린다.
             var sources = SourceCollector.Collect(sourcePaths, options?.ExcludeFilter, cancellationToken);
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
-            return RewriteWithoutUnreadable(archivePath,
-                dropped => WriteTar(sources, dropped, archivePath, progress, cancellationToken))
+            // I5-B: 같은 이름 tar 가 있으면([바꾸기]) 옆 임시 파일에 다 쓴 뒤에만 바꿔 넣는다(ZIP 과 같음 — 취소·실패면 기존 파일 그대로)
+            return OutputFiles.WriteReplacing(archivePath, path => RewriteWithoutUnreadable(path,
+                    dropped => WriteTar(sources, dropped, path, progress, cancellationToken, alsoSkip: archivePath)))
                 .WithExcluded(sources.Excluded);
         }, cancellationToken);
     }
@@ -41,9 +42,10 @@ public sealed class TarArchiveService : SharpCompressArchiveServiceBase
     /// TAR 를 한 번 쓴다. <paramref name="dropped"/>(앞 회차에서 읽는 도중 막힌 파일)는 열지 않고 건너뜀으로 적는다.
     /// 담은 파일이 하나도 없고 건너뛴 것이 있으면 압축 파일을 만들지 않고 <see cref="NothingToCompressException"/>(I0-2).
     /// </summary>
+    /// <param name="alsoSkip">이것도 담지 않는다(I5-B — 임시 파일에 쓸 때 바꿔 넣을 기존 tar 가 원본 폴더 안에 있으면).</param>
     private static CompressResult WriteTar(
         SourceSet sources, IReadOnlyDictionary<string, string> dropped, string archivePath,
-        IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken)
+        IProgress<ArchiveProgress>? progress, CancellationToken cancellationToken, string? alsoSkip = null)
     {
         var files = sources.Files;
         var skipped = new List<SkippedSource>(sources.Skipped);
@@ -64,8 +66,8 @@ public sealed class TarArchiveService : SharpCompressArchiveServiceBase
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // 압축 파일을 원본 폴더 안에 저장하는 경우 자기 자신은 담지 않는다
-            if (IsSameFile(sourceFile, archivePath)) continue;
+            // 압축 파일을 원본 폴더 안에 저장하는 경우 자기 자신은 담지 않는다(I5-B: 바꿔 넣을 기존 tar 도)
+            if (IsSameFile(sourceFile, archivePath) || (alsoSkip is not null && IsSameFile(sourceFile, alsoSkip))) continue;
 
             progress?.Report(new ArchiveProgress
             {

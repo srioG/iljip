@@ -410,7 +410,8 @@ public partial class MainViewModel : ObservableObject
         while (true)
         {
             var session = _ui.ShowProgress("압축 해제 중...");
-            using var scope = ExtractionScope.Begin(resolver);
+            // I5-B: 풀고 있는 압축 파일(과 조각)은 같은 이름 항목이 나와도 덮지 않고 '이름 (1)' 로(알림)
+            using var scope = ExtractionScope.Begin(resolver, archivePath);
             try
             {
                 try
@@ -440,8 +441,12 @@ public partial class MainViewModel : ObservableObject
                 session.Close();
                 StatusText = $"압축 해제 완료: {destFolder}";
                 if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
-                // I2-5: 전체를 오류 없이 다 풀었고 건너뛴 파일이 없을 때만(선택 항목만 푼 것은 지우지 않음)
-                if (selectedPaths is null && RecycleArchiveAfterExtract(archivePath, scope.Skipped, deleteArchiveAfter) is { } note)
+                // I5-B: 다 풀었지만 알릴 것(비켜 푼 자기 이름·다른 프로그램이 쓰는 중이라 못 바꾼 파일·내용 없이 만든 링크)
+                if (scope.Notes.ToMessage() is { } notice)
+                    _ui.ShowWarning($"‘{Path.GetFileName(archivePath)}’을 풀었어요.\n\n{notice}");
+                // I2-5: 전체를 오류 없이 다 풀었고 건너뛴 파일이 없을 때만(선택 항목만 푼 것은 지우지 않음).
+                // I5-B: 내용 없이 만든 링크가 있어도 지우지 않는다(KeepArchiveCount — 압축 파일에만 온전한 것이 있음)
+                if (selectedPaths is null && RecycleArchiveAfterExtract(archivePath, scope.KeepArchiveCount, deleteArchiveAfter) is { } note)
                     _ui.ShowWarning(note);
                 return true;
             }

@@ -100,15 +100,25 @@ internal static class OutputFiles
                         return new OutputTarget(fs, tmp, desiredPath);
                     }
             }
-            // Rename(또는 이번 해제가 만든 파일·폴더와 겹침): 아래 예전 규칙
+            // Rename(또는 이번 해제가 만든 파일·폴더와 겹침, I5-B 풀고 있는 압축 파일 자신): 아래 예전 규칙
         }
         var created = CreateNew(desiredPath, out string writePath);
+        NoteIfSelfRenamed(scope, desiredPath, writePath);
         return new OutputTarget(created, writePath, writePath);
+    }
+
+    /// <summary>I5-B: 풀고 있는 압축 파일과 이름이 같아 비켜 썼으면 알릴 것에 적는다(결과 창 '이름을 바꿔 풀었어요').</summary>
+    private static void NoteIfSelfRenamed(ExtractionScope? scope, string desiredPath, string writtenPath)
+    {
+        if (scope is not null && scope.IsProtectedSource(desiredPath)
+            && !string.Equals(desiredPath, writtenPath, StringComparison.OrdinalIgnoreCase))
+            scope.Notes.AddSelfRenamed(desiredPath, writtenPath);
     }
 
     /// <summary>
     /// 다 풀린 파일을 같은 이름 처리를 거쳐 옮긴다(임시 폴더 → 대상 — 7z.dll·압축된 tar). null 이면 ‘건너뛰기’(옮기지 않음 — 임시 폴더째 지워짐).
     /// ‘덮어쓰기’면 File.Move(덮어쓰기)로 한 번에 바꾸고 <paramref name="overwrote"/> = true(그 경로는 원래 있던 파일이라 되돌릴 장부에 넣지 말 것).
+    /// I5-B: 덮어쓸 파일을 다른 프로그램이 열어 두었으면(<see cref="TargetInUseException"/>) 그 파일만 건너뛰고 null(알릴 것에 적음 — 나머지는 계속).
     /// 범위가 없으면 <see cref="MoveNew"/> 그대로.
     /// </summary>
     internal static string? MoveResolved(string sourcePath, string desiredPath, int remaining, out bool overwrote)
@@ -134,13 +144,24 @@ internal static class OutputFiles
                 case CollisionChoice.Skip:
                     return null;
                 case CollisionChoice.Overwrite:
-                    ReplaceExisting(sourcePath, desiredPath);
+                    try
+                    {
+                        ReplaceExisting(sourcePath, desiredPath);
+                    }
+                    catch (TargetInUseException)
+                    {
+                        // I5-B: 다른 프로그램(엑셀 등)이 열어 둔 파일 — 그 파일만 건너뛰고(원래 파일 그대로, 새 내용은 임시 폴더째 지워짐) 나머지는 계속 옮긴다
+                        scope.NoteInUseSkipped(desiredPath);
+                        return null;
+                    }
                     overwrote = true;
                     scope.NoteCreated(desiredPath);
                     return desiredPath;
             }
         }
-        return MoveNew(sourcePath, desiredPath);
+        string moved = MoveNew(sourcePath, desiredPath);
+        NoteIfSelfRenamed(scope, desiredPath, moved);
+        return moved;
     }
 
     /// <summary>
@@ -150,6 +171,9 @@ internal static class OutputFiles
     /// W2-11 검증 지적: 원래 파일이 '읽기 전용'이라 못 바꾼 것은 다시 해 봐도·관리자 권한으로도 안 되므로 기다리지 않고 <see cref="ReadOnlyTargetException"/>
     /// ('읽기 전용'을 끄라는 안내 — 관리자 권한으로 다시 시도를 권하지 않음). 그 밖의 접근 거부는 '쓸 권한이 없거나 다른 프로그램이 쓰고 있어요',
     /// 공유 위반은 '다른 프로그램이 쓰고 있어요 — 그 프로그램을 닫고'로 문구를 가른다(예전 한 문구는 관리자 권한 질문과 앞뒤가 맞지 않았음).
+    /// I5-B(최종 감사 IA-OPENFILE-OVERWRITE): 다시 해 봐도 안 될 때 원래 파일을 다른 프로그램(엑셀 등)이 열어 두었으면(<see cref="IsOpenElsewhere"/> —
+    /// 엑셀이 연 파일은 File.Move 가 '접근 거부'로 실패해 예전엔 '쓸 권한이 없거나…'+관리자 권한 권유였다) <see cref="TargetInUseException"/>
+    /// (관리자 권한으로도 같으니 권하지 않음 — 풀기는 그 파일만 건너뛰고 계속).
     /// </summary>
     internal static void ReplaceExisting(string sourcePath, string targetPath)
     {
@@ -168,12 +192,86 @@ internal static class OutputFiles
             {
                 Thread.Sleep(MoveLockDelayMs);
             }
+            catch (Exception ex) when (IsTransientLock(ex) && IsOpenElsewhere(targetPath))
+            {
+                throw new TargetInUseException(targetPath, ex);
+            }
             catch (Exception ex) when (IsTransientLock(ex))
             {
                 string why = ex is UnauthorizedAccessException
                     ? "이 폴더에 쓸 권한이 없거나 다른 프로그램(보안 프로그램 포함)이 쓰고 있어요."
                     : "다른 프로그램(보안 프로그램 포함)이 쓰고 있어요. 그 프로그램을 닫고 다시 해 주세요.";
                 throw new IOException($"'{Path.GetFileName(targetPath)}' 파일을 덮어쓰지 못했어요. {why}", ex) { HResult = ex.HResult };
+            }
+        }
+    }
+
+    /// <summary>
+    /// 다른 프로그램이 그 파일을 열어 두었는가(I5-B) — 혼자 쓰기(공유 없음)로 읽기만 잠깐 열어 본다(내용·시각 그대로). 공유·잠금 위반이면 true.
+    /// 열리면(아무도 안 엶) 또는 다른 이유(권한·없음)면 false — 그때는 권한 문제일 수 있어 예전 문구(관리자 권한 권유 포함) 그대로.
+    /// </summary>
+    internal static bool IsOpenElsewhere(string path)
+    {
+        try
+        {
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None)) { }
+            return false;
+        }
+        catch (IOException io) when (io.HResult is ErrorSharingViolation or ErrorLockViolation)
+        {
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 있는 압축 파일을 바꿔 만들기(I5-B — 최종 감사 IB-zip-replace-cancel-deletes-old): 대상이 이미 있으면 같은 폴더의 임시 파일(<c>.~이름.8글자.tmp</c>)에
+    /// <paramref name="write"/> 로 다 쓴 뒤에만 그 이름으로 바꿔 넣는다(7z·나눔·자동 풀림과 같은 규칙). 취소·실패면 임시 파일을 지우고 예외 그대로 —
+    /// 덮어쓰려던 기존 파일은 바이트 그대로다(예전 ZIP·TAR·GZ·BZ2 는 기존 파일에 바로 써서, [바꾸기] 뒤 취소하면 기존 파일도 새 파일도 없었다).
+    /// 대상이 없으면 예전처럼 그 이름에 바로 쓴다(실패 정리는 부르는 쪽 — CompressFlow 가 '시작 전과 달라진' 파일만 지움).
+    /// <paramref name="write"/> 는 쓸 경로를 받는다 — 원본 폴더 안에 저장하는 경우 기존 대상(<paramref name="target"/>)도 담지 않게 하는 것은 그쪽 몫.
+    /// </summary>
+    internal static T WriteReplacing<T>(string target, Func<string, T> write)
+    {
+        if (!File.Exists(target)) return write(target);
+        string full = Path.GetFullPath(target);
+        string temp = TempSibling(full);
+        bool done = false;
+        try
+        {
+            var result = write(temp);
+            // 쓸 것이 없어 임시 파일을 만들지 않았으면(빈 압축을 만들지 않는 규칙) 기존 파일도 그대로 둔다
+            if (File.Exists(temp)) ReplaceExisting(temp, full);
+            done = true;
+            return result;
+        }
+        finally
+        {
+            if (!done) DeleteQuietly(temp);
+        }
+    }
+
+    /// <summary>임시 파일 지우기(DLP·백신이 잠깐 잡을 수 있어 200ms 간격으로 몇 번) — 못 지우면 로그만.</summary>
+    private static void DeleteQuietly(string path)
+    {
+        for (int attempt = 0; attempt <= MoveLockRetries; attempt++)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == MoveLockRetries)
+                {
+                    Logger.LogError("임시 파일을 지우지 못함: " + path, ex);
+                    return;
+                }
+                Thread.Sleep(MoveLockDelayMs);
             }
         }
     }
@@ -250,6 +348,26 @@ public sealed class ReadOnlyTargetException : IOException
 }
 
 /// <summary>
+/// 덮어쓸 파일을 다른 프로그램(엑셀·한글 등)이 열어 두어 바꾸지 못함(I5-B — 최종 감사 IA-OPENFILE-OVERWRITE). 권한 문제가 아니라 관리자 권한으로 다시 해도 같다 —
+/// <see cref="ElevationService.IsAccessDenied"/> 가 권한 오류로 보지 않는다(관리자 권한 권유 없음). 결과 코드는 공유 위반(문제 창 '다른 프로그램이 쓰고 있어요').
+/// 풀기(같은 이름 범위 안)는 이 예외면 그 파일만 건너뛰고 계속 푼다(<see cref="OutputTarget.Commit"/>·<see cref="OutputFiles.MoveResolved"/>). 원래 파일은 그대로.
+/// </summary>
+public sealed class TargetInUseException : IOException
+{
+    private const int ErrorSharingViolation = unchecked((int)0x80070020);
+
+    public TargetInUseException(string targetPath, Exception inner)
+        : base($"'{Path.GetFileName(targetPath)}' 파일을 다른 프로그램이 쓰고 있어 바꾸지 못했어요. 그 프로그램을 닫고 다시 해 주세요.", inner)
+    {
+        TargetPath = targetPath;
+        HResult = ErrorSharingViolation;
+    }
+
+    /// <summary>바꾸려던 파일.</summary>
+    public string TargetPath { get; }
+}
+
+/// <summary>
 /// 같은 이름 처리를 거친 출력 파일 하나(<see cref="OutputFiles.OpenTarget"/>). <see cref="Stream"/> 에 다 쓰고 닫은 뒤 <see cref="Commit"/>.
 /// 실패하면 <see cref="WritePath"/> 만 지우면 된다(덮어쓰기면 임시 파일 — 원래 파일은 그대로).
 /// </summary>
@@ -275,8 +393,10 @@ internal sealed class OutputTarget
 
     /// <summary>
     /// 다 쓰고 닫은 뒤 부른다. 덮어쓰기면 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로). 최종 경로를 돌려준다.
+    /// I5-B: 원래 파일을 다른 프로그램(엑셀 등)이 열어 두어 못 바꾸면(<see cref="TargetInUseException"/>) 같은 이름 범위 안에서는 예외 대신
+    /// 임시 파일을 지우고 그 파일만 건너뛴 것으로 적어(알릴 것 — '다른 프로그램이 쓰는 중이라 못 바꾼 파일') null — 부르는 쪽은 다음 파일로 계속 간다.
     /// </summary>
-    public string Commit()
+    public string? Commit()
     {
         if (!Overwrites)
         {
@@ -289,6 +409,12 @@ internal sealed class OutputTarget
             // 쓰는 동안만 숨김 — 옮기면 속성이 따라가므로 먼저 푼다
             try { File.SetAttributes(WritePath, File.GetAttributes(WritePath) & ~FileAttributes.Hidden); } catch { /* 무시 */ }
             OutputFiles.ReplaceExisting(WritePath, FinalPath);
+        }
+        catch (TargetInUseException) when (ExtractionScope.Current is { } scope)
+        {
+            try { File.Delete(WritePath); } catch { /* 정리 실패는 무시 */ }
+            scope.NoteInUseSkipped(FinalPath);
+            return null;
         }
         catch
         {

@@ -203,6 +203,7 @@ public sealed class CompressedTarArchiveService : IArchiveService, IArchiveTesta
     private static TestReport TestStreaming(string archivePath, Outer outer, IProgress<ArchiveProgress>? progress, long inputLength, CancellationToken ct)
     {
         int checkedFiles = 0;
+        var links = new List<LinkNote>();   // I5-B: 풀면 내용 없이 만들어지는 링크 항목(문제는 아님 — 알림)
         long readCompressed = 0;
         string? current = null;
         void Report(string file) => progress?.Report(new ArchiveProgress
@@ -249,6 +250,7 @@ public sealed class CompressedTarArchiveService : IArchiveService, IArchiveTesta
                     if (got != entry.Size)
                         throw CorruptArchiveException.Truncated(new EndOfStreamException($"TAR 항목이 짧음: {got:N0} / {entry.Size:N0}"), current);
                     checkedFiles++;
+                    if (SharpCompressArchiveServiceBase.IsEmptyLink(entry, out var linkTarget)) links.Add(new LinkNote(current, linkTarget));
                     current = null;
                 }
             }
@@ -267,7 +269,7 @@ public sealed class CompressedTarArchiveService : IArchiveService, IArchiveTesta
             throw new OperationCanceledException(ct);
         }
         progress?.Report(new ArchiveProgress { CurrentFile = string.Empty, BytesProcessed = inputLength, TotalBytes = inputLength, FilesProcessed = checkedFiles, TotalFiles = checkedFiles });
-        return new TestReport { CheckedCount = checkedFiles };
+        return new TestReport { CheckedCount = checkedFiles, Notes = TestReport.LinkNotes(links) };
     }
 
     /// <summary>

@@ -134,6 +134,9 @@ public sealed class CollisionCancelledException : OperationCanceledException
 /// - 이번 해제가 만든 파일과 겹치면(압축 안에 같은 이름이 두 번 — 같은 폴더의 다른 대소문자 등) 묻지 않고 예전처럼 '이름 (1)' 로 비켜 쓴다
 ///   (새로 푼 내용끼리 덮어쓰지 않게 — 반디집도 이때는 안 묻고 비켜 씀).
 /// - 건너뛴·덮어쓴·이름을 바꾼 수를 센다(풀고 나서 압축 파일 지우기는 건너뛴 것이 0일 때만 — I2-5).
+/// - I5-B(최종 감사 IA-SELFNAME): 풀고 있는 압축 파일(과 그 조각 — <see cref="ArchiveVolumes.AllParts"/>)은 묻지도 덮지도 않고 늘 '이름 (1)' 로 비켜 쓴다
+///   (이중 압축 첨부 '첨부.7z' 안의 '첨부.7z' — 예전엔 [덮어쓰기]·설정 덮어쓰기가 바깥 압축을 안쪽 것으로 바꿨다). 비켜 쓴 것은 <see cref="Notes"/> 로 알린다.
+/// - I5-B: 알릴 것(<see cref="ExtractionNotes"/> — 비켜 쓴 자기 이름·다른 프로그램이 쓰는 중이라 건너뛴 파일·내용 없이 만든 링크)을 모은다.
 /// </summary>
 public sealed class ExtractionScope : IDisposable
 {
@@ -142,29 +145,71 @@ public sealed class ExtractionScope : IDisposable
     private readonly ExtractionScope? _previous;
     private readonly object _gate = new();
     private readonly HashSet<string> _created = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _protected = new(StringComparer.OrdinalIgnoreCase);
     private int _skipped;
     private int _overwritten;
     private int _renamed;
     private bool _disposed;
 
-    private ExtractionScope(ICollisionResolver resolver, ExtractionScope? previous)
+    private ExtractionScope(ICollisionResolver resolver, ExtractionScope? previous, string? sourceArchive)
     {
         Resolver = resolver;
         _previous = previous;
+        if (!string.IsNullOrEmpty(sourceArchive))
+        {
+            _protected.Add(Normalize(sourceArchive));
+            try
+            {
+                foreach (var part in ArchiveVolumes.AllParts(sourceArchive)) _protected.Add(Normalize(part));
+            }
+            catch
+            {
+                // 조각을 못 모아도 고른 파일 하나는 지킨다
+            }
+        }
     }
 
     /// <summary>이 비동기 흐름에서 지금 열린 범위(없으면 null — 예전 동작).</summary>
     internal static ExtractionScope? Current => CurrentValue.Value;
 
     /// <summary>범위를 연다(이 흐름과 여기서 시작하는 작업에 걸림). using 으로 닫는다.</summary>
-    public static ExtractionScope Begin(ICollisionResolver resolver)
+    /// <param name="sourceArchive">
+    /// 지금 풀고 있는 압축 파일(I5-B) — 그 파일과 같은 세트의 조각은 같은 이름 항목이 나와도 덮지 않고 '이름 (1)' 로 비켜 쓴다(묻지 않음). 모르면 null.
+    /// </param>
+    public static ExtractionScope Begin(ICollisionResolver resolver, string? sourceArchive = null)
     {
-        var scope = new ExtractionScope(resolver, CurrentValue.Value);
+        var scope = new ExtractionScope(resolver, CurrentValue.Value, sourceArchive);
         CurrentValue.Value = scope;
         return scope;
     }
 
     public ICollisionResolver Resolver { get; }
+
+    /// <summary>이번 풀기에서 알릴 것(I5-B — 결과 창·여러 개 풀기 요약이 보인다).</summary>
+    public ExtractionNotes Notes { get; } = new();
+
+    /// <summary>
+    /// '다 푼 뒤 압축 파일을 휴지통으로'를 막을 수(I2-5 — 건너뛴 파일 + I5-B 내용 없이 만든 링크: 압축 파일에만 온전한 것이 있으니 지우지 않음).
+    /// </summary>
+    public int KeepArchiveCount => Skipped + Notes.Links.Count;
+
+    /// <summary>풀고 있는 압축 파일(또는 그 조각)인가 — 같은 이름 항목이 나와도 덮지 않는다(I5-B).</summary>
+    internal bool IsProtectedSource(string path)
+    {
+        if (_protected.Count == 0) return false;
+        return _protected.Contains(Normalize(path));
+    }
+
+    /// <summary>
+    /// 덮어쓰기로 정했지만 다른 프로그램이 그 파일을 쓰는 중이라 바꾸지 못하고 건너뛰었다(I5-B — 원래 파일 그대로). 덮어쓴 수에서 빼고 건너뛴 수에 더한다
+    /// (풀고 나서 압축 파일 지우기를 하지 않게), 알릴 것에 적는다.
+    /// </summary>
+    internal void NoteInUseSkipped(string path)
+    {
+        Interlocked.Decrement(ref _overwritten);
+        Interlocked.Increment(ref _skipped);
+        Notes.AddInUse(path);
+    }
 
     /// <summary>‘건너뛰기’로 풀지 않은 파일 수.</summary>
     public int Skipped => Volatile.Read(ref _skipped);
@@ -184,6 +229,12 @@ public sealed class ExtractionScope : IDisposable
     /// </summary>
     internal CollisionChoice Decide(string targetPath, long incomingSize, DateTime? incomingTime, int remaining)
     {
+        // I5-B: 풀고 있는 압축 파일 자신(또는 그 조각)은 묻지 않고 비켜 쓴다 — [덮어쓰기]·'남은 파일도 똑같이'·설정 덮어쓰기여도
+        if (IsProtectedSource(targetPath))
+        {
+            Interlocked.Increment(ref _renamed);
+            return CollisionChoice.Rename;
+        }
         if (Directory.Exists(targetPath) || WasCreated(targetPath)) return CollisionChoice.Rename;
         FileInfo existing;
         try

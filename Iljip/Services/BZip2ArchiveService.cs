@@ -328,27 +328,32 @@ public sealed class BZip2ArchiveService : SharpCompressArchiveServiceBase
                     TotalFiles = 1
                 });
 
-                using (var output = File.Create(archivePath))
-                using (var bz = BZip2Stream.Create(output, CompressionMode.Compress, decompressConcatenated: false))
+                // I5-B: 같은 이름 파일이 있으면([바꾸기]) 옆 임시 파일에 다 쓴 뒤에만 바꿔 넣는다(ZIP·TAR 와 같음 — 취소·실패면 기존 파일 그대로)
+                OutputFiles.WriteReplacing(archivePath, path =>
                 {
-                    var buffer = new byte[81920];
-                    long copied = 0;
-                    int read;
-                    while ((read = SourceFileOpener.Read(input, buffer, sourceFile)) > 0)   // 읽는 도중 막히면 쉬운 안내(SourceUnreadableException)
+                    using (var output = File.Create(path))
+                    using (var bz = BZip2Stream.Create(output, CompressionMode.Compress, decompressConcatenated: false))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        bz.Write(buffer, 0, read);
-                        copied += read;
-
-                        progress?.Report(new ArchiveProgress
+                        var buffer = new byte[81920];
+                        long copied = 0;
+                        int read;
+                        while ((read = SourceFileOpener.Read(input, buffer, sourceFile)) > 0)   // 읽는 도중 막히면 쉬운 안내(SourceUnreadableException)
                         {
-                            CurrentFile = entryName,
-                            BytesProcessed = copied,
-                            TotalBytes = totalBytes,
-                            TotalFiles = 1
-                        });
+                            cancellationToken.ThrowIfCancellationRequested();
+                            bz.Write(buffer, 0, read);
+                            copied += read;
+
+                            progress?.Report(new ArchiveProgress
+                            {
+                                CurrentFile = entryName,
+                                BytesProcessed = copied,
+                                TotalBytes = totalBytes,
+                                TotalFiles = 1
+                            });
+                        }
                     }
-                }
+                    return true;
+                });
 
                 progress?.Report(new ArchiveProgress
                 {

@@ -29,7 +29,9 @@ public enum StartupKind
 
 /// <summary>
 /// 켜질 때의 결정(W2-11 — App.OnStartup 에서 떼어 낸 순수 함수, 시험은 StartupDecisionTests). 순서:
-/// ① 창 없이 풀기(예전 판정 그대로 — 첫 인자가 정확히 '--extract-to'(대소문자 무시), 둘째가 있는 파일, 셋째가 빈칸이 아님. '--elevated' 가 앞에 붙으면 첫 인자가 달라 여기 걸리지 않음)
+/// ① 창 없이 풀기 — 첫 인자가 정확히 '--extract-to'(대소문자 무시)면 늘(I5-B: 예전엔 둘째가 있는 파일·셋째가 빈칸이 아닐 때만이라, 없는 경로·폴더·빈 문자열을 주면
+///    일반 실행으로 넘어가 메인 창과 '문제가 생겼어요' 창이 떠 끝나지 않았다 — 최종 감사 IX-F5. 이제 인자 문제는 창 없이 쉬운 한국어 한 줄·종료 코드 1,
+///    <see cref="HeadlessArgumentProblem"/>). '--elevated' 가 앞에 붙으면 첫 인자가 달라 여기 걸리지 않음(대화형 — 진행 창)
 /// ② '--new-window'·'--elevated' 표시면 따로 뜨는 창(뮤텍스를 얻었든 못 얻었든)
 /// ③ 그 밖은 예전대로 — 뮤텍스를 얻었으면 첫 일집, 못 얻었으면 넘기기.
 /// </summary>
@@ -44,14 +46,41 @@ public static class StartupDecision
         return mutexAcquired ? StartupKind.FirstInstance : StartupKind.Forward;
     }
 
-    /// <summary>창 없이 풀기인가(재사용장치 계약 — 예전 App.IsHeadlessExtractCommand 와 같은 판정).</summary>
+    /// <summary>
+    /// 창 없이 풀기인가(재사용장치 계약) — 첫 인자가 '--extract-to'(대소문자 무시)면 인자가 모자라거나 압축 파일이 없어도 그렇다(I5-B — 창을 띄우지 않고
+    /// <see cref="HeadlessArgumentProblem"/> 의 한 줄·종료 코드 1 로 끝내려고). <paramref name="fileExists"/> 는 예전 판정(둘째가 있는 파일)에 쓰던 자리 —
+    /// 이제 보지 않는다(부르는 모양을 바꾸지 않으려고 남김).
+    /// </summary>
     public static bool IsHeadlessExtract(IReadOnlyList<string>? args, Func<string, bool>? fileExists = null)
     {
-        if (args is null || args.Count < 3) return false;
+        _ = fileExists;
+        return args is { Count: > 0 } && args[0].Equals(CommandLineParser.ExtractToKeyword, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>창 없이 풀기 인자가 모자람(압축 파일·풀 폴더 중 빈 것) — 표준 오류 한 줄.</summary>
+    public const string HeadlessUsageMessage = "창 없이 풀기에는 압축 파일과 풀 폴더를 모두 주어야 해요. (Iljip.exe --extract-to <압축 파일> <풀 폴더>)";
+
+    /// <summary>창 없이 풀기에 준 압축 파일이 없음 — 표준 오류 한 줄(뒤에 경로).</summary>
+    public const string HeadlessMissingArchiveMessage = "풀 압축 파일을 찾을 수 없어요: ";
+
+    /// <summary>창 없이 풀기에 압축 파일 대신 폴더를 줌 — 표준 오류 한 줄(뒤에 경로).</summary>
+    public const string HeadlessFolderGivenMessage = "풀 압축 파일 대신 폴더를 받았어요: ";
+
+    /// <summary>
+    /// 창 없이 풀기('--extract-to 압축 폴더') 인자의 문제 — 쉬운 한국어 한 줄(없으면 null). I5-B(최종 감사 IX-F5): 압축 파일이 비었거나 풀 폴더가 비었음·
+    /// 압축 파일이 없음(백신 격리·경로 오류)·압축 파일 자리에 폴더. App 은 이 줄을 표준 오류로, 오류 로그에 'Headless extract failed: &lt;경로&gt;' 와 함께 남기고
+    /// 종료 코드 1(재사용장치 약속의 '그 밖의 실패' — 반디집으로 다시 풂. '압축 아님' 표지 없음). 창은 띄우지 않는다.
+    /// </summary>
+    public static string? HeadlessArgumentProblem(IReadOnlyList<string> args, Func<string, bool>? fileExists = null, Func<string, bool>? directoryExists = null)
+    {
         fileExists ??= File.Exists;
-        return args[0].Equals(CommandLineParser.ExtractToKeyword, StringComparison.OrdinalIgnoreCase)
-               && fileExists(args[1])
-               && !string.IsNullOrWhiteSpace(args[2]);
+        directoryExists ??= Directory.Exists;
+        string archive = args.Count > 1 ? args[1] : string.Empty;
+        string dest = args.Count > 2 ? args[2] : string.Empty;
+        if (string.IsNullOrWhiteSpace(archive) || string.IsNullOrWhiteSpace(dest)) return HeadlessUsageMessage;
+        if (directoryExists(archive)) return HeadlessFolderGivenMessage + archive;
+        if (!fileExists(archive)) return HeadlessMissingArchiveMessage + archive;
+        return null;
     }
 
     /// <summary>단일 인스턴스(뮤텍스·파이프)를 건너뛰는가 — 맨 앞에 '--new-window' 나 '--elevated' 가 있으면, 또는 파일 연결 명령(W2-12)이면.</summary>

@@ -231,6 +231,27 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiv
     }
 
     /// <summary>
+    /// I5-B(최종 감사 IX-F2): 내용 없는 링크 항목(tar 하드 링크 '1'·심볼릭 링크 '2' — 가리키는 곳만 있고 데이터 0바이트)인가. 일집은 링크를 되살리지 않고
+    /// 빈 파일로 만든다(결정 기록 IX-5·B-041 '제외' — 알림만). <paramref name="target"/> = 가리키던 곳(압축 안 이름 또는 경로 글).
+    /// 링크 대상이 없는 형식(ZIP·7z 등 — 엔진이 null·빈 글)은 늘 false.
+    /// </summary>
+    internal static bool IsEmptyLink(IEntry entry, out string target)
+    {
+        target = string.Empty;
+        try
+        {
+            string? link = entry.LinkTarget;
+            if (string.IsNullOrEmpty(link) || entry.IsDirectory || entry.Size > 0) return false;
+            target = link.Replace('\\', '/');
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 목록에 보일 수정 시각을 현지 시각으로 맞춘다. 엔진은 형식에 따라 UTC(Kind=Utc — RAR5 의 유닉스 시각, gzip 머리 시각)로 주기도 하는데,
     /// 화면은 받은 값을 그대로 찍으므로 그대로 두면 그 형식만 9시간 이르게 보였다(통합 점검 2026-10-12). 현지·미지정 시각은 그대로.
     /// </summary>
@@ -489,13 +510,20 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiv
                     catch { /* 일부 파일에서 실패 가능 */ }
                 }
 
+                // 덮어쓰기: 다 맞은 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로).
+                // 바꾼 뒤의 경로는 원래 있던 파일이라 장부에 넣지 않는다(뒤에서 암호 오류로 되돌려도 사용자 파일을 지우지 않게).
+                // I5-B: 다른 프로그램이 열어 둔 파일이라 못 바꾸면 Commit 이 그 파일만 건너뛴 것으로 적고(알림) null — 다음 파일로 간다.
+                bool written = true;
                 if (target.Overwrites)
                 {
-                    // 덮어쓰기: 다 맞은 임시 파일로 원래 파일을 바꾼다(실패하면 임시 파일을 지우고 예외 — 원래 파일 그대로).
-                    // 바꾼 뒤의 경로는 원래 있던 파일이라 장부에 넣지 않는다(뒤에서 암호 오류로 되돌려도 사용자 파일을 지우지 않게).
-                    try { target.Commit(); }
+                    try { written = target.Commit() is not null; }
                     finally { ledger.ForgetFile(writePath); }
                 }
+
+                // I5-B(최종 감사 IX-F2): tar 링크 항목은 되살리지 않고 내용 없는 파일로 만든다(결정 기록 — 알림만). 말없이 넘기지 않게 알릴 것에 적는다
+                // (결과 창·여러 개 풀기 요약 '링크 N개는 내용 없이 만들었어요', 창 없이 풀기는 표준 오류 한 줄 + 종료 코드 1).
+                if (written && IsEmptyLink(entry, out var linkTarget))
+                    ExtractionNotes.Current?.AddLink(decodedPath, linkTarget);
 
                 filesProcessed++;
                 current = null;
@@ -700,6 +728,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiv
             }
 
             var problems = new List<TestProblem>();
+            var links = new List<LinkNote>();   // I5-B: 풀면 내용 없이 만들어지는 링크 항목(문제는 아님 — 알림)
             int checkedFiles = 0;
             long done = 0;
             bool passwordProven = false;
@@ -742,6 +771,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiv
                     if (crc is not null) VerifyCrc(entry, path, (uint)crc.Value, plan.PasswordConfirmed);
                     checkedFiles++;
                     if (encrypted && entry.Size > 0) passwordProven = true;
+                    if (IsEmptyLink(entry, out var linkTarget)) links.Add(new LinkNote(path, linkTarget));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -767,7 +797,7 @@ public abstract class SharpCompressArchiveServiceBase : IArchiveService, IArchiv
                 problems.Add(new TestProblem(string.Empty, whole.Message, ErrorCatalog.DetailsOf(whole), ProblemKind.Corrupt));
             }
             progress?.Report(new ArchiveProgress { CurrentFile = string.Empty, BytesProcessed = totalBytes, TotalBytes = totalBytes, FilesProcessed = totalFiles, TotalFiles = totalFiles });
-            return new TestReport { CheckedCount = checkedFiles, Problems = problems };
+            return new TestReport { CheckedCount = checkedFiles, Problems = problems, Notes = TestReport.LinkNotes(links) };
         }
         finally
         {

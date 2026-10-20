@@ -325,12 +325,14 @@ public class CollisionTests
     }
 
     /// <summary>
-    /// 덮어쓰기 원자성: 덮어쓸 파일을 다른 프로그램이 잡고 있으면(FileShare.None — 엑셀·DLP 흉내) 쉬운 한국어 오류로 끝나고,
-    /// 원래 파일은 바이트 그대로이며 덮어쓰기 임시 파일(.~…tmp)·풀기 임시 폴더가 남지 않는다.
+    /// 덮어쓰기 원자성: 덮어쓸 파일을 다른 프로그램이 잡고 있으면(FileShare.None — 엑셀·DLP 흉내) 원래 파일은 바이트 그대로이며
+    /// 덮어쓰기 임시 파일(.~…tmp)·풀기 임시 폴더가 남지 않는다.
+    /// I5-B(최종 감사 IA-OPENFILE-OVERWRITE): 예전엔 여기서 풀기 전체가 오류('덮어쓰지 못했어요 … 쓸 권한이 없거나' + 관리자 권한 권유)로 멈춰 뒤 파일을 풀지 않았다 —
+    /// 이제 그 파일만 건너뛰고(건너뛴 수 1, 알릴 것 '다른 프로그램이 쓰는 중이라 못 바꾼 파일 1개' + 이름) 나머지는 다 푼다(형식마다 두 길 모두).
     /// </summary>
     [Theory]
     [MemberData(nameof(Kinds))]
-    public async Task 덮어쓸_파일이_잠겨_있으면_한국어_오류이고_원본은_그대로(string kind)
+    public async Task 덮어쓸_파일이_잠겨_있으면_그_파일만_건너뛰고_원본은_그대로(string kind)
     {
         using var tmp = new TempDir("col");
         string arc = await MakeArchive(kind, tmp.P("in"), ThreeFiles());
@@ -339,14 +341,19 @@ public class CollisionTests
         string locked = Path.Combine(dest, "readme.txt");
 
         Exception? ex;
+        Iljip.Services.ExtractionScope? seen = null;
         using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
-            ex = await Svc.Catch(() => ExtractIn(new Iljip.Services.FixedResolver(Iljip.Services.CollisionChoice.Overwrite), arc, dest));
+            ex = await Svc.Catch(() => ExtractIn(new Iljip.Services.FixedResolver(Iljip.Services.CollisionChoice.Overwrite), arc, dest, s => seen = s));
 
-        Assert.NotNull(ex);
-        string message = Iljip.Services.ErrorMessages.ToUserMessage(ex!);
-        Assert.Contains("덮어쓰지 못했어요", message);
-        Assert.Contains("readme.txt", message);
+        Assert.True(ex is null, $"{kind}: 잠긴 파일 하나 때문에 풀기가 멈춤 — {ex?.Message}");
         Assert.Equal(Sha(Mine), TreeAssert.Sha256(locked));
+        Assert.Equal(Sha(NewQuote), TreeAssert.Sha256(Path.Combine(dest, "자료", "견적서.txt")));
+        Assert.Equal(Sha(Big), TreeAssert.Sha256(Path.Combine(dest, "자료", "하위", "난수.bin")));
+        Assert.Equal(1, seen!.Skipped);
+        string? message = seen.Notes.ToMessage();
+        Assert.NotNull(message);
+        Assert.Contains("다른 프로그램이 쓰는 중이라 못 바꾼 파일 1개", message);
+        Assert.Contains("readme.txt", message);
         NoLeftovers(dest, kind);
     }
 

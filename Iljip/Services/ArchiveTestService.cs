@@ -25,6 +25,12 @@ public sealed class TestReport
     /// <summary>문제가 하나도 없는가.</summary>
     public bool Ok => Problems.Count == 0;
 
+    /// <summary>
+    /// 문제(손상)는 아니지만 알릴 것(I5-B — 최종 감사 IX-F2: tar 링크 항목은 일집으로 풀면 내용 없이(0바이트) 만들어진다). 없으면 비어 있음.
+    /// 있으면 문제없을 때도 '문제없어요' 대신 '압축 파일은 멀쩡해요 … 다만 알아 둘 것이 있어요'와 이 줄들을 보인다(말없이 '문제없어요'로 끝내지 않게).
+    /// </summary>
+    public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
+
     /// <summary>항목 하나하나의 문제 수(전체 문제는 빼고).</summary>
     public int ProblemEntryCount => Problems.Count(p => p.Entry.Length > 0);
 
@@ -37,6 +43,7 @@ public sealed class TestReport
     {
         get
         {
+            if (Ok && Notes.Count > 0) return $"압축 파일은 멀쩡해요(파일 {CheckedCount}개 확인). 다만 알아 둘 것이 있어요.";
             if (Ok) return $"문제없어요. 파일 {CheckedCount}개를 확인했어요.";
             int bad = ProblemEntryCount;
             if (bad == 0) return "문제가 있어요.";
@@ -53,7 +60,13 @@ public sealed class TestReport
     public string ToDisplayText()
     {
         var lines = new List<string> { Headline };
-        if (Ok) return Headline;
+        if (Ok && Notes.Count == 0) return Headline;
+        if (Ok)
+        {
+            lines.Add(string.Empty);
+            lines.AddRange(Notes);
+            return string.Join("\n", lines);
+        }
         var items = Problems.Where(p => p.Entry.Length > 0).ToList();
         if (items.Count > 0)
         {
@@ -72,7 +85,27 @@ public sealed class TestReport
             lines.Add(string.Empty);
             lines.Add($"그 밖의 파일 {CheckedCount}개는 문제없었어요.");
         }
+        if (Notes.Count > 0)
+        {
+            lines.Add(string.Empty);
+            lines.AddRange(Notes);
+        }
         return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// I5-B: 링크 항목 알림 줄(없으면 빈 목록) — '링크 1개는 일집으로 풀면 내용 없이(0바이트) 만들어져요. …' + '- b.txt (원래 파일: a.txt)'(20줄까지).
+    /// </summary>
+    internal static IReadOnlyList<string> LinkNotes(IReadOnlyList<LinkNote> links)
+    {
+        if (links.Count == 0) return Array.Empty<string>();
+        var lines = new List<string>
+        {
+            $"링크 {links.Count}개는 일집으로 풀면 내용 없이(0바이트) 만들어져요. 일집은 링크를 되살리지 않아요(압축 파일이 손상된 것은 아니에요):",
+        };
+        lines.AddRange(links.Take(MaxLines).Select(l => $"- {ErrorMessages.DisplayName(l.EntryPath)} (원래 파일: {l.LinkTarget})"));
+        if (links.Count > MaxLines) lines.Add($"외 {links.Count - MaxLines}개");
+        return lines;
     }
 
     /// <summary>'자세히' 아래 글(문제마다 원문). 없으면 빈 문자열.</summary>

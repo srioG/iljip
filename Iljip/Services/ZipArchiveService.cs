@@ -515,8 +515,10 @@ public sealed class ZipArchiveService : SharpCompressArchiveServiceBase
                     .WithExcluded(sources.Excluded);
 
             // 읽는 도중 막힌 원본이 있으면 그 파일을 빼고 처음부터 다시 쓴다(베이스 RewriteWithoutUnreadable)
-            return RewriteWithoutUnreadable(archivePath,
-                dropped => WriteZip(sources, dropped, archivePath, options, progress, cancellationToken))
+            // I5-B(최종 감사 IB-zip-replace-cancel-deletes-old): 같은 이름 zip 이 있으면([바꾸기]) 옆 임시 파일에 다 쓴 뒤에만 바꿔 넣는다 —
+            // 취소·실패면 기존 zip 바이트 그대로, 임시 파일도 남지 않는다(7z·나눔·자동 풀림과 같게). 원본 폴더 안의 기존 zip 은 예전처럼 담지 않는다.
+            return OutputFiles.WriteReplacing(archivePath, path => RewriteWithoutUnreadable(path,
+                    dropped => WriteZip(sources, dropped, path, options, progress, cancellationToken, alsoSkip: archivePath)))
                 .WithExcluded(sources.Excluded);
         }, cancellationToken);
     }

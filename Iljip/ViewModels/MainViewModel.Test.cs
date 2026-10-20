@@ -82,7 +82,9 @@ public partial class MainViewModel
                 var report = await _services.ArchiveTester.TestAsync(archivePath, password, session.Progress, session.CancellationToken);
                 session.Close();
                 if (sameArchive && !string.IsNullOrEmpty(password)) _archivePassword = password;
-                StatusText = report.Ok ? $"시험 완료: 문제없음 ({name})" : $"시험 완료: 문제 있음 ({name})";
+                StatusText = !report.Ok ? $"시험 완료: 문제 있음 ({name})"
+                    : report.Notes.Count > 0 ? $"시험 완료: 손상 없음 — 알림 있음 ({name})"   // I5-B
+                    : $"시험 완료: 문제없음 ({name})";
                 await ShowTestReportAsync(archivePath, report);
                 return (report, false);
             }
@@ -124,7 +126,9 @@ public partial class MainViewModel
         string name = Path.GetFileName(archivePath);
         if (report.Ok)
         {
-            _ui.ShowInfo($"‘{name}’ 시험 결과\n\n{report.Headline}");
+            // I5-B: 손상은 없지만 알릴 것(tar 링크는 풀면 내용 없이 만들어짐)이 있으면 '문제없어요' 대신 알림 창에 그 줄들까지
+            if (report.Notes.Count > 0) _ui.ShowWarning($"‘{name}’ 시험 결과\n\n{report.ToDisplayText()}");
+            else _ui.ShowInfo($"‘{name}’ 시험 결과\n\n{report.Headline}");
             return;
         }
         var problem = new UserProblem

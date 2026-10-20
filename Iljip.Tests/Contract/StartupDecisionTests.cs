@@ -5,7 +5,8 @@ namespace Iljip.Tests.Contract;
 
 /// <summary>
 /// [W2-11 I3-15·I3-16] 켜질 때의 결정(<see cref="StartupDecision"/> — App.OnStartup 에서 떼어 낸 순수 함수):
-/// 창 없이 풀기(재사용장치 계약 — 판정은 예전 그대로) → '--new-window'·'--elevated' 면 뮤텍스를 얻었든 못 얻었든 따로 뜨는 창 → 그 밖은 예전대로(첫 일집/넘기기).
+/// 창 없이 풀기(재사용장치 계약 — 첫 인자가 '--extract-to' 면 늘. I5-B 부터 없는 파일·모자란 인자도 창 없이 한 줄·종료 코드 1, <see cref="HeadlessNoticeTests"/>)
+/// → '--new-window'·'--elevated' 면 뮤텍스를 얻었든 못 얻었든 따로 뜨는 창 → 그 밖은 예전대로(첫 일집/넘기기).
 /// 실제 UAC·두 창 띄우기는 사람이 확인(MANUAL_CHECKLIST 17절).
 /// </summary>
 public class StartupDecisionTests
@@ -26,7 +27,6 @@ public class StartupDecisionTests
                      new[] { "--compress", "x.txt" },
                      new[] { "--compress-to", @"C:\곳", "x.txt" },
                      new[] { "있는.zip" },
-                     new[] { "--extract-to", "없는.zip", @"C:\곳" },   // 파일이 없으면 창 없이 풀기가 아님(예전과 같음)
                      new[] { "--compress", "x.txt", "--new-window" },   // 표시는 맨 앞일 때만
                  })
             Assert.Equal(expected, StartupDecision.Decide(args, mutex, Exists));
@@ -58,11 +58,12 @@ public class StartupDecisionTests
     }
 
     /// <summary>
-    /// ★ 재사용장치 계약: '--extract-to 압축 폴더'(첫 인자, 대소문자 무시, 파일이 있고 폴더가 빈칸이 아님)는 예전처럼 창 없이 풀기(뮤텍스와 상관없음).
-    /// '--elevated' 가 앞에 붙으면 첫 인자가 달라 창 없이 풀기가 아니다(대화형 — 진행 창).
+    /// ★ 재사용장치 계약: '--extract-to 압축 폴더'(첫 인자, 대소문자 무시)는 창 없이 풀기(뮤텍스와 상관없음).
+    /// I5-B(최종 감사 IX-F5): 예전엔 '파일이 있고 폴더가 빈칸이 아님'일 때만이라 빈 폴더·인자 모자람·없는 파일이면 메인 창이 떴다 — 이제 그것도 창 없이 풀기
+    /// (App 이 창 없이 한 줄·종료 코드 1 — <see cref="HeadlessNoticeTests"/>). '--elevated' 가 앞에 붙으면 첫 인자가 달라 창 없이 풀기가 아니다(대화형 — 진행 창).
     /// </summary>
     [Fact]
-    public void 창_없이_풀기_판정은_예전_그대로이고_elevated가_앞에_붙으면_아니다()
+    public void 창_없이_풀기_판정은_첫_인자로_하고_elevated가_앞에_붙으면_아니다()
     {
         foreach (bool mutex in new[] { true, false })
         {
@@ -71,8 +72,10 @@ public class StartupDecisionTests
             Assert.Equal(StartupKind.Headless, StartupDecision.Decide(new[] { "--extract-to", "있는.zip", @"C:\곳", "남는 인자" }, mutex, Exists));   // 예전 판정(3개 이상)
             Assert.Equal(StartupKind.Independent, StartupDecision.Decide(new[] { "--elevated", "--extract-to", "있는.zip", @"C:\곳" }, mutex, Exists));
         }
-        Assert.False(StartupDecision.IsHeadlessExtract(new[] { "--extract-to", "있는.zip", " " }, Exists));
-        Assert.False(StartupDecision.IsHeadlessExtract(new[] { "--extract-to", "있는.zip" }, Exists));
+        // I5-B: 풀 폴더가 빈칸·인자 모자람도 창 없이 풀기(예전엔 False — 메인 창이 떴다). App 이 사용법 한 줄·종료 코드 1 로 끝낸다
+        Assert.True(StartupDecision.IsHeadlessExtract(new[] { "--extract-to", "있는.zip", " " }, Exists));
+        Assert.True(StartupDecision.IsHeadlessExtract(new[] { "--extract-to", "있는.zip" }, Exists));
+        Assert.Equal(StartupDecision.HeadlessUsageMessage, StartupDecision.HeadlessArgumentProblem(new[] { "--extract-to", "있는.zip", " " }, Exists, _ => false));
         Assert.False(StartupDecision.IsHeadlessExtract(new[] { "--elevated", "--extract-to", "있는.zip", @"C:\곳" }, Exists));
     }
 

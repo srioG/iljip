@@ -62,6 +62,12 @@ public sealed record ArchiveOutcome(
     public string Name => Path.GetFileName(ArchivePath);
 
     /// <summary>
+    /// 다 풀었지만 알릴 것(I5-B — <see cref="ExtractionNotes.ToMessage"/>: 풀고 있는 압축과 이름이 같아 비켜 푼 파일·다른 프로그램이 쓰는 중이라 못 바꾼 파일·
+    /// 내용 없이 만든 링크). 없으면 null. 화면은 하나면 알림 창, 여럿이면 요약 창의 알림으로 보인다.
+    /// </summary>
+    public string? Notice { get; init; }
+
+    /// <summary>
     /// 알아서 풀기(W2-12)에서 다 푼 뒤 열어 보일 폴더: '이름' 폴더에 풀었으면 그 폴더, 바로 풀었고 맨 위가 폴더 하나면 그 폴더, 파일 하나면 null(이미 보던 폴더라 열지 않음).
     /// 다른 규칙에서는 쓰지 않는다(null).
     /// </summary>
@@ -250,7 +256,8 @@ public sealed class BatchExtractor
         byte[]? internetMark = ZoneIdentifier.ReadIfEnabled(archive, KeepInternetMark);
         while (true)
         {
-            using var scope = ExtractionScope.Begin(_resolver);
+            // I5-B: 풀고 있는 압축 파일(과 조각)을 범위에 알려, 안에 같은 이름 항목이 있어도 덮지 않고 '이름 (1)' 로 비켜 쓰게
+            using var scope = ExtractionScope.Begin(_resolver, archive);
             try
             {
                 if (dest is null)
@@ -278,7 +285,12 @@ public sealed class BatchExtractor
                     // 다 풀었을 때도, 손상·취소로 멈춰 앞서 풀린 파일이 남았을 때도 — 이번에 만든 파일에만
                     await ZoneIdentifier.MarkExtractedAsync(internetMark, scope, progress);
                 }
-                return (new ArchiveOutcome(archive, dest, true, scope.Skipped) { ShowFolder = smart ? showFolder : null }, false, password);
+                // I5-B: 건너뛴 수에 내용 없이 만든 링크도 더한다(KeepArchiveCount — 압축 파일에만 온전한 것이 있어 '다 푼 뒤 휴지통으로'를 하지 않게)
+                return (new ArchiveOutcome(archive, dest, true, scope.KeepArchiveCount)
+                {
+                    ShowFolder = smart ? showFolder : null,
+                    Notice = scope.Notes.ToMessage(),
+                }, false, password);
             }
             catch (OperationCanceledException)
             {

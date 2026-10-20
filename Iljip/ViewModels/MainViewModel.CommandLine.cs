@@ -388,6 +388,9 @@ public partial class MainViewModel
 
         // I2-5: 풀고 나서 압축 파일(조각 모두)을 휴지통으로 — 묶음을 취소했으면 하나도 지우지 않는다
         var notes = new List<string>();
+        // I5-B: 다 풀었지만 알릴 것(비켜 푼 자기 이름·다른 프로그램이 쓰는 중이라 못 바꾼 파일·내용 없이 만든 링크) — 하나면 알림 창, 여럿이면 요약 창
+        foreach (var o in result.Outcomes.Where(o => o.Succeeded && o.Notice is not null))
+            notes.Add(result.Total == 1 ? $"‘{o.Name}’을 풀었어요.\n\n{o.Notice}" : $"‘{o.Name}’: {o.Notice}");
         if (!result.Cancelled)
         {
             foreach (var o in result.Outcomes.Where(o => o.Succeeded))

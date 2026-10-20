@@ -264,7 +264,10 @@ public partial class App : Application
         return win.DataContext as MainViewModel;
     }
 
-    /// <summary>창 없이 풀기인가(재사용장치 계약 — 판정은 <see cref="StartupDecision.IsHeadlessExtract"/>, W2-11 에서 떼어 냄. 판정 자체는 예전과 같음).</summary>
+    /// <summary>
+    /// 창 없이 풀기인가(재사용장치 계약 — 판정은 <see cref="StartupDecision.IsHeadlessExtract"/>, W2-11 에서 떼어 냄). I5-B: 첫 인자가 '--extract-to' 면 늘 —
+    /// 없는 압축 파일·폴더·빈 문자열도 창 없이 한 줄·종료 코드 1(예전엔 메인 창과 문제 창이 떠 끝나지 않았다).
+    /// </summary>
     private static bool IsHeadlessExtractCommand(string[] args) => StartupDecision.IsHeadlessExtract(args);
 
     /// <summary>창 없이 풀기 실패의 로그 머리(뒤에 압축 경로) — MANUAL_CHECKLIST 8절의 '지켜보기' 명령이 이 글로 찾는다.</summary>
@@ -272,13 +275,22 @@ public partial class App : Application
 
     private static async Task<int> RunHeadlessExtractAsync(string[] args)
     {
-        string archivePath = args[1];
-        string destFolder = args[2];
+        // I5-B(최종 감사 IX-F5): 첫 인자가 '--extract-to' 면 인자가 모자라도(빈 문자열 포함) 여기로 온다 — 창을 띄우지 않고 한 줄·종료 코드 1
+        string archivePath = args.Length > 1 ? args[1] : string.Empty;
+        string destFolder = args.Length > 2 ? args[2] : string.Empty;
 
         // ★ 재사용장치(_extract_with_iljip)가 종료 코드와 stderr 문구로 결과를 가른다(ReuseDeviceContractTests):
         //   0 성공 / 2 지원하지 않는 형식 — stderr 는 정확히 영어 'Unsupported archive type: <확장자>' / 1 그 밖의 실패 — 쉬운 한국어 한 줄
         //   (손상·암호·조각·7z.dll 문구에는 '압축 파일이 아닌'·'not archive' 같은 '압축 아님' 표지를 넣지 않는다). 설정은 읽지 않는다.
         //   IJ3-03: 인터넷에서 받은 표시(Zone.Identifier)도 풀린 파일에 붙이지 않는다(재사용장치의 엑셀 자동 처리를 막지 않게 — 서비스만 부르고 화면의 표식 붙이기를 타지 않음).
+        //   I5-B: 압축 파일이 없음·폴더를 줌·인자가 빔 → 1(한 줄). tar 링크를 내용 없이 만들었으면 → 1(한 줄 — 내용이 빠진 파일을 '성공'으로 넘기지 않게,
+        //   재사용장치는 반디집으로 다시 풂. 풀린 파일은 지우지 않음 — 재사용장치는 실패면 임시 폴더를 버림).
+        if (StartupDecision.HeadlessArgumentProblem(args) is { } argumentProblem)
+        {
+            Logger.LogNote(HeadlessFailureLogHead + archivePath + Environment.NewLine + argumentProblem);
+            Console.Error.WriteLine(argumentProblem);
+            return 1;
+        }
         try
         {
             var locator = new ArchiveServiceLocator();
@@ -292,7 +304,15 @@ public partial class App : Application
             }
 
             Directory.CreateDirectory(destFolder);
+            // I5-B: 알릴 것(내용 없이 만든 링크)을 모은다 — 같은 이름 범위(화면용)는 열지 않는다(설정·묻기가 새지 않게)
+            using var notes = ExtractionNotes.Begin();
             await service.ExtractAsync(archivePath, destFolder);
+            if (notes.HeadlessLine() is { } linkLine)
+            {
+                Logger.LogNote(HeadlessFailureLogHead + archivePath + Environment.NewLine + linkLine);
+                Console.Error.WriteLine(linkLine);
+                return 1;
+            }
             return 0;
         }
         // 3차 통합 점검: 로그 첫 줄에 압축 경로를 남긴다 — 재배포 뒤 재사용장치가 반디집으로 넘긴 진짜 egg 를 이 로그에서 찾게
